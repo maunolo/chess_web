@@ -1,10 +1,6 @@
 @layer components {
   .chessboard {
-    @apply w-full aspect-square md:w-auto md:h-full;
-    margin: auto;
-    font-family: monospace;
-    font-weight: 800;
-    position: relative;
+    @apply font-mono relative font-extrabold m-auto w-full aspect-square md:w-auto md:h-full;
   
     -webkit-user-select: none; /* Safari */        
     -moz-user-select: none; /* Firefox */
@@ -13,15 +9,11 @@
   }
   
   .board {
-    position: absolute;
-    z-index: 0;
-    pointer-events: none;
+    @apply absolute z-0 pointer-events-none;
   }
   
   .coordinates {
-    position: absolute;
-    z-index: 1;
-    pointer-events: none;
+    @apply absolute z-10 pointer-events-none;
   
     text {
       fill: #0000007b;
@@ -29,21 +21,19 @@
   }
   
   .hovered {
+    @apply absolute box-content pointer-events-none;
+
     width: 12.5%;
     height: 12.5%;
-    position: absolute;
-    box-sizing: content-box;
     border: 5px solid #f0f0f0;
-    pointer-events: none;
   }
   
   .selected {
+    @apply absolute pointer-events-none z-20;
+
     width: 12.5%;
     height: 12.5%;
-    position: absolute;
     background: #faf05d73;
-    pointer-events: none;
-    z-index: 2;
   }
   
   .piece {

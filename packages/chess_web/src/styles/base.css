@@ -1,5 +1,5 @@
 @layer base {
   body {
-    @apply p-0 m-0 bg-gray-600 box-border;
+    @apply p-0 m-0 bg-neutral-600 box-border;
   }
 }

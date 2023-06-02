@@ -33,7 +33,7 @@ fn Home(cx: Scope) -> impl IntoView {
     view! { cx,
 
       <div
-        class="flex justify-center items-center h-screen w-screen overflow-hidden py-8"
+        class="flex justify-center items-center h-screen w-screen overflow-hidden px-4 md:px-0 md:py-8"
         // ontouchmove={Callback::from(mousemove)}
         // ontouchup={Callback::from(mouseup)}
         on:mousemove=move |e| mousemove(e)

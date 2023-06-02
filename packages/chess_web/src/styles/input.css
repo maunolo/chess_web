@@ -1,0 +1,9 @@
+@import "tailwindcss/base";
+@import "./base.css";
+
+@import "tailwindcss/components";
+@import "./chess/board.css";
+@import "./chess/pieces.css";
+@import "./chess/squares.css";
+
+@import "tailwindcss/utilities";

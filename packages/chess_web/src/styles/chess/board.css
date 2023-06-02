@@ -1,0 +1,82 @@
+@layer components {
+  .chessboard {
+    @apply w-full aspect-square md:w-auto md:h-full;
+    margin: auto;
+    font-family: monospace;
+    font-weight: 800;
+    position: relative;
+  
+    -webkit-user-select: none; /* Safari */        
+    -moz-user-select: none; /* Firefox */
+    -ms-user-select: none; /* IE10+/Edge */
+    user-select: none; /* Standard */
+  }
+  
+  .board {
+    position: absolute;
+    z-index: 0;
+    pointer-events: none;
+  }
+  
+  .coordinates {
+    position: absolute;
+    z-index: 1;
+    pointer-events: none;
+  
+    text {
+      fill: #0000007b;
+    }
+  }
+  
+  .hovered {
+    width: 12.5%;
+    height: 12.5%;
+    position: absolute;
+    box-sizing: content-box;
+    border: 5px solid #f0f0f0;
+    pointer-events: none;
+  }
+  
+  .selected {
+    width: 12.5%;
+    height: 12.5%;
+    position: absolute;
+    background: #faf05d73;
+    pointer-events: none;
+    z-index: 2;
+  }
+  
+  .piece {
+    width: 12.5%;
+    height: 12.5%;
+    cursor: grab;
+    background-repeat: no-repeat;
+    background-position: center;
+    background-size: contain;
+    position: absolute;
+    z-index: 3;
+    pointer-events: all;
+    transition: all 0.2s ease-in-out;
+  }
+  
+  .dragging {
+    z-index: 4;
+    cursor: grabbing;
+  
+    &:hover {
+      pointer-events: none;
+    }
+  }
+  
+  .dragging-over {
+    cursor: grabbing !important;
+  
+    .piece {
+      cursor: grabbing !important;
+    }
+  }
+  
+  .element-pool {
+    display: none;
+  }
+}

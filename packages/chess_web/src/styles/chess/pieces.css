@@ -1,0 +1,10 @@
+:root {
+  --piece-names: (dp, dr, dn, db, dq, dk, lp, lr, ln, lb, lq, lk);
+  --piece-filenames: (Chess_pdt45, Chess_rdt45, Chess_ndt45, Chess_bdt45, Chess_qdt45, Chess_kdt45, Chess_plt45, Chess_rlt45, Chess_nlt45, Chess_blt45, Chess_qlt45, Chess_klt45);
+}
+
+@each $piece, $filename in var(--piece-names), var(--piece-filenames) {
+  .$(piece) {
+    background-image: url('/static/chess/pieces/$(filename).svg');
+  }
+}

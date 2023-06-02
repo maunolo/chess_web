@@ -1,0 +1,26 @@
+{
+  "name": "chess_web",
+  "private": true,
+  "version": "0.0.1",
+  "author": "Mauricio Lopes <mauricionlopes.dev@gmail.com>",
+  "license": "MIT",
+  "main": "pkg/chess_web.js",
+  "scripts": {
+    "dev": "cargo watch -i .gitignore -i 'pkg/*' -s 'wasm-pack build --package=tailwind --no-default-features --features=csr'",
+    "styles-watch": "postcss ./src/styles/input.css -o ./pkg/chess_web.css --watch",
+    "build": "wasm-pack build --package=chess_web --no-default-features --features=hydrate && postcss ./src/styles/input.css -o ./pkg/chess_web.css",
+    "clean": "cargo clean && rm -rf pkg"
+  },
+  "files": [
+    "/pkg/chess_web.css"
+  ],
+  "devDependencies": {
+    "postcss": "^8.4.24",
+    "postcss-at-rules-variables": "^0.3.0",
+    "postcss-cli": "^10.1.0",
+    "postcss-each": "^1.1.0",
+    "postcss-for": "^2.1.1",
+    "postcss-import": "^15.1.0",
+    "tailwindcss": "^3.3.2"
+  }
+}

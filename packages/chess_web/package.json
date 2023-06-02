@@ -6,9 +6,11 @@
   "license": "MIT",
   "main": "pkg/chess_web.js",
   "scripts": {
-    "dev": "cargo watch -i .gitignore -i 'pkg/*' -s 'wasm-pack build --package=tailwind --no-default-features --features=csr'",
+    "dev": "cargo leptos watch",
     "styles-watch": "postcss ./src/styles/input.css -o ./pkg/chess_web.css --watch",
-    "build": "wasm-pack build --package=chess_web --no-default-features --features=hydrate && postcss ./src/styles/input.css -o ./pkg/chess_web.css",
+    "build-pkg": "wasm-pack build --package=chess_web --no-default-features --features=hydrate && postcss ./src/styles/input.css -o ./pkg/chess_web.css",
+    "build": "cargo leptos build --release && postcss ./src/styles/input.css -o ./pkg/chess_web.css",
+    "start": "cargo leptos serve --release",
     "clean": "cargo clean && rm -rf pkg"
   },
   "files": [

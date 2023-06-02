@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "start": "npx http-server ./dist -p ${PORT-3000}",
+    "start": "npx http-server ./dist -p ${PORT-3000} -a 0.0.0.0",
     "preview": "vite preview"
   },
   "dependencies": {

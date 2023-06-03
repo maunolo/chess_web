@@ -1,15 +1,22 @@
 mod app;
 mod components;
 mod entities;
+use actix_web::Responder;
 use cfg_if::cfg_if;
+use server::middlewares::cache_control::CacheControlInterceptor;
 
 cfg_if! {
     if #[cfg(feature = "ssr")] {
+        mod server;
+
         use actix_files::Files;
-        use actix_web::*;
         use leptos::*;
         use crate::app::*;
         use leptos_actix::{generate_route_list, LeptosRoutes};
+        use actix_web::{
+            middleware, App, HttpServer, get
+        };
+
         use std::env;
         use std::net::SocketAddr;
 
@@ -35,9 +42,12 @@ cfg_if! {
                 let site_root = &leptos_options.site_root;
                 let routes = &routes;
                 App::new()
+                    .wrap(middleware::Logger::default())
+                    .wrap(middleware::Compress::default())
+                    .wrap(CacheControlInterceptor)
                     .service(css)
                     .leptos_routes(leptos_options.to_owned(), routes.to_owned(), |cx| view! { cx, <App/> })
-                    .service(Files::new("/", site_root))
+                    .service(Files::new("/", site_root).show_files_listing())
                     .wrap(middleware::Compress::default())
             })
             .bind(&addr)?

@@ -25,7 +25,7 @@ COPY . .
 RUN cargo leptos build --release
 
 # Compile CSS
-RUN npx postcss ./src/styles/input.css -o ./target/site/pkg/chess_web.css
+RUN npm run build:styles
 
 # Env variables
 ENV NODE_ENV=${NODE_ENV}

@@ -1,13 +1,19 @@
-FROM rustlang/rust:nightly
+FROM rustlang/rust:nightly-slim
+
+# Args
+ARG NODE_ENV=production
+
+# # Install deps
+RUN apt-get -y update \
+    && apt-get -y install curl pkg-config libssl-dev
 
 # Install node
 RUN curl -sL https://deb.nodesource.com/setup_20.x | bash - \
-    && apt-get install -y nodejs \
-    && npm i -g yarn
+    && apt-get install -y nodejs
 
 # Leptos dependencies
 RUN rustup target add wasm32-unknown-unknown \
-    && cargo install -f cargo-leptos
+    && cargo install cargo-leptos
 
 # Create app directory
 WORKDIR /usr/src/app
@@ -15,11 +21,21 @@ WORKDIR /usr/src/app
 # Bundle app source
 COPY . .
 
-# Install deps
-RUN yarn
+# Compile Project
+RUN cargo leptos build --release
 
-# Build
-RUN yarn build
+# Compile CSS
+RUN npx postcss ./src/styles/input.css -o ./target/site/pkg/chess_web.css
+
+# Env variables
+ENV NODE_ENV=${NODE_ENV}
+ENV PORT=3000
+ENV LEPTOS_OUTPUT_NAME=chess_web
+ENV LEPTOS_SITE_ROOT=target/site
+ENV LEPTOS_SITE_PKG_DIR=pkg
+ENV LEPTOS_SITE_ADDR=127.0.0.1:3000
+ENV LEPTOS_LIB_DIR=.
+ENV LEPTOS_BIN_DIR=.
 
 # Start
-CMD [ "yarn", "start" ]
+CMD ["./target/server/release/chess_web"]

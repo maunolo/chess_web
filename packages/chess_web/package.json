@@ -8,8 +8,7 @@
   "scripts": {
     "dev": "cargo leptos watch",
     "styles-watch": "postcss ./src/styles/input.css -o ./pkg/chess_web.css --watch",
-    "build-pkg": "wasm-pack build --package=chess_web --no-default-features --features=hydrate && postcss ./src/styles/input.css -o ./pkg/chess_web.css",
-    "build": "cargo leptos build --release && postcss ./src/styles/input.css -o ./pkg/chess_web.css",
+    "build": "wasm-pack build --package=chess_web --no-default-features --features=hydrate --release && postcss ./src/styles/input.css -o ./pkg/chess_web.css",
     "start": "cargo leptos serve --release",
     "clean": "cargo clean && rm -rf pkg"
   },
@@ -17,6 +16,7 @@
     "/pkg/chess_web.css"
   ],
   "devDependencies": {
+    "cssnano": "^6.0.1",
     "postcss": "^8.4.24",
     "postcss-at-rules-variables": "^0.3.0",
     "postcss-cli": "^10.1.0",

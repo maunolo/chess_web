@@ -22,7 +22,7 @@ cfg_if! {
 
         #[get("/style.css")]
         async fn css() -> impl Responder {
-            actix_files::NamedFile::open_async("./pkg/chess_web.css").await
+            actix_files::NamedFile::open_async("./target/site/pkg/chess_web.css").await
         }
 
         #[actix_web::main]
@@ -43,7 +43,6 @@ cfg_if! {
                 let routes = &routes;
                 App::new()
                     .wrap(middleware::Logger::default())
-                    .wrap(middleware::Compress::default())
                     .wrap(CacheControlInterceptor)
                     .service(css)
                     .leptos_routes(leptos_options.to_owned(), routes.to_owned(), |cx| view! { cx, <App/> })

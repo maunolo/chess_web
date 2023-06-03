@@ -9,7 +9,8 @@ RUN apt-get -y update \
 
 # Install node
 RUN curl -sL https://deb.nodesource.com/setup_20.x | bash - \
-    && apt-get install -y nodejs
+    && apt-get install -y nodejs \
+    && npm i -g yarn
 
 # Leptos dependencies
 RUN rustup target add wasm32-unknown-unknown \
@@ -25,7 +26,7 @@ COPY . .
 RUN cargo leptos build --release
 
 # Compile CSS
-RUN npm run build:styles
+RUN yarn install && yarn build:styles
 
 # Env variables
 ENV NODE_ENV=${NODE_ENV}

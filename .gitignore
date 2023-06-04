@@ -1,3 +1,5 @@
 /target
-/dist
 /node_modules
+/pkg
+/packages
+/packages_backup

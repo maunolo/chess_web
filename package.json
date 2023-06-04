@@ -1,25 +1,29 @@
 {
-  "name": "wasm-starter",
+  "name": "chess_web",
   "private": true,
-  "version": "1.0.0",
-  "main": "index.js",
+  "version": "0.0.1",
+  "author": "Mauricio Lopes <mauricionlopes.dev@gmail.com>",
   "license": "MIT",
-  "workspaces": [
-    "packages/*"
-  ],
+  "main": "pkg/chess_web.js",
   "scripts": {
-    "dev": "yarn build:wasm && concurrently -n chess_web,www -c magenta,cyan \"yarn dev:www\" \"yarn dev:wasm\" ",
-    "dev:www": "yarn workspace www dev",
-    "dev:wasm": "yarn workspace chess_web dev",
-    "build": "yarn build:wasm && yarn build:www",
-    "build:www": "yarn workspace www build",
-    "build:wasm": "yarn workspace chess_web build",
-    "start": "yarn workspace www start",
-    "clean": "wsrun --exclude-missing clean"
+    "dev": "cargo leptos watch",
+    "watch:styles": "postcss ./src/styles/input.css -o ./target/site/pkg/chess_web.css --watch",
+    "build:styles": "postcss ./src/styles/input.css -o ./target/site/pkg/chess_web.css",
+    "build": "wasm-pack build --package=chess_web --no-default-features --features=hydrate --release && postcss ./src/styles/input.css -o ./pkg/chess_web.css",
+    "start": "cargo leptos serve --release",
+    "clean": "cargo clean && rm -rf pkg"
   },
-  "devDependencies": {
-    "concurrently": "^6.1.0",
-    "wsrun": "^5.2.4",
-    "prettier": "^2.2.1"
+  "files": [
+    "/pkg/chess_web.css"
+  ],
+  "dependencies": {
+    "cssnano": "^6.0.1",
+    "postcss": "^8.4.24",
+    "postcss-at-rules-variables": "^0.3.0",
+    "postcss-cli": "^10.1.0",
+    "postcss-each": "^1.1.0",
+    "postcss-for": "^2.1.1",
+    "postcss-import": "^15.1.0",
+    "tailwindcss": "^3.3.2"
   }
 }

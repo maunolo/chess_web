@@ -1,21 +1,27 @@
 :root {
-  --columns: (a, b, c, d, e, f, g, h);
-  --column-indexes: (0, 1, 2, 3, 4, 5, 6, 7);
-  --column-indexes-reverse: (7, 6, 5, 4, 3, 2, 1, 0);
+    --columns: (a, b, c, d, e, f, g, h);
+    --column-indexes: (0, 1, 2, 3, 4, 5, 6, 7);
+    --column-indexes-reverse: (7, 6, 5, 4, 3, 2, 1, 0);
 }
 
 @each $column, $column-index in var(--columns), var(--column-indexes) {
-  @for $i from 1 to 8 {
-    .square-$(column)$(i) {
-      transform: translate(calc(100% * $(column-index)), calc(100% * calc(7 - $(i) + 1)));
+    @for $i from 1 to 8 {
+        .square-$(column)$(i) {
+            transform: translate(
+                calc(100% * $(column-index)),
+                calc(100% * calc(7 - $(i) + 1))
+            );
+        }
     }
-  }
 }
 
 @each $column, $column-index in var(--columns), var(--column-indexes-reverse) {
-  @for $i from 1 to 8 {
-    .flipped .square-$(column)$(i) {
-      transform: translate(calc(100% * $(column-index)), calc(100% * calc($(i) - 1)));
+    @for $i from 1 to 8 {
+        .flipped .square-$(column)$(i) {
+            transform: translate(
+                calc(100% * $(column-index)),
+                calc(100% * calc($(i) - 1))
+            );
+        }
     }
-  }
 }

@@ -8,7 +8,7 @@ use leptos::*;
 use cfg_if::cfg_if;
 
 #[component]
-pub fn ChessBoard(cx: Scope, chess_board: ReadSignal<ChessBoardEntity>) -> impl IntoView {
+pub fn ChessBoard(cx: Scope, chessboard: ReadSignal<ChessBoardEntity>) -> impl IntoView {
     cfg_if! {
       if #[cfg(feature = "ssr")] {
         let mousedown = move |_| {};
@@ -21,14 +21,14 @@ pub fn ChessBoard(cx: Scope, chess_board: ReadSignal<ChessBoardEntity>) -> impl 
     view! {
       cx,
       <chess-board
-        class=chess_board.with(|cb| cb.css_class())
+        class={ move || chessboard.with(|cb| cb.css_class())}
         on:mouseover=move |e| mouseover(e)
       >
         <BoardBackground />
-        <Coordinates is_white_view=chess_board.with(|cb| cb.is_white_view) />
+        <Coordinates white_view={ move || chessboard.with(|cb| cb.is_white_view)} />
         <For
           // a function that returns the items we're iterating over; a signal is fine
-          each={move || chess_board.with(|cb| cb.stones_and_positions()) }
+          each={ move || chessboard.get().stones_and_positions() }
           // a unique key for each item
           key=|(_position, stone)| stone.name.clone()
           // renders each item to a view

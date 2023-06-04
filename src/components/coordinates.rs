@@ -10,38 +10,37 @@ fn col_str(x: isize) -> String {
 }
 
 #[component]
-pub fn Coordinates(cx: Scope, is_white_view: bool) -> impl IntoView {
+pub fn Coordinates<F>(cx: Scope, white_view: F) -> impl IntoView
+where
+    F: Fn() -> bool + 'static,
+{
+    let positions = move || {
+        if white_view() {
+            (0..8).collect::<Vec<_>>()
+        } else {
+            (0..8).rev().collect::<Vec<_>>()
+        }
+    };
+
     view! {
       cx,
-      <svg viewBox="0 0 100 100" class="coordinates">
+      <div class="coordinates">
         <For
           // a function that returns the items we're iterating over; a signal is fine
-          each={move || (0..8)}
+          each=positions
           // a unique key for each item
           key=|i| i.clone()
           // renders each item to a view
-          view=move |cx, i: isize| {
-            let y = if is_white_view { i } else { 7 - i };
+          view=move |cx, pos: isize| {
             view! {
               cx,
-              <text x="0.50" y={format!("{}", 12.5 * i as f64 + 2.25)} font-size="2">{row_str(y)}</text>
+            //   <span x="0.50" y={format!("{}", 12.5 * i as f64 + 2.25)}>{row_str(pos)}</span>
+            //   <span x={format!("{}", 12.5 * i as f64 + 10.75)} y="99.50">{col_str(pos)}</span>
+              <span class={format!("pointer-events-none absolute leading-3 opacity-60 text-xs coord-row-{}", pos)}>{row_str(pos)}</span>
+              <span class={format!("pointer-events-none absolute leading-3 opacity-60 text-xs coord-col-{}", pos)}>{col_str(pos)}</span>
             }
           }
         />
-        <For
-          // a function that returns the items we're iterating over; a signal is fine
-          each={move || (0..8)}
-          // a unique key for each item
-          key=|i| i.clone()
-          // renders each item to a view
-          view=move |cx, i: isize| {
-            let x = if is_white_view { i } else { 7 - i };
-            view! {
-              cx,
-              <text x={format!("{}", 12.5 * i as f64 + 10.75)} y="99.50" font-size="2">{col_str(x)}</text>
-            }
-          }
-        />
-      </svg>
+      </div>
     }
 }

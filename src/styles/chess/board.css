@@ -1,72 +1,68 @@
 @layer components {
-  .chessboard {
-    @apply relative m-auto aspect-square w-full font-mono font-extrabold md:h-full md:w-auto;
+    .chessboard {
+        @apply relative m-auto aspect-square w-full font-mono font-extrabold md:h-full md:w-auto;
 
-    -webkit-user-select: none; /* Safari */
-    -moz-user-select: none; /* Firefox */
-    -ms-user-select: none; /* IE10+/Edge */
-    user-select: none; /* Standard */
-  }
-
-  .board {
-    @apply pointer-events-none absolute z-0;
-  }
-
-  .coordinates {
-    @apply pointer-events-none absolute z-10;
-
-    text {
-      fill: #0000007b;
+        -webkit-user-select: none; /* Safari */
+        -moz-user-select: none; /* Firefox */
+        -ms-user-select: none; /* IE10+/Edge */
+        user-select: none; /* Standard */
     }
-  }
 
-  .hovered {
-    @apply pointer-events-none absolute box-content;
-
-    width: 12.5%;
-    height: 12.5%;
-    border: 5px solid #f0f0f0;
-  }
-
-  .selected {
-    @apply pointer-events-none absolute z-20;
-
-    width: 12.5%;
-    height: 12.5%;
-    background: #faf05d73;
-  }
-
-  .piece {
-    width: 12.5%;
-    height: 12.5%;
-    cursor: grab;
-    background-repeat: no-repeat;
-    background-position: center;
-    background-size: contain;
-    position: absolute;
-    z-index: 3;
-    pointer-events: all;
-    transition: all 0.2s ease-in-out;
-  }
-
-  .dragging {
-    z-index: 4;
-    cursor: grabbing;
-
-    &:hover {
-      pointer-events: none;
+    .board {
+        @apply pointer-events-none absolute z-0;
     }
-  }
 
-  .dragging-over {
-    cursor: grabbing !important;
+    .coordinates {
+        @apply pointer-events-none absolute z-10 w-full h-full;
+
+        text {
+            fill: #0000007b;
+        }
+    }
+
+    .hovered {
+        @apply pointer-events-none absolute box-content;
+
+        width: 12.5%;
+        height: 12.5%;
+        border: 5px solid #f0f0f0;
+    }
+
+    .selected {
+        @apply pointer-events-none absolute z-20;
+
+        width: 12.5%;
+        height: 12.5%;
+        background: #faf05d73;
+    }
 
     .piece {
-      cursor: grabbing !important;
-    }
-  }
+        @apply z-30 absolute bg-contain bg-center bg-no-repeat;
 
-  .element-pool {
-    display: none;
-  }
+        width: 12.5%;
+        height: 12.5%;
+        cursor: grab;
+        pointer-events: all;
+        transition: all 0.2s ease-in-out;
+    }
+
+    .dragging {
+        @apply z-30 cursor-grabbing;
+
+        &:hover {
+            @apply pointer-events-none;
+        }
+    }
+
+    .dragging-over {
+        cursor: grabbing !important;
+
+        .piece {
+            cursor: grabbing !important;
+        }
+    }
+
+    .element-pool {
+        display: none;
+    }
 }

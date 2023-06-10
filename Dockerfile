@@ -1,4 +1,4 @@
-FROM rustlang/rust:nightly-slim
+FROM rust:1.70
 
 # Args
 ARG NODE_ENV=production
@@ -14,7 +14,7 @@ RUN curl -sL https://deb.nodesource.com/setup_20.x | bash - \
 
 # Leptos dependencies
 RUN rustup target add wasm32-unknown-unknown \
-    && cargo install cargo-leptos
+    && cargo install --git https://github.com/leptos-rs/cargo-leptos.git cargo-leptos
 
 # Create app directory
 WORKDIR /usr/src/app

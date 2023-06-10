@@ -50,8 +50,8 @@ cfg_if! {
                     .wrap(middleware::Compress::default())
             })
             .bind(&addr)?
-            .run()
-            .await
+                .run()
+                .await
         }
     }
     else {

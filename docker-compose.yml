@@ -1,0 +1,14 @@
+services:
+    chess_web:
+        build:
+            context: .
+        ports:
+            - 3100:3100
+        environment:
+            PORT: 3100
+        entrypoint: sh -c "echo 'Chess WEB awaiting manual start' && tail -f /dev/null"
+        volumes:
+            - /home/maunolo/Code/chess_web:/usr/src/app
+            - /home/maunolo/.ssh:/root/.ssh
+            - /home/maunolo/.zsh_history:/root/.zsh_history
+            - /home/maunolo/.config/nvim:/root/.config/nvim

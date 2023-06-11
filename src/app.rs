@@ -41,14 +41,14 @@ fn Home(cx: Scope) -> impl IntoView {
 
     view! { cx,
       <div
-        class="flex justify-center items-center h-screen w-screen overflow-hidden px-4 md:px-0 md:py-8 relative"
+        class="flex overflow-hidden relative justify-center items-center px-4 w-screen h-screen md:py-8 md:px-0"
         // ontouchmove={Callback::from(mousemove)}
         // ontouchup={Callback::from(mouseup)}
         on:mousemove=move |e| mousemove(e)
         on:mouseup=move |e| mouseup(e)
       >
         <ChessBoard chessboard=chessboard />
-        <button class="absolute z-30 top-2 left-2 px-10 py-2 bg-neutral-300 rounded hover:bg-neutral-400" on:click=move |_| {
+        <button class="absolute top-2 left-2 z-30 py-2 px-10 rounded bg-neutral-300 hover:bg-neutral-400" on:click=move |_| {
             set_chessboard.update(|cb| cb.flip());
         } >"Flip the Board"</button>
       </div>

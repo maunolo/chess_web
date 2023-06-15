@@ -54,7 +54,6 @@ pub fn move_piece(piece: &Element, client_position: (f64, f64)) {
     if in_dark_trash || in_light_trash {
         soft_delete_piece(piece);
     } else {
-        log::debug!("parent ID: {}", parent.id());
         if !(parent.id() == "chessboard") {
             restore_piece(piece);
             parent = piece.parent_element().unwrap();

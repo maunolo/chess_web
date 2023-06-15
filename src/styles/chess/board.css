@@ -1,11 +1,12 @@
 @layer components {
     .chessboard {
-        @apply relative m-auto aspect-square w-full font-mono font-extrabold md:h-full md:w-auto;
+        @apply relative m-auto aspect-square w-full font-mono font-extrabold sm:h-full sm:w-auto;
 
         -webkit-user-select: none; /* Safari */
         -moz-user-select: none; /* Firefox */
         -ms-user-select: none; /* IE10+/Edge */
         user-select: none; /* Standard */
+        touch-action: none;
     }
 
     .board {
@@ -44,6 +45,13 @@
         cursor: grab;
         pointer-events: all;
         transition: all 0.2s ease-in-out;
+    }
+
+    .deleted {
+        @apply relative;
+
+        width: 6.25%;
+        height: 100%;
     }
 
     .dragging {

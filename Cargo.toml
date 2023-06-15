@@ -15,28 +15,65 @@ leptos_actix = { version = "0.3.0", optional = true }
 leptos_meta = { version = "0.3.0", default-features = false }
 leptos_router = { version = "0.3.0", default-features = false }
 gloo-net = { version = "0.2", features = ["http"] }
-log = "0.4"
-cfg-if = "1.0"
+cfg-if = { version = "1.0" }
+log = { version = "0.4.19" }
 
 # dependecies for client (enable when csr or hydrate set)
 wasm-bindgen = { version = "0.2", optional = true }
 console_log = { version = "1", optional = true }
 console_error_panic_hook = { version = "0.1", optional = true }
-web-sys = { version = "0.3.60", features = ["DataTransfer", "Document", "DomRect", "DragEvent", "Element", "ElementCreationOptions", "TouchEvent"] }
+web-sys = { version = "0.3.60", features = ["DataTransfer", "Document", "DomRect", "DragEvent", "Element", "ElementCreationOptions", "TouchEvent", "TouchList", "Touch"] }
+getrandom = { version = "0.2.10", features = ["js"] }
+js-sys = { version = "0.3.64", optional = true }
+rand = { version = "0.8.5", optional = true }
+env_logger = { version = "0.10.0", optional = true }
 
 # dependecies for server (enable when ssr set)
 actix-files = { version = "0.6", optional = true }
 actix-web = { version = "4", features = ["macros"], optional = true }
 futures = { version = "0.3", optional = true }
 simple_logger = { version = "4.0", optional = true }
-actix-service = "2.0.2"
-actix-router = "0.5.1"
+actix-service = { version = "2.0.2", optional = true }
+actix-router = { version = "0.5.1", optional = true }
+actix = { version = "0.13.0", optional = true }
+actix-web-actors = { version = "4.2.0", optional = true }
 
 [features]
 default = ["csr"]
-hydrate = ["leptos/hydrate", "leptos_meta/hydrate", "leptos_router/hydrate", "dep:wasm-bindgen", "dep:console_log", "dep:console_error_panic_hook"]
-csr = ["leptos/csr", "leptos_meta/csr", "leptos_router/csr", "dep:wasm-bindgen", "dep:console_log", "dep:console_error_panic_hook"]
-ssr = ["leptos/ssr", "leptos_meta/ssr", "leptos_router/ssr", "dep:leptos_actix", "dep:actix-web", "dep:actix-files", "dep:futures", "dep:simple_logger"]
+hydrate = [
+    "leptos/hydrate",
+    "leptos_meta/hydrate",
+    "leptos_router/hydrate",
+    "dep:wasm-bindgen",
+    "dep:console_log",
+    "dep:console_error_panic_hook",
+    "dep:js-sys"
+]
+csr = [
+    "leptos/csr",
+    "leptos_meta/csr",
+    "leptos_router/csr",
+    "dep:wasm-bindgen",
+    "dep:console_log",
+    "dep:console_error_panic_hook",
+    "dep:js-sys"
+]
+ssr = [
+    "leptos/ssr",
+    "leptos_meta/ssr",
+    "leptos_router/ssr",
+    "dep:leptos_actix",
+    "dep:actix-web",
+    "dep:actix-files",
+    "dep:futures",
+    "dep:simple_logger",
+    "dep:actix-service",
+    "dep:actix-router",
+    "dep:actix",
+    "dep:actix-web-actors",
+    "dep:rand",
+    "dep:env_logger"
+]
 
 [package.metadata.cargo-all-features]
 denylist = [
@@ -48,6 +85,8 @@ denylist = [
   "leptos_actix",
   "simple_logger",
   "wasm-bindgen",
+  "actix",
+  "actix-web-actors",
 ]
 skip_feature_sets = [["csr", "ssr"], ["csr", "hydrate"], ["ssr", "hydrate"]]
 

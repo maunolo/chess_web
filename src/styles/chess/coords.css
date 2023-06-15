@@ -11,7 +11,7 @@
 
     /* <span x={format!("{}", 12.5 * i as f64 + 10.75)} y="99.50">{col_str(pos)}</span> */
     .coord-col-$(index) {
-        left: calc(12.5% * $(index) + 11%);
+        right: calc(12.5% * $(index) + 0.5%);
         bottom: 0.25%;
     }
 
@@ -22,8 +22,7 @@
 
     /* <span x={format!("{}", 12.5 * i as f64 + 10.75)} y="99.50">{col_str(pos)}</span> */
     .flipped .coord-col-$(index) {
-        left: calc(12.5% * calc(7 - $(index)) + 11%);
+        right: calc(12.5% * calc(7 - $(index)) + 0.5%);
         bottom: 0.25%;
     }
 }
-

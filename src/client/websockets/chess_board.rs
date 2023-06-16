@@ -85,6 +85,9 @@ fn on_message_callback(
                             let reset_count = chessboard.reset_count() + 1;
 
                             let mut new_chessboard = ChessBoard::new(fen);
+                            if chessboard.white_view() != new_chessboard.white_view() {
+                                new_chessboard.flip();
+                            }
                             new_chessboard.set_trash_from_str(trash);
                             new_chessboard.set_reset_count(reset_count);
                             *chessboard = new_chessboard;

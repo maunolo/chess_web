@@ -4,7 +4,11 @@ use leptos_router::*;
 
 use cfg_if::cfg_if;
 
+use crate::components::board::BoardBackground;
 use crate::components::chess_board::ChessBoard;
+use crate::components::coordinates::Coordinates;
+use crate::components::overlay::Overlay;
+use crate::components::trash::{Trash, TrashType};
 use crate::entities::chess_board::ChessBoard as ChessBoardEntity;
 
 #[component]
@@ -39,16 +43,18 @@ fn Home(cx: Scope) -> impl IntoView {
             let touchmove = move |_| {};
             let touchend = move |_| {};
             let reset = move |_| {};
+
+            let chess_board_socket = None;
         } else {
             use crate::handlers::mouse::{mousemove, touchmove};
             use crate::handlers::mouse;
 
-            let chess_board_socket = crate::client::websockets::chess_board::start_websocket(set_chessboard, set_should_render);
+            let chess_board_socket = crate::client::websockets::chess_board::start_websocket(set_chessboard, set_should_render).ok();
 
             let clone_ws = chess_board_socket.clone();
             let mouseup = move |e| {
                 if let Ok((piece_data, (old_pos, new_pos))) = mouse::mouseup(e) {
-                    if let Ok(socket) = clone_ws.as_ref() {
+                    if let Some(socket) = clone_ws.as_ref() {
                         let msg = format!("/move {} {} {}", piece_data, old_pos, new_pos);
 
                         match socket.send_with_str(&msg) {
@@ -62,7 +68,7 @@ fn Home(cx: Scope) -> impl IntoView {
             let clone_ws = chess_board_socket.clone();
             let touchend = move |e| {
                 if let Ok((piece_data, (old_pos, new_pos))) = mouse::touchend(e) {
-                    if let Ok(socket) = clone_ws.as_ref() {
+                    if let Some(socket) = clone_ws.as_ref() {
                         let msg = format!("/move {} {} {}", piece_data, old_pos, new_pos);
 
                         match socket.send_with_str(&msg) {
@@ -75,7 +81,7 @@ fn Home(cx: Scope) -> impl IntoView {
 
             let clone_ws = chess_board_socket.clone();
             let reset = move |_| {
-                if let Ok(socket) = clone_ws.as_ref() {
+                if let Some(socket) = clone_ws.as_ref() {
                     match socket.send_with_str("/reset") {
                         Ok(_) => log::debug!("message successfully sent: {:?}", "/reset"),
                         Err(err) => log::debug!("error sending message: {:?}", err),
@@ -95,22 +101,21 @@ fn Home(cx: Scope) -> impl IntoView {
         >
             <Show
                 when=move || should_render.get()
-                fallback=|_cx| view! { cx, "Loading..." }
+                fallback=|cx| {
+                    view! {
+                        cx,
+                        <chess-board class="chessboard">
+                            <BoardBackground/>
+                            <Coordinates white_view=move || true />
+                            <Trash id=TrashType::Dark white_view=move || true trash=move || vec![] />
+                            <Trash id=TrashType::Light white_view=move || true trash=move || vec![] />
+                        </chess-board>
+                    }
+                }
             >
                 <ChessBoard chessboard=chessboard />
             </Show>
-            <button
-                class="absolute top-2 left-2 z-30 py-2 px-10 rounded bg-neutral-300 hover:bg-neutral-400"
-                on:click=move |_| { set_chessboard.update(|cb| cb.flip()) }
-            >
-                "Flip the Board"
-            </button>
-            <button
-                class="absolute top-16 left-2 z-30 py-2 px-10 rounded bg-neutral-300 hover:bg-neutral-400"
-                on:click=reset
-            >
-                "Reset the Board"
-            </button>
+            <Overlay chessboard=set_chessboard reset=reset chess_board_socket=chess_board_socket />
         </div>
     }
 }

@@ -80,7 +80,9 @@ pub struct ChessBoard {
     pub passant: Option<Position>,
     pub half_move_clock: i32,
     pub full_move_clock: i32,
+    pub deleted_stones: Vec<Stone>,
     pub is_white_view: bool,
+    pub reset_count: usize,
 }
 
 impl ChessBoard {
@@ -94,7 +96,9 @@ impl ChessBoard {
             passant: fen_to_passant(fen_fields[3]),
             half_move_clock: fen_fields[4].parse::<i32>().unwrap(),
             full_move_clock: fen_fields[5].parse::<i32>().unwrap(),
+            deleted_stones: Vec::new(),
             is_white_view: true,
+            reset_count: 0,
         }
     }
 
@@ -122,8 +126,109 @@ impl ChessBoard {
             .collect()
     }
 
+    pub fn deleted_stones(&self) -> Vec<Stone> {
+        self.deleted_stones.clone()
+    }
+
+    pub fn set_reset_count(&mut self, count: usize) {
+        self.reset_count = count;
+    }
+
+    pub fn reset_count(&self) -> usize {
+        self.reset_count
+    }
+
     pub fn flip(&mut self) {
         self.is_white_view = !self.is_white_view;
+    }
+
+    pub fn trash_string(&self) -> String {
+        let keys = self
+            .deleted_stones
+            .iter()
+            .map(|s| s.image_class.clone())
+            .collect::<Vec<String>>();
+        keys.join(",")
+    }
+
+    pub fn set_trash_from_str(&mut self, trash: &str) {
+        let keys = trash.split(",");
+        for key in keys {
+            if key == "" {
+                continue;
+            }
+            let stone = key.parse::<Stone>().unwrap();
+            self.deleted_stones.push(stone);
+        }
+    }
+
+    pub fn move_piece(&mut self, piece: &str, from: Option<Position>, to: Option<Position>) {
+        if from == to {
+            return;
+        }
+
+        if from.is_none() {
+            if let Some(stone_idx) = self
+                .deleted_stones
+                .iter()
+                .position(|s| s.image_class == piece)
+            {
+                let stone = self.deleted_stones.remove(stone_idx);
+                let to = to.unwrap();
+                let old_piece = self.stones[to.y as usize][to.x as usize].take();
+                self.stones[to.y as usize][to.x as usize] = Some(stone);
+                if let Some(old_piece) = old_piece {
+                    self.deleted_stones.push(old_piece);
+                }
+            };
+        } else if to.is_none() {
+            let from = from.unwrap();
+            let stone = self.stones[from.y as usize][from.x as usize].take();
+            if let Some(stone) = stone {
+                self.deleted_stones.push(stone);
+            }
+        } else {
+            let from = from.unwrap();
+            let to = to.unwrap();
+            let old_piece = self.stones[to.y as usize][to.x as usize].take();
+            let stone = self.stones[from.y as usize][from.x as usize].take();
+            self.stones[to.y as usize][to.x as usize] = stone;
+            if let Some(old_piece) = old_piece {
+                self.deleted_stones.push(old_piece);
+            }
+        }
+
+        self.sync_fen();
+    }
+
+    pub fn sync_fen(&mut self) {
+        let mut new_fen = String::new();
+        for (i, row) in self.stones.iter().enumerate() {
+            let mut empty = 0;
+            for stone in row {
+                if let Some(stone) = stone {
+                    if empty > 0 {
+                        new_fen.push_str(&empty.to_string());
+                        empty = 0;
+                    }
+                    new_fen.push_str(&stone.c.clone());
+                } else {
+                    empty += 1;
+                }
+            }
+            if empty > 0 {
+                new_fen.push_str(&empty.to_string());
+            }
+            if i < 7 {
+                new_fen.push('/');
+            }
+        }
+        let fen_clone = self.fen.clone();
+        let fen_split = fen_clone.split(" ").skip(1);
+        let fen_rest = fen_split.collect::<Vec<&str>>().join(" ");
+        new_fen.push_str(&format!(" {}", fen_rest));
+
+        self.fen = new_fen;
     }
 
     pub fn css_class(&self) -> String {

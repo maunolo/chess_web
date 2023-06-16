@@ -1,9 +1,13 @@
+use leptos::{SignalUpdate, WriteSignal};
 use wasm_bindgen::prelude::*;
 use web_sys::{Element, ErrorEvent, MessageEvent, WebSocket};
 
-use crate::utils::{
-    class_list::ClassListExt,
-    elements::{self, document},
+use crate::{
+    entities::{chess_board::ChessBoard, position::Position},
+    utils::{
+        class_list::ClassListExt,
+        elements::{self, document},
+    },
 };
 
 fn query_position(square: &str) -> Option<Element> {
@@ -12,63 +16,88 @@ fn query_position(square: &str) -> Option<Element> {
         .unwrap()
 }
 
-fn on_message_callback() -> Closure<dyn FnMut(MessageEvent)> {
+fn on_message_callback(chessboard: WriteSignal<ChessBoard>) -> Closure<dyn FnMut(MessageEvent)> {
     Closure::<dyn FnMut(_)>::new(move |e: MessageEvent| {
         // Handle difference Text/Binary,...
         if let Ok(txt) = e.data().dyn_into::<js_sys::JsString>() {
             log::debug!("message event, received Text: {:?}", txt);
 
             let text: String = txt.as_string().unwrap();
-            let mut input = text.split(" ");
+            if text.starts_with('/') {
+                let (cmd, input) = text.split_once(" ").unwrap_or((text.as_str(), ""));
 
-            let cmd = input.next().unwrap();
+                match cmd {
+                    "/move" => {
+                        let mut input = input.split(" ");
+                        let piece_data = input.next().unwrap();
 
-            match cmd {
-                "move" => {
-                    let piece_data = input.next().unwrap();
+                        let old_pos = input.next().unwrap();
+                        let new_pos = input.next().unwrap();
 
-                    let old_pos = input.next().unwrap();
-                    let new_pos = input.next().unwrap();
+                        if old_pos == new_pos {
+                            return;
+                        }
 
-                    if old_pos == new_pos {
-                        return;
-                    }
+                        let query_old = query_position(old_pos);
+                        let query_new = query_position(new_pos);
+                        if old_pos == "deleted" {
+                            if let Some(element) = elements::query_selector(&format!(
+                                ".deleted[data-piece=\"{}\"]",
+                                piece_data
+                            )) {
+                                elements::restore_piece(&element);
+                                element.set_attribute("data-square", &new_pos).unwrap();
+                                element.class_list_add(&format!("square-{}", new_pos));
 
-                    let query_old = query_position(old_pos);
-                    let query_new = query_position(new_pos);
-                    if old_pos == "deleted" {
-                        if let Some(element) = elements::query_selector(&format!(
-                            ".deleted[data-piece=\"{}\"]",
-                            piece_data
-                        )) {
-                            elements::restore_piece(&element);
-                            element.set_attribute("data-square", &new_pos).unwrap();
-                            element.class_list_add(&format!("square-{}", new_pos));
-
-                            if let Some(element) = query_new {
+                                if let Some(element) = query_new {
+                                    elements::soft_delete_piece(&element);
+                                    element.set_attribute("data-square", "deleted").unwrap();
+                                }
+                            };
+                        } else if new_pos == "deleted" {
+                            if let Some(element) = query_old {
                                 elements::soft_delete_piece(&element);
                                 element.set_attribute("data-square", "deleted").unwrap();
                             }
-                        };
-                    } else if new_pos == "deleted" {
-                        if let Some(element) = query_old {
-                            elements::soft_delete_piece(&element);
-                            element.set_attribute("data-square", "deleted").unwrap();
-                        }
-                    } else {
-                        if let Some(element) = query_old {
-                            element.set_attribute("data-square", &new_pos).unwrap();
-                            element.class_list_remove(&format!("square-{}", old_pos));
-                            element.class_list_add(&format!("square-{}", new_pos));
+                        } else {
+                            if let Some(element) = query_old {
+                                element.set_attribute("data-square", &new_pos).unwrap();
+                                element.class_list_remove(&format!("square-{}", old_pos));
+                                element.class_list_add(&format!("square-{}", new_pos));
 
-                            if let Some(element) = query_new {
-                                elements::soft_delete_piece(&element);
-                                element.set_attribute("data-square", "deleted").unwrap();
+                                if let Some(element) = query_new {
+                                    elements::soft_delete_piece(&element);
+                                    element.set_attribute("data-square", "deleted").unwrap();
+                                }
                             }
                         }
+
+                        // let from_pos: Option<Position> = old_pos.parse().ok();
+                        // let to_pos: Option<Position> = new_pos.parse().ok();
+                        //
+                        // chessboard.update(|cb| {
+                        //     cb.move_piece(&piece_data, from_pos, to_pos);
+                        // });
                     }
+                    "/sync_board" => {
+                        chessboard.update(|chessboard| {
+                            let mut input = input.split("|");
+
+                            let fen = input.next().unwrap();
+                            let trash = input.next().unwrap();
+                            let reset_count = chessboard.reset_count() + 1;
+
+                            let mut new_chessboard = ChessBoard::new(fen);
+                            new_chessboard.set_trash_from_str(trash);
+                            new_chessboard.set_reset_count(reset_count);
+                            *chessboard = new_chessboard;
+                        });
+                    }
+                    "/reset" => {
+                        let _ = web_sys::window().unwrap().location().reload();
+                    }
+                    _ => {}
                 }
-                _ => {}
             }
         } else {
             log::debug!("message event, received Unknown: {:?}", e.data());
@@ -76,7 +105,7 @@ fn on_message_callback() -> Closure<dyn FnMut(MessageEvent)> {
     })
 }
 
-pub fn start_websocket() -> Result<WebSocket, JsValue> {
+pub fn start_websocket(chessboard: WriteSignal<ChessBoard>) -> Result<WebSocket, JsValue> {
     let location = web_sys::window().unwrap().location();
 
     let proto = location
@@ -92,7 +121,7 @@ pub fn start_websocket() -> Result<WebSocket, JsValue> {
     );
     // Connect to an echo server
     let ws = WebSocket::new(&ws_uri)?;
-    let onmessage_callback = on_message_callback();
+    let onmessage_callback = on_message_callback(chessboard);
     // set message event handler on WebSocket
     ws.set_onmessage(Some(onmessage_callback.as_ref().unchecked_ref()));
     // forget the callback to keep it alive

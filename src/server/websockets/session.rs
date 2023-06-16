@@ -79,7 +79,7 @@ impl Actor for WsChessSession {
             .into_actor(self)
             .then(|res, act, ctx| {
                 match res {
-                    Ok(res) => act.id = res,
+                    Ok((id, _fen)) => act.id = id,
                     // something is wrong with chat server
                     _ => ctx.stop(),
                 }
@@ -129,50 +129,77 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for WsChessSession {
                 let m = text.trim();
                 // we check for /sss type of messages
                 if m.starts_with('/') {
-                    let v: Vec<&str> = m.splitn(2, ' ').collect();
-                    match v[0] {
-                        "/list" => {
-                            // Send ListRooms message to chat server and wait for
-                            // response
-                            log::info!("List matches");
-                            self.addr
-                                .send(server::chess_server::ListMatches)
-                                .into_actor(self)
-                                .then(|res, _, ctx| {
-                                    match res {
-                                        Ok(matches) => {
-                                            for match_name in matches {
-                                                ctx.text(match_name);
-                                            }
-                                        }
-                                        _ => log::error!("Something is wrong"),
-                                    }
-                                    fut::ready(())
-                                })
-                                .wait(ctx)
-                            // .wait(ctx) pauses all events in context,
-                            // so actor wont receive any new messages until it get list
-                            // of rooms back
-                        }
+                    let (cmd, input) = m.split_once(' ').unwrap_or((m, ""));
+                    match cmd {
+                        // "/list" => {
+                        //     // Send ListRooms message to chat server and wait for
+                        //     // response
+                        //     log::info!("List matches");
+                        //     self.addr
+                        //         .send(server::chess_server::ListMatches)
+                        //         .into_actor(self)
+                        //         .then(|res, _, ctx| {
+                        //             match res {
+                        //                 Ok(matches) => {
+                        //                     for match_name in matches {
+                        //                         ctx.text(match_name);
+                        //                     }
+                        //                 }
+                        //                 _ => log::error!("Something is wrong"),
+                        //             }
+                        //             fut::ready(())
+                        //         })
+                        //         .wait(ctx)
+                        //     // .wait(ctx) pauses all events in context,
+                        //     // so actor wont receive any new messages until it get list
+                        //     // of rooms back
+                        // }
                         "/join" => {
-                            if v.len() == 2 {
-                                self.match_name = v[1].to_owned();
+                            let v: Vec<&str> = input.splitn(2, ' ').collect();
+                            if v.len() >= 1 && v.len() <= 2 {
+                                self.match_name = v[0].to_owned();
+                                let fen = v.get(1).map(|s| s.to_string());
                                 self.addr.do_send(server::chess_server::Join {
                                     id: self.id,
                                     name: self.match_name.clone(),
+                                    fen,
                                 });
 
                                 ctx.text("joined");
                             } else {
-                                ctx.text("!!! room name is required");
+                                ctx.text("!!! match name is required");
                             }
                         }
                         "/name" => {
-                            if v.len() == 2 {
-                                self.name = Some(v[1].to_owned());
+                            if input != "" {
+                                self.name = Some(input.to_owned());
                             } else {
                                 ctx.text("!!! name is required");
                             }
+                        }
+                        "/move" => {
+                            let v: Vec<&str> = input.splitn(3, ' ').collect();
+                            if v.len() == 3 {
+                                let piece = v[0].to_owned();
+                                let from = v[1].to_owned();
+                                let to = v[2].to_owned();
+
+                                self.addr.do_send(server::chess_server::Move {
+                                    id: self.id,
+                                    match_name: self.match_name.clone(),
+                                    piece,
+                                    from,
+                                    to,
+                                });
+                            } else {
+                                ctx.text("!!! move is required");
+                            }
+                        }
+                        "/reset" => {
+                            self.addr.do_send(server::chess_server::Reset {
+                                id: self.id,
+                                match_name: self.match_name.clone(),
+                            });
                         }
                         _ => ctx.text(format!("!!! unknown command: {m:?}")),
                     }

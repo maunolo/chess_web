@@ -120,8 +120,8 @@ pub fn mouseup(event: MouseEvent) -> Result<(String, (String, String))> {
                     .set_attribute("data-square", &position.to_string())
                     .unwrap();
                 piece.class_list_remove(&format!("square-{}", old_square));
-                piece.class_list_add(&format!("square-{}", position.to_string()));
             }
+            piece.class_list_add(&format!("square-{}", position.to_string()));
             new_pos = position.to_string();
         } else {
             piece.set_attribute("data-square", "deleted").unwrap();
@@ -174,8 +174,8 @@ pub fn touchend(event: TouchEvent) -> Result<(String, (String, String))> {
                         .set_attribute("data-square", &position.to_string())
                         .unwrap();
                     piece.class_list_remove(&format!("square-{}", old_square));
-                    piece.class_list_add(&format!("square-{}", position.to_string()));
                 }
+                piece.class_list_add(&format!("square-{}", position.to_string()));
                 new_pos = position.to_string();
             } else {
                 return Err(EventError::new("No touch found"));

@@ -1,6 +1,6 @@
 use std::str::FromStr;
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct Position {
     pub x: i32,
     pub y: i32,
@@ -24,8 +24,20 @@ impl Position {
             false => (800.0 - ui_x, 800.0 - ui_y),
         };
 
-        let x = (x / 100.0) as i32;
-        let y = (y / 100.0) as i32;
+        let mut x = (x / 100.0) as i32;
+        let mut y = (y / 100.0) as i32;
+
+        if x < 0 {
+            x = 0;
+        } else if x > 7 {
+            x = 7;
+        }
+
+        if y < 0 {
+            y = 0;
+        } else if y > 7 {
+            y = 7;
+        }
 
         Position {
             x,
@@ -65,8 +77,24 @@ impl FromStr for Position {
     type Err = ();
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
+        if s.len() != 2 {
+            return Err(());
+        }
+
         let x = s.as_bytes()[0] as i32 - 97;
-        let y = 8 - s.as_bytes()[1] as i32 - 48;
+        let y = 8 - s
+            .chars()
+            .last()
+            .unwrap()
+            .to_string()
+            .parse::<i32>()
+            .map_err(|_| ())?;
         Ok(Position::new(x, y))
+    }
+}
+
+impl PartialEq for Position {
+    fn eq(&self, other: &Self) -> bool {
+        self.x == other.x && self.y == other.y
     }
 }

@@ -22,33 +22,43 @@ pub fn ChessBoard(cx: Scope, chessboard: ReadSignal<ChessBoardEntity>) -> impl I
     view! {
       cx,
       <chess-board
-        class={ move || chessboard.with(|cb| cb.css_class())}
+        class=move || chessboard.with(|cb| cb.css_class())
         id="chessboard"
       >
         <BoardBackground />
         <Coordinates white_view={ move || chessboard.with(|cb| cb.is_white_view)} />
         <For
-          // a function that returns the items we're iterating over; a signal is fine
-          each={ move || chessboard.get().stones_and_positions() }
-          // a unique key for each item
-          key=|(_position, stone)| stone.name.clone()
-          // renders each item to a view
-          view=move |cx, (position, stone): (Position, Stone)| {
-            view! {
-              cx,
-              <div
-                class={format!("piece {} {}", stone.image_class.clone(), position.css_class())}
-                on:mousedown=move |e| mousedown(e)
-                on:touchstart=move |e| touchstart(e)
-                on:dragstart=move |e| e.prevent_default()
-                data-square={position.to_string()}
-                data-piece={stone.image_class.clone()}
-              ></div>
+            // a function that returns the items we're iterating over; a signal is fine
+            each=move || chessboard.get().stones_and_positions()
+            // a unique key for each item
+            key=move |(position, stone)| {
+                format!("{}-{}", position.to_string(), stone.image_class)
             }
-          }
+            // renders each item to a view
+            view=move |cx, (position, stone): (Position, Stone)| {
+                view! {
+                    cx,
+                    <div
+                        class={format!("piece {} {}", stone.image_class.clone(), position.css_class())}
+                    on:mousedown=move |e| mousedown(e)
+                        on:touchstart=move |e| touchstart(e)
+                        on:dragstart=move |e| e.prevent_default()
+                        data-square={position.to_string()}
+                    data-piece={stone.image_class.clone()}
+                    ></div>
+                }
+            }
         />
-        <Trash id={"dark".to_string()} white_view={ move || chessboard.with(|cb| cb.is_white_view)} />
-        <Trash id={"light".to_string()} white_view={ move || chessboard.with(|cb| cb.is_white_view)} />
+        <Trash
+            id={"dark".to_string()}
+            white_view={ move || chessboard.with(|cb| cb.is_white_view)}
+            chessboard=chessboard
+        />
+        <Trash
+            id={"light".to_string()}
+            white_view={ move || chessboard.with(|cb| cb.is_white_view)}
+            chessboard=chessboard
+        />
       </chess-board>
     }
 }

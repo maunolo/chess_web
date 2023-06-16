@@ -85,6 +85,7 @@ pub struct ChessBoard {
     pub reset_count: usize,
 }
 
+#[allow(dead_code)]
 impl ChessBoard {
     pub fn new(fen: &str) -> Self {
         let fen_fields = fen.split(" ").collect::<Vec<&str>>();
@@ -238,6 +239,10 @@ impl ChessBoard {
             "chessboard flipped"
         }
         .to_string()
+    }
+
+    pub fn white_view(&self) -> bool {
+        self.is_white_view.clone()
     }
 }
 

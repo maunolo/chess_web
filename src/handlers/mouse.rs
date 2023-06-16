@@ -1,4 +1,4 @@
-use web_sys::{Element, MouseEvent, TouchEvent};
+use web_sys::{MouseEvent, TouchEvent};
 
 use crate::entities::position::Position;
 use crate::utils::class_list::ClassListExt;
@@ -30,13 +30,14 @@ impl fmt::Display for EventError {
 
 // Only works in the browser
 
-fn select_piece_square(piece: &Element) {
-    let square = piece.get_attribute("data-square").unwrap();
-    let selected_square = elements::generate::selected_square(&square);
-    log::debug!("Selected square: {:?}", selected_square);
-    elements::add_to_board(&selected_square);
-    log::debug!("Selected square: {}", square);
-}
+// Possible events:
+// fn select_piece_square(piece: &Element) {
+//     let square = piece.get_attribute("data-square").unwrap();
+//     let selected_square = elements::generate::selected_square(&square);
+//     log::debug!("Selected square: {:?}", selected_square);
+//     elements::add_to_board(&selected_square);
+//     log::debug!("Selected square: {}", square);
+// }
 
 pub fn mousemove(event: MouseEvent) {
     if let Some(piece) = elements::query_selector(".dragging") {
@@ -199,5 +200,3 @@ pub fn touchend(event: TouchEvent) -> Result<(String, (String, String))> {
         Err(EventError::new("No piece being dragged found"))
     }
 }
-
-pub fn mouseover(_event: MouseEvent) {}

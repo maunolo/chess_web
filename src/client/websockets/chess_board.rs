@@ -1,9 +1,9 @@
-use leptos::{SignalUpdate, WriteSignal};
+use leptos::{SignalSet, SignalUpdate, WriteSignal};
 use wasm_bindgen::prelude::*;
 use web_sys::{Element, ErrorEvent, MessageEvent, WebSocket};
 
 use crate::{
-    entities::{chess_board::ChessBoard, position::Position},
+    entities::chess_board::ChessBoard,
     utils::{
         class_list::ClassListExt,
         elements::{self, document},
@@ -16,7 +16,10 @@ fn query_position(square: &str) -> Option<Element> {
         .unwrap()
 }
 
-fn on_message_callback(chessboard: WriteSignal<ChessBoard>) -> Closure<dyn FnMut(MessageEvent)> {
+fn on_message_callback(
+    chessboard: WriteSignal<ChessBoard>,
+    should_render: WriteSignal<bool>,
+) -> Closure<dyn FnMut(MessageEvent)> {
     Closure::<dyn FnMut(_)>::new(move |e: MessageEvent| {
         // Handle difference Text/Binary,...
         if let Ok(txt) = e.data().dyn_into::<js_sys::JsString>() {
@@ -71,15 +74,9 @@ fn on_message_callback(chessboard: WriteSignal<ChessBoard>) -> Closure<dyn FnMut
                                 }
                             }
                         }
-
-                        // let from_pos: Option<Position> = old_pos.parse().ok();
-                        // let to_pos: Option<Position> = new_pos.parse().ok();
-                        //
-                        // chessboard.update(|cb| {
-                        //     cb.move_piece(&piece_data, from_pos, to_pos);
-                        // });
                     }
                     "/sync_board" => {
+                        should_render.set(false);
                         chessboard.update(|chessboard| {
                             let mut input = input.split("|");
 
@@ -92,9 +89,7 @@ fn on_message_callback(chessboard: WriteSignal<ChessBoard>) -> Closure<dyn FnMut
                             new_chessboard.set_reset_count(reset_count);
                             *chessboard = new_chessboard;
                         });
-                    }
-                    "/reset" => {
-                        let _ = web_sys::window().unwrap().location().reload();
+                        should_render.set(true);
                     }
                     _ => {}
                 }
@@ -105,7 +100,10 @@ fn on_message_callback(chessboard: WriteSignal<ChessBoard>) -> Closure<dyn FnMut
     })
 }
 
-pub fn start_websocket(chessboard: WriteSignal<ChessBoard>) -> Result<WebSocket, JsValue> {
+pub fn start_websocket(
+    chessboard: WriteSignal<ChessBoard>,
+    should_render: WriteSignal<bool>,
+) -> Result<WebSocket, JsValue> {
     let location = web_sys::window().unwrap().location();
 
     let proto = location
@@ -121,7 +119,7 @@ pub fn start_websocket(chessboard: WriteSignal<ChessBoard>) -> Result<WebSocket,
     );
     // Connect to an echo server
     let ws = WebSocket::new(&ws_uri)?;
-    let onmessage_callback = on_message_callback(chessboard);
+    let onmessage_callback = on_message_callback(chessboard, should_render);
     // set message event handler on WebSocket
     ws.set_onmessage(Some(onmessage_callback.as_ref().unchecked_ref()));
     // forget the callback to keep it alive

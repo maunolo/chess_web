@@ -17,7 +17,7 @@ cfg_if! {
         };
         use actix_web_actors::ws;
         use server::{
-            middlewares::cache_control::CacheControlInterceptor, websockets::chess_board::MyWebSocket,
+            middlewares::cache_control::CacheControlInterceptor,
         };
         use actix::Addr;
         use actix::Actor;

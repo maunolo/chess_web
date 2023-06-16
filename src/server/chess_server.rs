@@ -325,16 +325,11 @@ impl Handler<Move> for ChessServer {
         current_match.current_fen = chessboard.fen.clone();
         current_match.trash = chessboard.trash_string();
 
-        self.send_message(
-            &match_name,
-            &format!(
-                "/move {} {} {}",
-                piece.to_string(),
-                from.to_string(),
-                to.to_string()
-            ),
-            id,
-        );
+        let move_msg = format!("/move {} {} {}", piece, from, to);
+
+        current_match.moves.push(move_msg.clone());
+
+        self.send_message(&match_name, &move_msg, id);
     }
 }
 
@@ -352,6 +347,13 @@ impl Handler<Reset> for ChessServer {
         current_match.current_fen = current_match.original_fen.clone();
         current_match.trash = "".to_owned();
 
-        self.send_message(&match_name, "/reset", 0);
+        let current_fen = current_match.current_fen.clone();
+        let trash = current_match.trash.clone();
+
+        self.send_message(
+            &match_name,
+            &format!("/sync_board {}|{}", current_fen, trash),
+            0,
+        );
     }
 }

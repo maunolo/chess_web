@@ -18,6 +18,7 @@ impl Position {
         }
     }
 
+    #[allow(dead_code)]
     pub fn from_ui_position(ui_x: f64, ui_y: f64, is_white_view: bool) -> Position {
         let (x, y) = match is_white_view {
             true => (ui_x, ui_y),

@@ -4,19 +4,6 @@ use web_sys::{Document, DomRect, Element, Event};
 use super::class_list::ClassListExt;
 use super::style::StyleExt;
 
-pub mod generate {
-    use crate::utils::element_pool::ElementPoolExt;
-    use web_sys::Element;
-
-    pub fn selected_square(square: &str) -> Element {
-        let elem = Element::find_or_create();
-        elem.set_attribute("data-square", square).unwrap();
-        elem.set_attribute("class", &format!("selected square-{}", square))
-            .unwrap();
-        elem
-    }
-}
-
 pub fn document() -> Document {
     web_sys::window().unwrap().document().unwrap()
 }
@@ -28,19 +15,6 @@ pub fn event_target_elem(event: &Event) -> Element {
 
 pub fn query_selector(class: &str) -> Option<Element> {
     document().query_selector(class).unwrap()
-}
-
-pub fn add_to_board(elem: &Element) {
-    let already_in_board = elem
-        .parent_element()
-        .and_then(|e| Some(e.class_list_include("chessboard")));
-    match already_in_board {
-        Some(true) => {}
-        Some(false) | None => {
-            let chess_board = query_selector(".chessboard").unwrap();
-            chess_board.append_child(elem).unwrap();
-        }
-    }
 }
 
 pub fn move_piece(piece: &Element, client_position: (f64, f64)) {

@@ -91,6 +91,8 @@ fn Home(cx: Scope) -> impl IntoView {
         }
     }
 
+    let (chess_board_socket, _) = create_signal(cx, chess_board_socket);
+
     view! { cx,
         <div
             class="flex overflow-hidden relative justify-center items-center px-4 w-screen h-screen sm:py-16 sm:px-16 md:py-16 md:px-0"

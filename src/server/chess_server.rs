@@ -46,16 +46,16 @@ pub struct ClientMessage {
     pub id: usize,
     /// Peer message
     pub msg: String,
-    /// Match name
-    pub match_name: String,
+    /// Room name
+    pub room_name: String,
 }
 
 /// List of available rooms
-pub struct ListMatches;
-
-impl actix::Message for ListMatches {
-    type Result = Vec<String>;
-}
+// pub struct ListMatches;
+//
+// impl actix::Message for ListMatches {
+//     type Result = Vec<String>;
+// }
 
 /// Join room, if room does not exists create new one.
 #[derive(Message)]
@@ -64,18 +64,21 @@ pub struct Join {
     /// Client ID
     pub id: usize,
 
-    /// Match name
+    /// Room name
     pub name: String,
 
     /// Fen
     pub fen: Option<String>,
+
+    /// Trash
+    pub trash: Option<String>,
 }
 
 #[derive(Message)]
 #[rtype(result = "()")]
 pub struct Move {
     pub id: usize,
-    pub match_name: String,
+    pub room_name: String,
     pub piece: String,
     pub from: String,
     pub to: String,
@@ -85,7 +88,7 @@ pub struct Move {
 #[rtype(result = "()")]
 pub struct Reset {
     pub id: usize,
-    pub match_name: String,
+    pub room_name: String,
 }
 
 /// `ChessServer` manages chat rooms and responsible for coordinating chat session.
@@ -94,13 +97,13 @@ pub struct Reset {
 #[derive(Debug)]
 pub struct ChessServer {
     sessions: HashMap<usize, Recipient<Message>>,
-    matches: HashMap<String, Match>,
+    rooms: HashMap<String, Room>,
     rng: ThreadRng,
     visitor_count: Arc<AtomicUsize>,
 }
 
 #[derive(Debug)]
-pub struct Match {
+pub struct Room {
     original_fen: String,
     current_fen: String,
     moves: Vec<String>,
@@ -108,8 +111,8 @@ pub struct Match {
     trash: String,
 }
 
-impl Match {
-    pub fn new(fen: Option<String>) -> Self {
+impl Room {
+    pub fn new(fen: Option<String>, trash: Option<String>) -> Self {
         let fen =
             fen.unwrap_or("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1".to_string());
 
@@ -118,7 +121,7 @@ impl Match {
             current_fen: fen,
             moves: vec![],
             sessions: HashSet::new(),
-            trash: String::new(),
+            trash: trash.unwrap_or("".to_string()),
         }
     }
 
@@ -138,12 +141,12 @@ impl Match {
 impl ChessServer {
     pub fn new(visitor_count: Arc<AtomicUsize>) -> ChessServer {
         // default room
-        let mut matches = HashMap::new();
-        matches.insert("main".to_owned(), Match::new(None));
+        let mut rooms = HashMap::new();
+        rooms.insert("main".to_owned(), Room::new(None, None));
 
         ChessServer {
             sessions: HashMap::new(),
-            matches,
+            rooms,
             rng: rand::thread_rng(),
             visitor_count,
         }
@@ -152,8 +155,8 @@ impl ChessServer {
 
 impl ChessServer {
     /// Send message to all users in the room
-    fn send_message(&self, match_name: &str, message: &str, skip_id: usize) {
-        if let Some(sessions) = self.matches.get(match_name).map(|m| m.sessions()) {
+    fn send_message(&self, room_name: &str, message: &str, skip_id: usize) {
+        if let Some(sessions) = self.rooms.get(room_name).map(|m| m.sessions()) {
             for id in sessions {
                 if *id != skip_id {
                     if let Some(addr) = self.sessions.get(id) {
@@ -195,14 +198,14 @@ impl Handler<Connect> for ChessServer {
         self.sessions.insert(id, msg.addr);
 
         // auto join session to main room
-        let current_match = self
-            .matches
+        let current_room = self
+            .rooms
             .entry("main".to_owned())
-            .or_insert_with(|| Match::new(None));
+            .or_insert_with(|| Room::new(None, None));
 
-        current_match.insert_session(id);
-        let current_fen = current_match.current_fen.clone();
-        let trash = current_match.trash.clone();
+        current_room.insert_session(id);
+        let current_fen = current_room.current_fen.clone();
+        let trash = current_room.trash.clone();
 
         let count = self.visitor_count.fetch_add(1, Ordering::SeqCst);
         self.send_message("main", &format!("Total visitors {count}"), 0);
@@ -222,20 +225,24 @@ impl Handler<Disconnect> for ChessServer {
     fn handle(&mut self, msg: Disconnect, _: &mut Context<Self>) {
         log::info!("Someone disconnected");
 
-        let mut matches: Vec<String> = Vec::new();
+        let mut rooms: Vec<(String, usize)> = Vec::new();
 
         // remove address
         if self.sessions.remove(&msg.id).is_some() {
             // remove session from all rooms
-            for (name, current_match) in &mut self.matches {
-                if current_match.remove_session(&msg.id) {
-                    matches.push(name.to_owned());
+            for (name, current_room) in &mut self.rooms {
+                if current_room.remove_session(&msg.id) {
+                    rooms.push((name.to_owned(), current_room.sessions().len()));
                 }
             }
         }
         // send message to other users
-        for m in matches {
-            self.send_message(&m, "Someone disconnected", 0);
+        for (room, sessions_count) in rooms {
+            self.send_message(&room, "Someone disconnected", 0);
+
+            if sessions_count == 0 {
+                self.rooms.remove(&room);
+            }
         }
     }
 }
@@ -245,24 +252,24 @@ impl Handler<ClientMessage> for ChessServer {
     type Result = ();
 
     fn handle(&mut self, msg: ClientMessage, _: &mut Context<Self>) {
-        self.send_message(&msg.match_name, msg.msg.as_str(), msg.id);
+        self.send_message(&msg.room_name, msg.msg.as_str(), msg.id);
     }
 }
 
 /// Handler for `ListRooms` message.
-impl Handler<ListMatches> for ChessServer {
-    type Result = MessageResult<ListMatches>;
-
-    fn handle(&mut self, _: ListMatches, _: &mut Context<Self>) -> Self::Result {
-        let mut rooms = Vec::new();
-
-        for key in self.matches.keys() {
-            rooms.push(key.to_owned())
-        }
-
-        MessageResult(rooms)
-    }
-}
+// impl Handler<ListMatches> for ChessServer {
+//     type Result = MessageResult<ListMatches>;
+//
+//     fn handle(&mut self, _: ListMatches, _: &mut Context<Self>) -> Self::Result {
+//         let mut rooms = Vec::new();
+//
+//         for key in self.rooms.keys() {
+//             rooms.push(key.to_owned())
+//         }
+//
+//         MessageResult(rooms)
+//     }
+// }
 
 /// Join room, send disconnect message to old room
 /// send join message to new room
@@ -270,28 +277,37 @@ impl Handler<Join> for ChessServer {
     type Result = ();
 
     fn handle(&mut self, msg: Join, _: &mut Context<Self>) {
-        let Join { id, name, fen } = msg;
-        let mut matches = Vec::new();
+        let Join {
+            id,
+            name,
+            fen,
+            trash,
+        } = msg;
+        let mut rooms = Vec::new();
 
         // remove session from all rooms
-        for (n, current_match) in &mut self.matches {
-            if current_match.remove_session(&id) {
-                matches.push(n.to_owned());
+        for (n, current_room) in &mut self.rooms {
+            if current_room.remove_session(&id) {
+                rooms.push((n.to_owned(), current_room.sessions().len()));
             }
         }
         // send message to other users
-        for match_name in matches {
-            self.send_message(&match_name, "Someone disconnected", 0);
+        for (room_name, sessions_count) in rooms {
+            self.send_message(&room_name, "Someone disconnected", 0);
+
+            if sessions_count == 0 {
+                self.rooms.remove(&room_name);
+            }
         }
 
-        let current_match = self
-            .matches
+        let current_room = self
+            .rooms
             .entry(name.clone())
-            .or_insert_with(|| Match::new(fen));
+            .or_insert_with(|| Room::new(fen, trash));
 
-        current_match.insert_session(id);
-        let current_fen = current_match.current_fen.clone();
-        let trash = current_match.trash.clone();
+        current_room.insert_session(id);
+        let current_fen = current_room.current_fen.clone();
+        let trash = current_room.trash.clone();
 
         self.send_message(&name, "Someone connected", id);
 
@@ -306,30 +322,27 @@ impl Handler<Move> for ChessServer {
     fn handle(&mut self, msg: Move, _: &mut Self::Context) -> Self::Result {
         let Move {
             id,
-            match_name,
+            room_name,
             piece,
             from,
             to,
         } = msg;
 
-        let current_match = self
-            .matches
-            .entry(match_name.clone())
-            .or_insert_with(|| Match::new(None));
+        if let Some(current_room) = self.rooms.get_mut(&room_name) {
+            let mut chessboard = ChessBoard::new(current_room.current_fen.as_str());
+            chessboard.set_trash_from_str(current_room.trash.as_str());
+            let from_position: Option<Position> = from.parse().ok();
+            let to_position: Option<Position> = to.parse().ok();
+            chessboard.move_piece(&piece, from_position, to_position);
+            current_room.current_fen = chessboard.fen.clone();
+            current_room.trash = chessboard.trash_string();
 
-        let mut chessboard = ChessBoard::new(current_match.current_fen.as_str());
-        chessboard.set_trash_from_str(current_match.trash.as_str());
-        let from_position: Option<Position> = from.parse().ok();
-        let to_position: Option<Position> = to.parse().ok();
-        chessboard.move_piece(&piece, from_position, to_position);
-        current_match.current_fen = chessboard.fen.clone();
-        current_match.trash = chessboard.trash_string();
+            let move_msg = format!("/move {} {} {}", piece, from, to);
 
-        let move_msg = format!("/move {} {} {}", piece, from, to);
+            current_room.moves.push(move_msg.clone());
 
-        current_match.moves.push(move_msg.clone());
-
-        self.send_message(&match_name, &move_msg, id);
+            self.send_message(&room_name, &move_msg, id);
+        };
     }
 }
 
@@ -337,23 +350,20 @@ impl Handler<Reset> for ChessServer {
     type Result = ();
 
     fn handle(&mut self, msg: Reset, _: &mut Self::Context) -> Self::Result {
-        let Reset { id: _, match_name } = msg;
+        let Reset { id: _, room_name } = msg;
 
-        let current_match = self
-            .matches
-            .entry(match_name.clone())
-            .or_insert_with(|| Match::new(None));
+        if let Some(current_room) = self.rooms.get_mut(&room_name) {
+            current_room.current_fen = current_room.original_fen.clone();
+            current_room.trash = "".to_owned();
 
-        current_match.current_fen = current_match.original_fen.clone();
-        current_match.trash = "".to_owned();
+            let current_fen = current_room.current_fen.clone();
+            let trash = current_room.trash.clone();
 
-        let current_fen = current_match.current_fen.clone();
-        let trash = current_match.trash.clone();
-
-        self.send_message(
-            &match_name,
-            &format!("/sync_board {}|{}", current_fen, trash),
-            0,
-        );
+            self.send_message(
+                &room_name,
+                &format!("/sync_board {}|{}", current_fen, trash),
+                0,
+            );
+        };
     }
 }

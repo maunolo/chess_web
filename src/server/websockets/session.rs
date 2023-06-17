@@ -21,7 +21,7 @@ pub struct WsChessSession {
     pub hb: Instant,
 
     /// joined room
-    pub match_name: String,
+    pub room_name: String,
 
     /// peer name
     pub name: Option<String>,
@@ -157,17 +157,24 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for WsChessSession {
                         "/join" => {
                             let v: Vec<&str> = input.splitn(2, ' ').collect();
                             if v.len() >= 1 && v.len() <= 2 {
-                                self.match_name = v[0].to_owned();
-                                let fen = v.get(1).map(|s| s.to_string());
+                                self.room_name = v[0].to_owned();
+                                let params: Option<(Option<String>, Option<String>)> =
+                                    v.get(1).map(|s| match s.to_owned().split_once("|") {
+                                        Some((fen, trash)) => {
+                                            (Some(fen.to_owned()), Some(trash.to_owned()))
+                                        }
+                                        None => (Some(s.to_owned().to_owned()), None),
+                                    });
                                 self.addr.do_send(server::chess_server::Join {
                                     id: self.id,
-                                    name: self.match_name.clone(),
-                                    fen,
+                                    name: self.room_name.clone(),
+                                    fen: params.clone().unwrap_or((None, None)).0,
+                                    trash: params.unwrap_or((None, None)).1,
                                 });
 
                                 ctx.text("joined");
                             } else {
-                                ctx.text("!!! match name is required");
+                                ctx.text("!!! room name is required");
                             }
                         }
                         "/name" => {
@@ -186,7 +193,7 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for WsChessSession {
 
                                 self.addr.do_send(server::chess_server::Move {
                                     id: self.id,
-                                    match_name: self.match_name.clone(),
+                                    room_name: self.room_name.clone(),
                                     piece,
                                     from,
                                     to,
@@ -198,7 +205,7 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for WsChessSession {
                         "/reset" => {
                             self.addr.do_send(server::chess_server::Reset {
                                 id: self.id,
-                                match_name: self.match_name.clone(),
+                                room_name: self.room_name.clone(),
                             });
                         }
                         _ => ctx.text(format!("!!! unknown command: {m:?}")),
@@ -213,7 +220,7 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for WsChessSession {
                     self.addr.do_send(server::chess_server::ClientMessage {
                         id: self.id,
                         msg,
-                        match_name: self.match_name.clone(),
+                        room_name: self.room_name.clone(),
                     })
                 }
             }

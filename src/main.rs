@@ -42,7 +42,7 @@ cfg_if! {
                 server::websockets::session::WsChessSession {
                     id: 0,
                     hb: Instant::now(),
-                    match_name: "main".to_owned(),
+                    room_name: "main".to_owned(),
                     name: None,
                     addr: srv.get_ref().clone(),
                 },

@@ -1,4 +1,7 @@
-use std::time::{Duration, Instant};
+use std::{
+    env,
+    time::{Duration, Instant},
+};
 
 use actix::prelude::*;
 use actix_web_actors::ws;
@@ -7,9 +10,6 @@ use crate::server;
 
 /// How often heartbeat pings are sent
 const HEARTBEAT_INTERVAL: Duration = Duration::from_secs(5);
-
-/// How long before lack of client response causes a timeout
-const CLIENT_TIMEOUT: Duration = Duration::from_secs(10);
 
 #[derive(Debug)]
 pub struct WsChessSession {
@@ -35,9 +35,16 @@ impl WsChessSession {
     ///
     /// also this method checks heartbeats from client
     fn hb(&self, ctx: &mut ws::WebsocketContext<Self>) {
-        ctx.run_interval(HEARTBEAT_INTERVAL, |act, ctx| {
+        let client_timeout = Duration::from_secs(
+            env::var("CLIENT_TIMEOUT")
+                .unwrap_or("10".to_string())
+                .parse::<u64>()
+                .unwrap_or(10),
+        );
+
+        ctx.run_interval(HEARTBEAT_INTERVAL, move |act, ctx| {
             // check client heartbeats
-            if Instant::now().duration_since(act.hb) > CLIENT_TIMEOUT {
+            if Instant::now().duration_since(act.hb) > client_timeout {
                 // heartbeat timed out
                 log::info!("Websocket Client heartbeat failed, disconnecting!");
 

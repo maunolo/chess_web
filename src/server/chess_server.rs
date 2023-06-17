@@ -4,10 +4,12 @@
 
 use std::{
     collections::{HashMap, HashSet},
+    env,
     sync::{
         atomic::{AtomicUsize, Ordering},
         Arc,
     },
+    time::{Duration, Instant},
 };
 
 use actix::prelude::*;
@@ -109,6 +111,7 @@ pub struct Room {
     moves: Vec<String>,
     sessions: HashSet<usize>,
     trash: String,
+    empty_at: Option<Instant>,
 }
 
 impl Room {
@@ -122,6 +125,7 @@ impl Room {
             moves: vec![],
             sessions: HashSet::new(),
             trash: trash.unwrap_or("".to_string()),
+            empty_at: Some(Instant::now()),
         }
     }
 
@@ -179,6 +183,35 @@ impl Actor for ChessServer {
     /// We are going to use simple Context, we just need ability to communicate
     /// with other actors.
     type Context = Context<Self>;
+
+    fn started(&mut self, ctx: &mut Self::Context) {
+        log::info!("Chess server started");
+
+        let room_timeout = Duration::from_secs(
+            // 60 * 5 = 300 -> 5 minutes
+            env::var("ROOM_TIMEOUT")
+                .unwrap_or("300".to_string())
+                .parse::<u64>()
+                .unwrap_or(300),
+        );
+
+        ctx.run_interval(Duration::from_secs(5), move |act, _| {
+            let mut rooms = vec![];
+
+            for (name, room) in &mut act.rooms {
+                if let Some(empty_at) = room.empty_at {
+                    if empty_at.elapsed() > room_timeout {
+                        log::debug!("Room {} is empty, removing", name);
+                        rooms.push(name.clone());
+                    }
+                }
+            }
+
+            for name in rooms {
+                act.rooms.remove(&name);
+            }
+        });
+    }
 }
 
 /// Handler for Connect message.
@@ -204,6 +237,7 @@ impl Handler<Connect> for ChessServer {
             .or_insert_with(|| Room::new(None, None));
 
         current_room.insert_session(id);
+        current_room.empty_at = None;
         let current_fen = current_room.current_fen.clone();
         let trash = current_room.trash.clone();
 
@@ -225,24 +259,25 @@ impl Handler<Disconnect> for ChessServer {
     fn handle(&mut self, msg: Disconnect, _: &mut Context<Self>) {
         log::info!("Someone disconnected");
 
-        let mut rooms: Vec<(String, usize)> = Vec::new();
+        let mut rooms: Vec<String> = Vec::new();
 
         // remove address
         if self.sessions.remove(&msg.id).is_some() {
             // remove session from all rooms
             for (name, current_room) in &mut self.rooms {
                 if current_room.remove_session(&msg.id) {
-                    rooms.push((name.to_owned(), current_room.sessions().len()));
+                    rooms.push(name.to_owned());
+
+                    if current_room.sessions().is_empty() {
+                        current_room.empty_at = Some(Instant::now());
+                    }
                 }
             }
         }
-        // send message to other users
-        for (room, sessions_count) in rooms {
-            self.send_message(&room, "Someone disconnected", 0);
 
-            if sessions_count == 0 {
-                self.rooms.remove(&room);
-            }
+        // send message to other users
+        for room in rooms {
+            self.send_message(&room, "Someone disconnected", 0);
         }
     }
 }
@@ -288,16 +323,16 @@ impl Handler<Join> for ChessServer {
         // remove session from all rooms
         for (n, current_room) in &mut self.rooms {
             if current_room.remove_session(&id) {
-                rooms.push((n.to_owned(), current_room.sessions().len()));
+                rooms.push(n.to_owned());
+
+                if current_room.sessions().is_empty() {
+                    current_room.empty_at = Some(Instant::now());
+                }
             }
         }
         // send message to other users
-        for (room_name, sessions_count) in rooms {
+        for room_name in rooms {
             self.send_message(&room_name, "Someone disconnected", 0);
-
-            if sessions_count == 0 {
-                self.rooms.remove(&room_name);
-            }
         }
 
         let current_room = self
@@ -306,6 +341,7 @@ impl Handler<Join> for ChessServer {
             .or_insert_with(|| Room::new(fen, trash));
 
         current_room.insert_session(id);
+        current_room.empty_at = None;
         let current_fen = current_room.current_fen.clone();
         let trash = current_room.trash.clone();
 

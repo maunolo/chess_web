@@ -110,6 +110,7 @@ pub struct Room {
     current_fen: String,
     moves: Vec<String>,
     sessions: HashSet<usize>,
+    original_trash: String,
     trash: String,
     empty_at: Option<Instant>,
 }
@@ -118,13 +119,15 @@ impl Room {
     pub fn new(fen: Option<String>, trash: Option<String>) -> Self {
         let fen =
             fen.unwrap_or("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1".to_string());
+        let trash = trash.unwrap_or("".to_string());
 
         Self {
             original_fen: fen.clone(),
             current_fen: fen,
             moves: vec![],
             sessions: HashSet::new(),
-            trash: trash.unwrap_or("".to_string()),
+            trash: trash.clone(),
+            original_trash: trash,
             empty_at: Some(Instant::now()),
         }
     }
@@ -390,7 +393,7 @@ impl Handler<Reset> for ChessServer {
 
         if let Some(current_room) = self.rooms.get_mut(&room_name) {
             current_room.current_fen = current_room.original_fen.clone();
-            current_room.trash = "".to_owned();
+            current_room.trash = current_room.original_trash.to_owned();
 
             let current_fen = current_room.current_fen.clone();
             let trash = current_room.trash.clone();

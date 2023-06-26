@@ -6,9 +6,24 @@ services:
             - 3100:3100
         environment:
             PORT: 3100
-        entrypoint: sh -c "echo 'Chess WEB awaiting manual start' && tail -f /dev/null"
+            RUST_LOG: debug
+        # entrypoint: sh -c "echo 'Chess WEB awaiting manual start' && tail -f /dev/null"
         volumes:
-            - /home/maunolo/Code/chess_web:/usr/src/app
+            # - /home/maunolo/Code/chess_web:/usr/src/app
             - /home/maunolo/.ssh:/root/.ssh
             - /home/maunolo/.zsh_history:/root/.zsh_history
             - /home/maunolo/.config/nvim:/root/.config/nvim
+
+    postgres:
+        environment:
+            POSTGRES_PASSWORD: postgres
+            POSTGRES_USER: postgres
+        ports:
+            - 5432:5432
+        hostname: postgres
+        image: postgres:15-alpine
+        volumes:
+            - postgres:/var/lib/postgresql/data
+
+volumes:
+    postgres:

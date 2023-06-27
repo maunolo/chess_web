@@ -1,3 +1,7 @@
+use cfg_if::cfg_if;
+use leptos::WriteSignal;
+use web_sys::WebSocket;
+
 use super::position::Position;
 use super::stone::Stone;
 
@@ -243,6 +247,33 @@ impl ChessBoard {
 
     pub fn white_view(&self) -> bool {
         self.is_white_view.clone()
+    }
+}
+
+#[allow(dead_code)]
+#[derive(Copy, Clone)]
+pub struct ChessBoardSignals {
+    chess_board: WriteSignal<ChessBoard>,
+    should_render: WriteSignal<bool>,
+}
+
+impl ChessBoardSignals {
+    pub fn new(chess_board: WriteSignal<ChessBoard>, should_render: WriteSignal<bool>) -> Self {
+        Self {
+            chess_board,
+            should_render,
+        }
+    }
+
+    #[allow(unused_variables)]
+    pub fn start_websocket(&self, username: String) -> Option<WebSocket> {
+        cfg_if! {
+            if #[cfg(not(feature = "ssr"))] {
+                crate::client::websockets::chess_board::start_websocket(self.chess_board, self.should_render, username).ok()
+            } else {
+                None
+            }
+        }
     }
 }
 

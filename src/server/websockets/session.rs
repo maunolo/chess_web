@@ -6,7 +6,7 @@ use std::{
 use actix::prelude::*;
 use actix_web_actors::ws;
 
-use crate::server;
+use crate::server::chess_server::{self, ChessServer};
 
 /// How often heartbeat pings are sent
 const HEARTBEAT_INTERVAL: Duration = Duration::from_secs(5);
@@ -27,10 +27,24 @@ pub struct WsChessSession {
     pub name: Option<String>,
 
     /// Chat server
-    pub addr: Addr<server::chess_server::ChessServer>,
+    pub addr: Addr<ChessServer>,
+
+    /// Is authenticated
+    pub authenticated_at: Option<Instant>,
 }
 
 impl WsChessSession {
+    pub fn new(addr: Addr<ChessServer>) -> Self {
+        Self {
+            id: 0,
+            hb: Instant::now(),
+            room_name: "main".to_owned(),
+            name: None,
+            addr,
+            authenticated_at: None,
+        }
+    }
+
     /// helper method that sends ping to client every 5 seconds (HEARTBEAT_INTERVAL).
     ///
     /// also this method checks heartbeats from client
@@ -49,8 +63,7 @@ impl WsChessSession {
                 log::info!("Websocket Client heartbeat failed, disconnecting!");
 
                 // notify chat server
-                act.addr
-                    .do_send(server::chess_server::Disconnect { id: act.id });
+                act.addr.do_send(chess_server::Disconnect { id: act.id });
 
                 // stop actor
                 ctx.stop();
@@ -80,7 +93,7 @@ impl Actor for WsChessSession {
         // across all routes within application
         let addr = ctx.address();
         self.addr
-            .send(server::chess_server::Connect {
+            .send(chess_server::Connect {
                 addr: addr.recipient(),
             })
             .into_actor(self)
@@ -97,17 +110,16 @@ impl Actor for WsChessSession {
 
     fn stopping(&mut self, _: &mut Self::Context) -> Running {
         // notify chat server
-        self.addr
-            .do_send(server::chess_server::Disconnect { id: self.id });
+        self.addr.do_send(chess_server::Disconnect { id: self.id });
         Running::Stop
     }
 }
 
 /// Handle messages from chat server, we simply send it to peer websocket
-impl Handler<server::chess_server::Message> for WsChessSession {
+impl Handler<chess_server::Message> for WsChessSession {
     type Result = ();
 
-    fn handle(&mut self, msg: server::chess_server::Message, ctx: &mut Self::Context) {
+    fn handle(&mut self, msg: chess_server::Message, ctx: &mut Self::Context) {
         ctx.text(msg.0);
     }
 }
@@ -172,7 +184,7 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for WsChessSession {
                                         }
                                         None => (Some(s.to_owned().to_owned()), None),
                                     });
-                                self.addr.do_send(server::chess_server::Join {
+                                self.addr.do_send(chess_server::Join {
                                     id: self.id,
                                     name: self.room_name.clone(),
                                     fen: params.clone().unwrap_or((None, None)).0,
@@ -198,7 +210,7 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for WsChessSession {
                                 let from = v[1].to_owned();
                                 let to = v[2].to_owned();
 
-                                self.addr.do_send(server::chess_server::Move {
+                                self.addr.do_send(chess_server::Move {
                                     id: self.id,
                                     room_name: self.room_name.clone(),
                                     piece,
@@ -210,7 +222,7 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for WsChessSession {
                             }
                         }
                         "/reset" => {
-                            self.addr.do_send(server::chess_server::Reset {
+                            self.addr.do_send(chess_server::Reset {
                                 id: self.id,
                                 room_name: self.room_name.clone(),
                             });
@@ -224,7 +236,7 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for WsChessSession {
                         m.to_owned()
                     };
                     // send message to chat server
-                    self.addr.do_send(server::chess_server::ClientMessage {
+                    self.addr.do_send(chess_server::ClientMessage {
                         id: self.id,
                         msg,
                         room_name: self.room_name.clone(),

@@ -18,14 +18,25 @@ cfg_if! {
         use actix_web_actors::ws;
         use server::{
             middlewares::cache_control::CacheControlInterceptor,
+            websockets::session::WsChessSession,
+            chess_server::ChessServer,
         };
         use actix::Addr;
         use actix::Actor;
-        use std::time::Instant;
 
         use std::env;
         use std::net::SocketAddr;
         use std::sync::{atomic::AtomicUsize, Arc};
+
+        // fn is_valid_session_token(cookie: Option<Cookie>) -> bool {
+        //     match cookie {
+        //         Some(session_token) => {
+        //             let session_token = session_token.value();
+        //             true
+        //         }
+        //         None => true,
+        //     }
+        // }
 
         #[get("/style.css")]
         async fn css() -> impl Responder {
@@ -36,16 +47,14 @@ cfg_if! {
         async fn chess_route(
             req: HttpRequest,
             stream: web::Payload,
-            srv: web::Data<Addr<server::chess_server::ChessServer>>,
+            srv: web::Data<Addr<ChessServer>>,
         ) -> Result<HttpResponse, Error> {
+            // if !is_valid_session_token(req.cookie("session_token")) {
+            //     return Ok(HttpResponse::Unauthorized().finish());
+            // }
+
             ws::start(
-                server::websockets::session::WsChessSession {
-                    id: 0,
-                    hb: Instant::now(),
-                    room_name: "main".to_owned(),
-                    name: None,
-                    addr: srv.get_ref().clone(),
-                },
+                WsChessSession::new(srv.get_ref().clone()),
                 &req,
                 stream,
             )
@@ -69,7 +78,7 @@ cfg_if! {
             let app_state = Arc::new(AtomicUsize::new(0));
 
             // start chat server actor
-            let server = server::chess_server::ChessServer::new(app_state.clone()).start();
+            let server = ChessServer::new(app_state.clone()).start();
 
             log::info!("starting HTTP server at http://0.0.0.0:{}", port);
 
@@ -89,6 +98,7 @@ cfg_if! {
                     .service(Files::new("/", site_root).show_files_listing())
                     .wrap(middleware::Compress::default())
             })
+            .workers(2)
             .bind(&addr)?
             .run()
             .await

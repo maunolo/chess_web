@@ -22,25 +22,22 @@ where
         }
     };
 
-    view! {
-      cx,
-      <div class="coordinates">
-        <For
-          // a function that returns the items we're iterating over; a signal is fine
-          each=positions
-          // a unique key for each item
-          key=|i| i.clone()
-          // renders each item to a view
-          view=move |cx, pos: isize| {
-            view! {
-              cx,
-            //   <span x="0.50" y={format!("{}", 12.5 * i as f64 + 2.25)}>{row_str(pos)}</span>
-            //   <span x={format!("{}", 12.5 * i as f64 + 10.75)} y="99.50">{col_str(pos)}</span>
-              <span class={format!("pointer-events-none absolute leading-3 opacity-60 text-xs coord-row-{}", pos)}>{row_str(pos)}</span>
-              <span class={format!("pointer-events-none absolute leading-3 opacity-60 text-xs coord-col-{}", pos)}>{col_str(pos)}</span>
-            }
-          }
-        />
-      </div>
+    view! { cx,
+        <div class="coordinates">
+            <For
+                each=positions
+                key=|i| i.clone()
+                view=move |cx, pos: isize| {
+                    view! { cx,
+                        <span class=format!("pointer-events-none absolute leading-3 opacity-60 text-xs coord-row-{}", pos)>
+                            {row_str(pos)}
+                        </span>
+                        <span class=format!("pointer-events-none absolute leading-3 opacity-60 text-xs coord-col-{}", pos)>
+                            {col_str(pos)}
+                        </span>
+                    }
+                }
+            />
+        </div>
     }
 }

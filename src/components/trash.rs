@@ -56,27 +56,20 @@ where
         )
     };
     let trash_id = move || format!("{}-trash", String::from(id));
-    view! {
-        cx,
-        <div class=trash_class data-trash=move || String::from(id) id=trash_id >
+    view! { cx,
+        <div class=trash_class data-trash=move || String::from(id) id=trash_id>
             <For
-                // a function that returns the items we're iterating over; a signal is fine
                 each=trash
-                // a unique key for each item
-                key=move |(idx, stone)| {
-                    format!("{}-{}", idx, stone.image_class)
-                }
-                // renders each item to a view
+                key=move |(idx, stone)| { format!("{}-{}", idx, stone.image_class) }
                 view=move |cx, (_, stone)| {
-                    view! {
-                        cx,
+                    view! { cx,
                         <div
-                            class={format!("piece {} deleted", stone.image_class.clone())}
+                            class=format!("piece {} deleted", stone.image_class.clone())
                             on:mousedown=mousedown
                             on:touchstart=touchstart
                             on:dragstart=move |e| e.prevent_default()
                             data-square="deleted"
-                            data-piece={stone.image_class.clone()}
+                            data-piece=stone.image_class.clone()
                         ></div>
                     }
                 }

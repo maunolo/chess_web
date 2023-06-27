@@ -9,19 +9,23 @@ use crate::components::chess_board::ChessBoard;
 use crate::components::coordinates::Coordinates;
 use crate::components::overlay::Overlay;
 use crate::components::trash::{Trash, TrashType};
-use crate::entities::chess_board::ChessBoard as ChessBoardEntity;
+use crate::entities::chess_board::{ChessBoard as ChessBoardEntity, ChessBoardSignals};
 
 #[component]
 pub fn App(cx: Scope) -> impl IntoView {
     provide_meta_context(cx);
 
-    view! {
-        cx,
+    view! { cx,
         <Stylesheet id="leptos" href="/style.css"/>
         <Link rel="shortcut icon" type_="image/ico" href="/favicon.ico"/>
         <Router>
             <Routes>
-                <Route path="" view=  move |cx| view! { cx, <Home/> }/>
+                <Route
+                    path=""
+                    view=move |cx| {
+                        view! { cx, <Home/> }
+                    }
+                />
             </Routes>
         </Router>
     }
@@ -30,11 +34,11 @@ pub fn App(cx: Scope) -> impl IntoView {
 #[component]
 fn Home(cx: Scope) -> impl IntoView {
     let fen = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
-    let chessboard_entity = ChessBoardEntity::new(fen);
-    // chessboard_entity.flip();
-    let (chessboard, set_chessboard) = create_signal(cx, chessboard_entity);
-    #[allow(unused_variables)]
+    let chess_board_entity = ChessBoardEntity::new(fen);
+    let (chess_board, set_chess_board) = create_signal::<ChessBoardEntity>(cx, chess_board_entity);
     let (should_render, set_should_render) = create_signal(cx, false);
+    let chess_board_signals = ChessBoardSignals::new(set_chess_board, set_should_render);
+    let chessboard_socket = create_rw_signal::<Option<web_sys::WebSocket>>(cx, None);
 
     cfg_if! {
         if #[cfg(feature = "ssr")] {
@@ -43,18 +47,13 @@ fn Home(cx: Scope) -> impl IntoView {
             let touchmove = move |_| {};
             let touchend = move |_| {};
             let reset = move |_| {};
-
-            let chess_board_socket = None;
         } else {
             use crate::handlers::mouse::{mousemove, touchmove};
             use crate::handlers::mouse;
 
-            let chess_board_socket = crate::client::websockets::chess_board::start_websocket(set_chessboard, set_should_render).ok();
-
-            let clone_ws = chess_board_socket.clone();
             let mouseup = move |e| {
                 if let Ok((piece_data, (old_pos, new_pos))) = mouse::mouseup(e) {
-                    if let Some(socket) = clone_ws.as_ref() {
+                    if let Some(socket) = chessboard_socket.get().as_ref() {
                         let msg = format!("/move {} {} {}", piece_data, old_pos, new_pos);
 
                         match socket.send_with_str(&msg) {
@@ -65,10 +64,9 @@ fn Home(cx: Scope) -> impl IntoView {
                 };
             };
 
-            let clone_ws = chess_board_socket.clone();
             let touchend = move |e| {
                 if let Ok((piece_data, (old_pos, new_pos))) = mouse::touchend(e) {
-                    if let Some(socket) = clone_ws.as_ref() {
+                    if let Some(socket) = chessboard_socket.get().as_ref() {
                         let msg = format!("/move {} {} {}", piece_data, old_pos, new_pos);
 
                         match socket.send_with_str(&msg) {
@@ -79,9 +77,8 @@ fn Home(cx: Scope) -> impl IntoView {
                 };
             };
 
-            let clone_ws = chess_board_socket.clone();
             let reset = move |_| {
-                if let Some(socket) = clone_ws.as_ref() {
+                if let Some(socket) = chessboard_socket.get().as_ref() {
                     match socket.send_with_str("/reset") {
                         Ok(_) => log::debug!("message successfully sent: {:?}", "/reset"),
                         Err(err) => log::debug!("error sending message: {:?}", err),
@@ -90,8 +87,6 @@ fn Home(cx: Scope) -> impl IntoView {
             };
         }
     }
-
-    let (chess_board_socket, _) = create_signal(cx, chess_board_socket);
 
     view! { cx,
         <div
@@ -104,20 +99,24 @@ fn Home(cx: Scope) -> impl IntoView {
             <Show
                 when=move || should_render.get()
                 fallback=|cx| {
-                    view! {
-                        cx,
+                    view! { cx,
                         <chess-board class="chessboard">
                             <BoardBackground/>
-                            <Coordinates white_view=move || true />
-                            <Trash id=TrashType::Dark white_view=move || true trash=move || vec![] />
-                            <Trash id=TrashType::Light white_view=move || true trash=move || vec![] />
+                            <Coordinates white_view=move || true/>
+                            <Trash id=TrashType::Dark white_view=move || true trash=move || vec![]/>
+                            <Trash id=TrashType::Light white_view=move || true trash=move || vec![]/>
                         </chess-board>
                     }
                 }
             >
-                <ChessBoard chessboard=chessboard />
+                <ChessBoard chess_board=chess_board/>
             </Show>
-            <Overlay chessboard=set_chessboard reset=reset chess_board_socket=chess_board_socket />
+            <Overlay
+                chess_board=set_chess_board
+                reset=reset
+                chess_board_socket=chessboard_socket
+                chess_board_signals=chess_board_signals
+            />
         </div>
     }
 }

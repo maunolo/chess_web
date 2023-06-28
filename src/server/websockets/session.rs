@@ -24,7 +24,7 @@ pub struct WsChessSession {
     pub room_name: String,
 
     /// peer name
-    pub name: Option<String>,
+    pub name: String,
 
     /// Chat server
     pub addr: Addr<ChessServer>,
@@ -39,7 +39,7 @@ impl WsChessSession {
             id: 0,
             hb: Instant::now(),
             room_name: "main".to_owned(),
-            name: None,
+            name: "unknown".to_owned(),
             addr,
             authenticated_at: None,
         }
@@ -190,15 +190,18 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for WsChessSession {
                                     fen: params.clone().unwrap_or((None, None)).0,
                                     trash: params.unwrap_or((None, None)).1,
                                 });
-
-                                ctx.text("joined");
                             } else {
                                 ctx.text("!!! room name is required");
                             }
                         }
-                        "/name" => {
+                        "/username" => {
                             if input != "" {
-                                self.name = Some(input.to_owned());
+                                self.name = input.to_owned();
+
+                                self.addr.do_send(chess_server::UserSync {
+                                    id: self.id,
+                                    name: self.name.clone(),
+                                });
                             } else {
                                 ctx.text("!!! name is required");
                             }
@@ -230,11 +233,7 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for WsChessSession {
                         _ => ctx.text(format!("!!! unknown command: {m:?}")),
                     }
                 } else {
-                    let msg = if let Some(ref name) = self.name {
-                        format!("{name}: {m}")
-                    } else {
-                        m.to_owned()
-                    };
+                    let msg = format!("{name}: {m}", name = self.name);
                     // send message to chat server
                     self.addr.do_send(chess_server::ClientMessage {
                         id: self.id,

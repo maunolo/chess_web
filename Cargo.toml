@@ -22,7 +22,22 @@ log = { version = "0.4.19" }
 wasm-bindgen = { version = "0.2", optional = true }
 console_log = { version = "1", optional = true }
 console_error_panic_hook = { version = "0.1", optional = true }
-web-sys = { version = "0.3.60", features = ["DataTransfer", "Document", "HtmlDocument", "DomRect", "DragEvent", "Element", "ElementCreationOptions", "TouchEvent", "TouchList", "Touch", "NamedNodeMap", "Attr", "Storage", "Window"] }
+web-sys = { version = "0.3.60", features = [
+    "DataTransfer",
+    "Document",
+    "HtmlDocument",
+    "DomRect",
+    "DragEvent",
+    "Element",
+    "ElementCreationOptions",
+    "TouchEvent",
+    "TouchList",
+    "Touch",
+    "NamedNodeMap",
+    "Attr",
+    "Storage",
+    "Window",
+] }
 getrandom = { version = "0.2.10", features = ["js"] }
 js-sys = { version = "0.3.64", optional = true }
 rand = { version = "0.8.5", optional = true }
@@ -47,7 +62,7 @@ hydrate = [
     "dep:wasm-bindgen",
     "dep:console_log",
     "dep:console_error_panic_hook",
-    "dep:js-sys"
+    "dep:js-sys",
 ]
 csr = [
     "leptos/csr",
@@ -56,7 +71,7 @@ csr = [
     "dep:wasm-bindgen",
     "dep:console_log",
     "dep:console_error_panic_hook",
-    "dep:js-sys"
+    "dep:js-sys",
 ]
 ssr = [
     "leptos/ssr",
@@ -72,21 +87,21 @@ ssr = [
     "dep:actix",
     "dep:actix-web-actors",
     "dep:rand",
-    "dep:env_logger"
+    "dep:env_logger",
 ]
 
 [package.metadata.cargo-all-features]
 denylist = [
-  "actix-files",
-  "actix-web",
-  "console_error_panic_hook",
-  "console_log",
-  "futures",
-  "leptos_actix",
-  "simple_logger",
-  "wasm-bindgen",
-  "actix",
-  "actix-web-actors",
+    "actix-files",
+    "actix-web",
+    "console_error_panic_hook",
+    "console_log",
+    "futures",
+    "leptos_actix",
+    "simple_logger",
+    "wasm-bindgen",
+    "actix",
+    "actix-web-actors",
 ]
 skip_feature_sets = [["csr", "ssr"], ["csr", "hydrate"], ["ssr", "hydrate"]]
 

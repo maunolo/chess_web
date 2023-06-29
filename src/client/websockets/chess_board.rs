@@ -3,6 +3,7 @@ use wasm_bindgen::prelude::*;
 use web_sys::{Element, ErrorEvent, MessageEvent, WebSocket};
 
 use crate::{
+    components::overlay::RoomStatus,
     entities::chess_board::ChessBoard,
     utils::{
         class_list::ClassListExt,
@@ -19,6 +20,7 @@ fn query_position(square: &str) -> Option<Element> {
 fn on_message_callback(
     chessboard: WriteSignal<ChessBoard>,
     should_render: WriteSignal<bool>,
+    room_status: WriteSignal<Option<RoomStatus>>,
 ) -> Closure<dyn FnMut(MessageEvent)> {
     Closure::<dyn FnMut(_)>::new(move |e: MessageEvent| {
         // Handle difference Text/Binary,...
@@ -77,11 +79,21 @@ fn on_message_callback(
                     }
                     "/sync_board" => {
                         should_render.set(false);
-                        chessboard.update(|chessboard| {
-                            let mut input = input.split("|");
+                        let mut input = input.split("|");
 
-                            let fen = input.next().unwrap();
-                            let trash = input.next().unwrap();
+                        let room_name = input.next().unwrap();
+                        let fen = input.next().unwrap();
+                        let trash = input.next().unwrap();
+
+                        room_status.update(|room_status| {
+                            if let Some(room_status) = room_status {
+                                room_status.set_name(room_name);
+                            } else {
+                                *room_status = Some(RoomStatus::new(room_name));
+                            }
+                        });
+
+                        chessboard.update(|chessboard| {
                             let reset_count = chessboard.reset_count() + 1;
 
                             let mut new_chessboard = ChessBoard::new(fen);
@@ -93,6 +105,36 @@ fn on_message_callback(
                             *chessboard = new_chessboard;
                         });
                         should_render.set(true);
+                    }
+                    "/sync_users" => {
+                        let mut input = input.split("|");
+                        let room_name = input.next().unwrap();
+                        let users: Vec<String> =
+                            input.next().unwrap().split(",").map(String::from).collect();
+
+                        room_status.update(|room_status| {
+                            if let Some(room_status) = room_status {
+                                room_status.sync_users(users);
+                            } else {
+                                let mut new_room_status = RoomStatus::new(room_name);
+                                new_room_status.sync_users(users);
+                                *room_status = Some(new_room_status);
+                            }
+                        });
+                    }
+                    "/add_user" => {
+                        room_status.update(|room_status| {
+                            if let Some(room_status) = room_status {
+                                room_status.add_user(input);
+                            }
+                        });
+                    }
+                    "/remove_user" => {
+                        room_status.update(|room_status| {
+                            if let Some(room_status) = room_status {
+                                room_status.remove_user(input);
+                            }
+                        });
                     }
                     _ => {}
                 }
@@ -106,6 +148,7 @@ fn on_message_callback(
 pub fn start_websocket(
     chessboard: WriteSignal<ChessBoard>,
     should_render: WriteSignal<bool>,
+    room_status: WriteSignal<Option<RoomStatus>>,
     username: String,
 ) -> Result<WebSocket, JsValue> {
     let location = web_sys::window().unwrap().location();
@@ -123,7 +166,7 @@ pub fn start_websocket(
     );
     // Connect to an echo server
     let ws = WebSocket::new(&ws_uri)?;
-    let onmessage_callback = on_message_callback(chessboard, should_render);
+    let onmessage_callback = on_message_callback(chessboard, should_render, room_status);
     // set message event handler on WebSocket
     ws.set_onmessage(Some(onmessage_callback.as_ref().unchecked_ref()));
     // forget the callback to keep it alive

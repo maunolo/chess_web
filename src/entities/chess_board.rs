@@ -2,6 +2,8 @@ use cfg_if::cfg_if;
 use leptos::WriteSignal;
 use web_sys::WebSocket;
 
+use crate::components::overlay::RoomStatus;
+
 use super::position::Position;
 use super::stone::Stone;
 
@@ -255,6 +257,7 @@ impl ChessBoard {
 pub struct ChessBoardSignals {
     chess_board: WriteSignal<ChessBoard>,
     should_render: WriteSignal<bool>,
+    room_status: Option<WriteSignal<Option<RoomStatus>>>,
 }
 
 impl ChessBoardSignals {
@@ -262,14 +265,23 @@ impl ChessBoardSignals {
         Self {
             chess_board,
             should_render,
+            room_status: None,
         }
+    }
+
+    pub fn set_room_status(&mut self, room_status: WriteSignal<Option<RoomStatus>>) {
+        self.room_status = Some(room_status);
     }
 
     #[allow(unused_variables)]
     pub fn start_websocket(&self, username: String) -> Option<WebSocket> {
+        let Some(room_status) = self.room_status else {
+            return None;
+        };
+
         cfg_if! {
             if #[cfg(not(feature = "ssr"))] {
-                crate::client::websockets::chess_board::start_websocket(self.chess_board, self.should_render, username).ok()
+                crate::client::websockets::chess_board::start_websocket(self.chess_board, self.should_render, room_status, username).ok()
             } else {
                 None
             }

@@ -116,7 +116,7 @@ pub struct User {
     pub id: usize,
     pub name: String,
     pub recipient: Recipient<Message>,
-    pub current_room: String,
+    pub current_room: Option<String>,
 }
 
 impl User {
@@ -124,7 +124,7 @@ impl User {
         id: usize,
         name: String,
         recipient: Recipient<Message>,
-        current_room: String,
+        current_room: Option<String>,
     ) -> Self {
         Self {
             id,
@@ -280,15 +280,17 @@ impl Handler<Connect> for ChessServer {
     fn handle(&mut self, msg: Connect, _: &mut Context<Self>) -> Self::Result {
         log::debug!("Someone joined");
 
+        let room_name = "main".to_owned();
+
         // register session with random id
         let id = self.rng.gen::<usize>();
-        let user = User::new(id, "unknown".to_owned(), msg.addr, "main".to_owned());
+        let user = User::new(id, "unknown".to_owned(), msg.addr, Some(room_name.clone()));
         self.sessions.insert(id, user.clone());
 
         // auto join session to main room
         let current_room = self
             .rooms
-            .entry("main".to_owned())
+            .entry(room_name.clone())
             .or_insert_with(|| Room::new(None, None));
 
         let users = current_room.usernames().join(",");
@@ -299,12 +301,15 @@ impl Handler<Connect> for ChessServer {
         let trash = current_room.trash.clone();
 
         let count = self.visitor_count.fetch_add(1, Ordering::SeqCst);
-        self.send_message("main", &format!("Total visitors {count}"), 0);
+        self.send_message(&room_name, &format!("Total visitors {count}"), 0);
 
-        // sync users
-        self.send_message_to_session(id, &format!("/sync_users {}", users));
         // sync fen
-        self.send_message_to_session(id, &format!("/sync_board {}|{}", current_fen, trash));
+        self.send_message_to_session(
+            id,
+            &format!("/sync_board {}|{}|{}", room_name, current_fen, trash),
+        );
+        // sync users
+        self.send_message_to_session(id, &format!("/sync_users {}|{}", room_name, users));
 
         // send id, and current fen back
         MessageResult((id, current_fen))
@@ -413,10 +418,13 @@ impl Handler<Join> for ChessServer {
         let current_fen = current_room.current_fen.clone();
         let trash = current_room.trash.clone();
 
-        // sync users
-        self.send_message_to_session(id, &format!("/sync_users {}", users));
         // sync fen
-        self.send_message_to_session(id, &format!("/sync_board {}|{}", current_fen, trash));
+        self.send_message_to_session(
+            id,
+            &format!("/sync_board {}|{}|{}", name, current_fen, trash),
+        );
+        // sync users
+        self.send_message_to_session(id, &format!("/sync_users {}|{}", name, users));
 
         // notify all users in room
         self.send_message(&name, &format!("/add_user {}", user_string), 0);
@@ -468,7 +476,7 @@ impl Handler<Reset> for ChessServer {
 
             self.send_message(
                 &room_name,
-                &format!("/sync_board {}|{}", current_fen, trash),
+                &format!("/sync_board {}|{}|{}", room_name, current_fen, trash),
                 0,
             );
         };
@@ -487,14 +495,15 @@ impl Handler<UserSync> for ChessServer {
         };
 
         user.name = name.clone();
-        let current_room_name = user.current_room.clone();
-        let user_string = user.to_string();
+        if let Some(current_room_name) = user.current_room.clone() {
+            let user_string = user.to_string();
 
-        if let Some(current_room) = self.rooms.get_mut(&current_room_name) {
-            current_room.sessions.get_mut(&id).unwrap().name = name;
+            if let Some(current_room) = self.rooms.get_mut(&current_room_name) {
+                current_room.sessions.get_mut(&id).unwrap().name = name;
 
-            // notify all users in room
-            self.send_message(&current_room_name, &format!("/add_user {}", user_string), 0);
+                // notify all users in room
+                self.send_message(&current_room_name, &format!("/add_user {}", user_string), 0);
+            };
         };
     }
 }

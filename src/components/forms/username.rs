@@ -16,7 +16,7 @@ where
                     class="border border-gray-400 rounded p-2 m-2"
                     type="text"
                     name="username"
-                    placeholder="Username"
+                    placeholder="Ex: John Doe"
                 />
                 <button class="border border-gray-400 rounded py-2 px-4 m-2" type="submit">
                     ">"

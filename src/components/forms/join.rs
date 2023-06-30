@@ -16,7 +16,7 @@ where
                     class="border border-gray-400 rounded p-2 m-2"
                     type="text"
                     name="room"
-                    placeholder="Room name"
+                    placeholder="Ex: Chess fen|trash"
                 />
                 <button class="border border-gray-400 rounded py-2 px-4 m-2" type="submit">
                     ">"

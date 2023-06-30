@@ -38,9 +38,9 @@ where
         if (matches!(id, TrashType::Dark) && white_view())
             || (matches!(id, TrashType::Light) && !white_view())
         {
-            "-bottom-12 rounded-b".to_string()
+            "-bottom-10 sm:-bottom-12 rounded-b".to_string()
         } else {
-            "-top-12 rounded-t".to_string()
+            "-top-10 sm:-top-12 rounded-t".to_string()
         }
     };
     let trash = move || {
@@ -51,7 +51,7 @@ where
     };
     let trash_class = move || {
         format!(
-            "flex absolute h-12 w-full z-20 bg-neutral-500 {}",
+            "flex absolute h-10 sm:h-12 w-full z-20 bg-neutral-500 {}",
             position_css()
         )
     };

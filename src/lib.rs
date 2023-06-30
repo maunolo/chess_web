@@ -1,13 +1,13 @@
 mod app;
 mod components;
 mod entities;
+mod handlers;
+mod utils;
 
 use cfg_if::cfg_if;
 
 cfg_if! {
     if #[cfg(feature = "hydrate")] {
-        mod handlers;
-        mod utils;
         mod client;
 
         use wasm_bindgen::prelude::wasm_bindgen;
@@ -27,8 +27,6 @@ cfg_if! {
         }
     }
     else if #[cfg(feature = "csr")] {
-        mod handlers;
-        mod utils;
         mod client;
 
         use wasm_bindgen::prelude::wasm_bindgen;

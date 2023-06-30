@@ -4,9 +4,8 @@ use crate::components::trash::{Trash, TrashType};
 use crate::entities::chess_board::ChessBoard as ChessBoardEntity;
 use crate::entities::position::Position;
 use crate::entities::stone::Stone;
+use crate::handlers::mouse::{mousedown, touchstart};
 use leptos::*;
-
-use cfg_if::cfg_if;
 
 #[component]
 pub fn ChessBoard(cx: Scope, chess_board: ReadSignal<ChessBoardEntity>) -> impl IntoView {
@@ -14,15 +13,6 @@ pub fn ChessBoard(cx: Scope, chess_board: ReadSignal<ChessBoardEntity>) -> impl 
     let white_view = move || chess_board.with(|c| c.white_view());
     let stones_and_positions = move || chess_board.with(|c| c.stones_and_positions());
     let trash = move || chess_board.with(|c| c.deleted_stones());
-
-    cfg_if! {
-      if #[cfg(feature = "ssr")] {
-        let mousedown = move |_| {};
-        let touchstart = move |_| {};
-      } else {
-        use crate::handlers::mouse::{mousedown, touchstart};
-      }
-    }
 
     view! { cx,
         <chess-board class=css_class id="chessboard">

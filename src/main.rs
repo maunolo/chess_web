@@ -1,6 +1,8 @@
 mod app;
 mod components;
 mod entities;
+mod handlers;
+mod utils;
 
 use cfg_if::cfg_if;
 
@@ -105,8 +107,6 @@ cfg_if! {
         }
     }
     else {
-        mod handlers;
-        mod utils;
         mod client;
         pub fn main() {}
     }

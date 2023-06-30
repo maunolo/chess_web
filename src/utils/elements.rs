@@ -1,4 +1,3 @@
-use wasm_bindgen::JsCast;
 use web_sys::{Document, DomRect, Element, Event};
 
 use super::class_list::ClassListExt;
@@ -8,9 +7,9 @@ pub fn document() -> Document {
     web_sys::window().unwrap().document().unwrap()
 }
 
-pub fn event_target_elem(event: &Event) -> Element {
+pub fn event_target_elem(event: &Event) -> Option<Element> {
     let target = event.target().unwrap();
-    JsCast::dyn_ref::<Element>(&target).unwrap().to_owned()
+    super::js_cast::<Element, _>(target)
 }
 
 pub fn query_selector(class: &str) -> Option<Element> {

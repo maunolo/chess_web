@@ -2,14 +2,14 @@ use leptos::*;
 use leptos_meta::*;
 use leptos_router::*;
 
-use cfg_if::cfg_if;
-
 use crate::components::board::BoardBackground;
 use crate::components::chess_board::ChessBoard;
 use crate::components::coordinates::Coordinates;
 use crate::components::overlay::Overlay;
 use crate::components::trash::{Trash, TrashType};
 use crate::entities::chess_board::{ChessBoard as ChessBoardEntity, ChessBoardSignals};
+use crate::handlers::mouse;
+use crate::handlers::mouse::{mousemove, touchmove};
 
 #[component]
 pub fn App(cx: Scope) -> impl IntoView {
@@ -43,53 +43,40 @@ fn Home(cx: Scope) -> impl IntoView {
     let chess_board_signals = ChessBoardSignals::new(set_chess_board, set_should_render);
     let chessboard_socket = create_rw_signal::<Option<web_sys::WebSocket>>(cx, None);
 
-    cfg_if! {
-        if #[cfg(feature = "ssr")] {
-            let mousemove = move |_| {};
-            let mouseup = move |_| {};
-            let touchmove = move |_| {};
-            let touchend = move |_| {};
-            let reset = move |_| {};
-        } else {
-            use crate::handlers::mouse::{mousemove, touchmove};
-            use crate::handlers::mouse;
+    let mouseup = move |e| {
+        if let Ok((piece_data, (old_pos, new_pos))) = mouse::mouseup(e) {
+            if let Some(socket) = chessboard_socket.get().as_ref() {
+                let msg = format!("/move {} {} {}", piece_data, old_pos, new_pos);
 
-            let mouseup = move |e| {
-                if let Ok((piece_data, (old_pos, new_pos))) = mouse::mouseup(e) {
-                    if let Some(socket) = chessboard_socket.get().as_ref() {
-                        let msg = format!("/move {} {} {}", piece_data, old_pos, new_pos);
-
-                        match socket.send_with_str(&msg) {
-                            Ok(_) => log::debug!("message successfully sent: {:?}", msg),
-                            Err(err) => log::debug!("error sending message: {:?}", err),
-                        }
-                    }
-                };
-            };
-
-            let touchend = move |e| {
-                if let Ok((piece_data, (old_pos, new_pos))) = mouse::touchend(e) {
-                    if let Some(socket) = chessboard_socket.get().as_ref() {
-                        let msg = format!("/move {} {} {}", piece_data, old_pos, new_pos);
-
-                        match socket.send_with_str(&msg) {
-                            Ok(_) => log::debug!("message successfully sent: {:?}", msg),
-                            Err(err) => log::debug!("error sending message: {:?}", err),
-                        }
-                    }
-                };
-            };
-
-            let reset = move |_| {
-                if let Some(socket) = chessboard_socket.get().as_ref() {
-                    match socket.send_with_str("/reset") {
-                        Ok(_) => log::debug!("message successfully sent: {:?}", "/reset"),
-                        Err(err) => log::debug!("error sending message: {:?}", err),
-                    }
+                match socket.send_with_str(&msg) {
+                    Ok(_) => log::debug!("message successfully sent: {:?}", msg),
+                    Err(err) => log::debug!("error sending message: {:?}", err),
                 }
-            };
+            }
+        };
+    };
+
+    let touchend = move |e| {
+        if let Ok((piece_data, (old_pos, new_pos))) = mouse::touchend(e) {
+            if let Some(socket) = chessboard_socket.get().as_ref() {
+                let msg = format!("/move {} {} {}", piece_data, old_pos, new_pos);
+
+                match socket.send_with_str(&msg) {
+                    Ok(_) => log::debug!("message successfully sent: {:?}", msg),
+                    Err(err) => log::debug!("error sending message: {:?}", err),
+                }
+            }
+        };
+    };
+
+    let reset = move |_| {
+        if let Some(socket) = chessboard_socket.get().as_ref() {
+            match socket.send_with_str("/reset") {
+                Ok(_) => log::debug!("message successfully sent: {:?}", "/reset"),
+                Err(err) => log::debug!("error sending message: {:?}", err),
+            }
         }
-    }
+    };
 
     view! { cx,
         <div

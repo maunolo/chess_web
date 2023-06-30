@@ -129,21 +129,13 @@ where
     chess_board_signals.set_room_status(set_room_status);
 
     create_effect(cx, move |_| {
-        cfg_if! {
-            if #[cfg(not(feature = "ssr"))] {
-                use crate::utils::WindowExt;
+        use crate::utils::WindowExt;
 
-                if let Some(username) = get_local_username() {
-                    chess_board_socket.set(chess_board_signals.start_websocket(username));
-                } else {
-                    let window = web_sys::window().unwrap();
-                    window.set_timeout_callback(move || set_show_form.set(Form::Username), 0);
-                }
-
-                let username = Some(web_sys::window().unwrap().local_storage());
-            } else {
-                let username: Option<String> = None;
-            }
+        if let Some(username) = get_local_username() {
+            chess_board_socket.set(chess_board_signals.start_websocket(username));
+        } else {
+            let window = web_sys::window().unwrap();
+            window.set_timeout_callback(move || set_show_form.set(Form::Username), 0);
         }
 
         toggle_sub_menu(sub_menu_timeout_id, false);
@@ -166,13 +158,8 @@ where
         e.prevent_default();
         if let Some(socket) = chess_board_socket.get().as_ref() {
             let target = e.target().unwrap();
-            cfg_if! {
-                if #[cfg(feature = "ssr")] {
-                    let form: Option<web_sys::HtmlFormElement> = None;
-                } else {
-                    let form = Some(wasm_bindgen::JsCast::dyn_into::<web_sys::HtmlFormElement>(target).unwrap());
-                }
-            }
+            let form = crate::utils::js_cast::<web_sys::HtmlFormElement, _>(target);
+
             if let Some(form) = form {
                 let data = web_sys::FormData::new_with_form(&form).unwrap();
                 let room = data.get("room").as_string().unwrap();
@@ -189,13 +176,8 @@ where
     let username_submit = move |e: web_sys::SubmitEvent| {
         e.prevent_default();
         let target = e.target().unwrap();
-        cfg_if! {
-            if #[cfg(feature = "ssr")] {
-                let form: Option<web_sys::HtmlFormElement> = None;
-            } else {
-                let form = Some(wasm_bindgen::JsCast::dyn_into::<web_sys::HtmlFormElement>(target).unwrap());
-            }
-        }
+        let form = crate::utils::js_cast::<web_sys::HtmlFormElement, _>(target);
+
         if let Some(form) = form {
             let data = web_sys::FormData::new_with_form(&form).unwrap();
             let username = data.get("username").as_string().unwrap();

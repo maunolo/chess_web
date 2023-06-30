@@ -58,7 +58,10 @@ pub fn touchmove(event: TouchEvent) {
 
 pub fn mousedown(event: MouseEvent) {
     // Add dragging class to the piece
-    let piece = elements::event_target_elem(&event);
+    let Some(piece) = elements::event_target_elem(&event) else {
+        log::debug!("No piece found");
+        return;
+    };
     // select_piece_square(&piece);
     piece.class_list_add("dragging");
 
@@ -73,7 +76,10 @@ pub fn mousedown(event: MouseEvent) {
 }
 
 pub fn touchstart(event: TouchEvent) {
-    let piece = elements::event_target_elem(&event);
+    let Some(piece) = elements::event_target_elem(&event) else {
+        log::debug!("No piece found");
+        return;
+    };
     // select_piece_square(&piece);
     piece.class_list_add("dragging");
 

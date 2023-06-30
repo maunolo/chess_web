@@ -86,6 +86,7 @@ where
     R: Fn(web_sys::MouseEvent) -> () + 'static,
 {
     let (show_form, set_show_form) = create_signal(cx, Form::None);
+    let (show_menu, set_show_menu) = create_signal(cx, false);
     let (room_status, set_room_status) = create_signal::<Option<RoomStatus>>(cx, None);
     let mut chess_board_signals = chess_board_signals;
 
@@ -118,14 +119,20 @@ where
         set_show_form.set(Form::Join);
     };
 
+    let toggle_menu = move |_| {
+        set_show_menu.set(!show_menu.get());
+    };
+
     let join_submit = move |e: web_sys::SubmitEvent| {
         e.prevent_default();
         if let Some(socket) = chess_board_socket.get().as_ref() {
             let target = e.target().unwrap();
             cfg_if! {
-                if #[cfg(feature = "ssr")] { let form : Option < web_sys::HtmlFormElement
-                    > = None; } else { let form = Some(wasm_bindgen::JsCast::dyn_into::<
-                                                       web_sys::HtmlFormElement > (target).unwrap()); }
+                if #[cfg(feature = "ssr")] {
+                    let form: Option<web_sys::HtmlFormElement> = None;
+                } else {
+                    let form = Some(wasm_bindgen::JsCast::dyn_into::<web_sys::HtmlFormElement>(target).unwrap());
+                }
             }
             if let Some(form) = form {
                 let data = web_sys::FormData::new_with_form(&form).unwrap();
@@ -144,9 +151,11 @@ where
         e.prevent_default();
         let target = e.target().unwrap();
         cfg_if! {
-            if #[cfg(feature = "ssr")] { let form : Option < web_sys::HtmlFormElement > =
-                None; } else { let form = Some(wasm_bindgen::JsCast::dyn_into::<
-                                               web_sys::HtmlFormElement > (target).unwrap()); }
+            if #[cfg(feature = "ssr")] {
+                let form: Option<web_sys::HtmlFormElement> = None;
+            } else {
+                let form = Some(wasm_bindgen::JsCast::dyn_into::<web_sys::HtmlFormElement>(target).unwrap());
+            }
         }
         if let Some(form) = form {
             let data = web_sys::FormData::new_with_form(&form).unwrap();
@@ -157,32 +166,56 @@ where
         set_show_form.set(Form::None);
     };
 
+    let menu_css = move || {
+        if show_menu.get() {
+            "menu menu--is-active"
+        } else {
+            "menu"
+        }
+    };
+
+    let menu_btn_css = move || {
+        if show_menu.get() {
+            "menu-btn menu-btn--is-active"
+        } else {
+            "menu-btn"
+        }
+    };
+
     view! { cx,
         <>
-            <div class="pointer-events-none flex flex-none fixed bottom-0 z-30 sm:bottom-auto sm:right-auto sm:left-0 sm:top-0">
-                <h1 class="text-xl bg-neutral-300 font-extrabold px-2 py-2 rounded-t-lg sm:rounded-t-none sm:rounded-br-lg">{
-                    move || room_status.with(|status| status.as_ref().map(|s| s.name.clone()).unwrap_or("Chess".to_owned()))
-                }</h1>
-            </div>
-            <div class="pointer-events-none flex flex-none fixed gap-2 top-0 z-30 py-2 px-2 justify-center sm:w-24 sm:left-0 sm:flex-col sm:top-auto">
-                <button
-                    class="pointer-events-auto h-fit w-20 py-2 rounded bg-neutral-300 hover:bg-neutral-400 sm:h-auto"
-                    on:click=move |_| { chess_board.update(|cb| cb.flip()) }
-                >
-                    "Flip"
-                </button>
-                <button
-                    class="pointer-events-auto h-fit w-20 py-2 rounded bg-neutral-300 hover:bg-neutral-400 sm:h-auto"
-                    on:click=reset
-                >
-                    "Reset"
-                </button>
-                <button
-                    class="pointer-events-auto h-fit w-20 py-2 rounded bg-neutral-300 hover:bg-neutral-400 sm:h-auto"
-                    on:click=join
-                >
-                    "Join"
-                </button>
+            <div class=menu_css>
+                <div class="menu-header">
+                    <button
+                        class=menu_btn_css
+                        on:click=toggle_menu
+                    >
+                        <span class="line"></span>
+                    </button>
+                    <h1 class="room-title">{
+                        move || room_status.with(|status| status.as_ref().map(|s| s.name.clone()).unwrap_or("Chess".to_owned()))
+                    }</h1>
+                </div>
+                <div class="sub-menu">
+                    <button
+                        class="sub-menu-item"
+                        on:click=move |_| { chess_board.update(|cb| cb.flip()) }
+                    >
+                        "Flip"
+                    </button>
+                    <button
+                        class="sub-menu-item"
+                        on:click=reset
+                    >
+                        "Reset"
+                    </button>
+                    <button
+                        class="sub-menu-item"
+                        on:click=join
+                    >
+                        "Join"
+                    </button>
+                </div>
             </div>
             {move || {
                 if !matches!(show_form.get(), Form::None) {

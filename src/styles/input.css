@@ -2,6 +2,7 @@
 @import "./base.css";
 
 @import "tailwindcss/components";
+@import "./menu.css";
 @import "./chess/board.css";
 @import "./chess/pieces.css";
 @import "./chess/squares.css";

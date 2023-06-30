@@ -1,0 +1,103 @@
+@layer components {
+    .menu {
+        @apply pointer-events-none bg-neutral-200 fixed h-12 sm:h-15 z-30 left-0 top-0 rounded-br-lg drop-shadow pb-2;
+        transition: all .2s ease-in-out;
+        overflow: hidden;
+
+        .sub-menu {
+            @apply hidden flex-col text-sm sm:text-base font-medium gap-1.5 items-center;
+
+            .sub-menu-item {
+                @apply h-fit w-10/12 py-2 rounded bg-neutral-300 hover:bg-neutral-400 px-2;
+            }
+        }
+
+        &--is-active {
+            @apply pointer-events-auto h-45 sm:h-51;
+
+            .sub-menu {
+                @apply flex;
+            }
+        }
+    }
+
+    .menu-header {
+        @apply flex items-center gap-2 h-fit px-2 py-2.75 sm:px-2.75 sm:py-3;
+    }
+
+    .menu-btn {
+        @apply pointer-events-auto block bg-transparent cursor-pointer h-6 w-6 sm:h-8 sm:w-8 outline-none relative; 
+        transition: background-color .2s ease-in-out;
+
+        .line,
+        .line::after,
+        .line::before {
+            @apply pointer-events-none bg-neutral-700 rounded;
+            display: block;
+            height: 0.2rem;
+            width: 1.5rem;
+
+            @media (min-width: 640px) {
+                height: 0.25rem;
+                width: 1.5rem;
+            }
+        }
+
+        .line {
+            margin: 0 auto;
+            position: relative;
+            top: 0;
+            transition-delay: .2s;
+            transition-duration: 0s;
+
+            &::before,
+            &::after {
+                content: '';
+                position: absolute;
+            }
+
+            &::before {
+                margin-top: -8px;
+                transition-delay: .2s, 0s;
+                transition-duration: .2s;
+                transition-property: margin, transform;
+            }
+
+            &::after {
+                margin-top: 8px;
+                transition-delay: .2s, 0s;
+                transition-duration: .2s;
+                transition-property: margin, transform;
+            }
+        }
+
+        &--is-active {
+            .line,
+            .line::after,
+            .line::before {
+                @apply bg-neutral-700;
+            }
+
+            .line {
+                background-color: rgba(0, 0, 0, 0);
+                transition-delay: .1s;
+
+                &::before {
+                    margin-top: 0;
+                    transform: rotate(45deg);
+                    transition-delay: 0s, .2s;
+                }
+
+                &::after {
+                    margin-top: 0;
+                    transform: rotate(-45deg);
+                    transition-delay: 0s, .2s;
+                }
+            }
+        }
+    }
+
+    .room-title {
+        @apply text-lg sm:text-xl font-black leading-none capitalize decoration-neutral-700 border-l border-neutral-500 pl-2 sm:pl-3 py-1;
+    }
+}

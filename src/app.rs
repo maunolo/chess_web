@@ -18,6 +18,9 @@ pub fn App(cx: Scope) -> impl IntoView {
     view! { cx,
         <Stylesheet id="leptos" href="/style.css"/>
         <Link rel="shortcut icon" type_="image/ico" href="/favicon.ico"/>
+        <Link rel="preconnect" href="https://fonts.googleapis.com"/>
+        <Link rel="preconnect" href="https://fonts.gstatic.com" crossorigin=""/>
+        <Link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@300;400;500;600;700&display=swap" rel="stylesheet"/>
         <Router>
             <Routes>
                 <Route

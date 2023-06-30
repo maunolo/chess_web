@@ -34,13 +34,13 @@ where
       }
     }
 
-    let position = move || {
+    let position_css = move || {
         if (matches!(id, TrashType::Dark) && white_view())
             || (matches!(id, TrashType::Light) && !white_view())
         {
-            "-bottom-12".to_string()
+            "-bottom-12 rounded-b".to_string()
         } else {
-            "-top-12".to_string()
+            "-top-12 rounded-t".to_string()
         }
     };
     let trash = move || {
@@ -52,7 +52,7 @@ where
     let trash_class = move || {
         format!(
             "flex absolute h-12 w-full z-20 bg-neutral-500 {}",
-            position()
+            position_css()
         )
     };
     let trash_id = move || format!("{}-trash", String::from(id));

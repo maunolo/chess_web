@@ -7,6 +7,41 @@ use crate::{
 
 use cfg_if::cfg_if;
 
+#[allow(unused_variables)]
+fn toggle_sub_menu(sub_menu_timeout_id: RwSignal<Option<i32>>, show_menu: bool) {
+    cfg_if! {
+        if #[cfg(not(feature = "ssr"))] {
+            use crate::utils::WindowExt;
+
+            let window = web_sys::window().unwrap();
+            let sub_menu = window
+                .document()
+                .unwrap()
+                .get_element_by_id("sub-menu")
+                .unwrap();
+
+            if show_menu {
+                sub_menu.set_class_name("sub-menu sub-menu--is-active")
+            } else {
+                if let Some(id) = window.set_timeout_callback(
+                    move || sub_menu.set_class_name("sub-menu"),
+                    250,
+                ) {
+                    sub_menu_timeout_id.set(Some(id))
+                };
+            }
+        }
+    }
+}
+
+fn clear_timeout(id: Option<i32>) {
+    if let Some(id) = id {
+        let window = web_sys::window().unwrap();
+
+        window.clear_timeout_with_handle(id);
+    }
+}
+
 #[derive(Clone)]
 #[allow(dead_code)]
 pub enum Form {
@@ -88,6 +123,7 @@ where
     let (show_form, set_show_form) = create_signal(cx, Form::None);
     let (show_menu, set_show_menu) = create_signal(cx, false);
     let (room_status, set_room_status) = create_signal::<Option<RoomStatus>>(cx, None);
+    let sub_menu_timeout_id = create_rw_signal::<Option<i32>>(cx, None);
     let mut chess_board_signals = chess_board_signals;
 
     chess_board_signals.set_room_status(set_room_status);
@@ -95,17 +131,13 @@ where
     create_effect(cx, move |_| {
         cfg_if! {
             if #[cfg(not(feature = "ssr"))] {
-                use wasm_bindgen::JsCast;
+                use crate::utils::WindowExt;
 
                 if let Some(username) = get_local_username() {
                     chess_board_socket.set(chess_board_signals.start_websocket(username));
                 } else {
                     let window = web_sys::window().unwrap();
-                    let open_username_form = wasm_bindgen::prelude::Closure::<dyn FnMut()>::new(move || {
-                        set_show_form.set(Form::Username);
-                    });
-                    let _ = window.set_timeout_with_callback(open_username_form.as_ref().unchecked_ref());
-                    open_username_form.forget();
+                    window.set_timeout_callback(move || set_show_form.set(Form::Username), 0);
                 }
 
                 let username = Some(web_sys::window().unwrap().local_storage());
@@ -113,6 +145,8 @@ where
                 let username: Option<String> = None;
             }
         }
+
+        toggle_sub_menu(sub_menu_timeout_id, false);
     });
 
     let join = move |_| {
@@ -120,7 +154,12 @@ where
     };
 
     let toggle_menu = move |_| {
-        set_show_menu.set(!show_menu.get());
+        set_show_menu.update(|show_menu| {
+            clear_timeout(sub_menu_timeout_id.get());
+            toggle_sub_menu(sub_menu_timeout_id, !*show_menu);
+
+            *show_menu = !*show_menu;
+        });
     };
 
     let join_submit = move |e: web_sys::SubmitEvent| {
@@ -196,7 +235,7 @@ where
                         move || room_status.with(|status| status.as_ref().map(|s| s.name.clone()).unwrap_or("Chess".to_owned()))
                     }</h1>
                 </div>
-                <div class="sub-menu">
+                <div class="sub-menu sub-menu--is-active" id="sub-menu">
                     <button
                         class="sub-menu-item"
                         on:click=move |_| { chess_board.update(|cb| cb.flip()) }

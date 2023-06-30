@@ -10,14 +10,14 @@
             .sub-menu-item {
                 @apply h-fit w-10/12 py-2 rounded bg-neutral-300 hover:bg-neutral-400 px-2;
             }
+
+            &--is-active {
+                @apply flex;
+            }
         }
 
         &--is-active {
             @apply pointer-events-auto h-45 sm:h-51;
-
-            .sub-menu {
-                @apply flex;
-            }
         }
     }
 

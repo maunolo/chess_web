@@ -110,16 +110,13 @@ fn get_local_username() -> Option<String> {
 
 #[component]
 #[allow(unused_variables)]
-pub fn Overlay<R>(
+pub fn Overlay(
     cx: Scope,
     chess_board: WriteSignal<ChessBoard>,
-    reset: R,
+
     chess_board_socket: RwSignal<Option<web_sys::WebSocket>>,
     chess_board_signals: ChessBoardSignals,
-) -> impl IntoView
-where
-    R: Fn(web_sys::MouseEvent) -> () + 'static,
-{
+) -> impl IntoView {
     let (show_form, set_show_form) = create_signal(cx, Form::None);
     let (show_menu, set_show_menu) = create_signal(cx, false);
     let (room_status, set_room_status) = create_signal::<Option<RoomStatus>>(cx, None);
@@ -143,6 +140,15 @@ where
 
     let join = move |_| {
         set_show_form.set(Form::Join);
+    };
+
+    let reset = move |_| {
+        if let Some(socket) = chess_board_socket.get().as_ref() {
+            match socket.send_with_str("/reset") {
+                Ok(_) => log::debug!("message successfully sent: {:?}", "/reset"),
+                Err(err) => log::debug!("error sending message: {:?}", err),
+            }
+        }
     };
 
     let toggle_menu = move |_| {

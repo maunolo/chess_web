@@ -8,8 +8,7 @@ use crate::components::coordinates::Coordinates;
 use crate::components::overlay::Overlay;
 use crate::components::trash::{Trash, TrashType};
 use crate::entities::chess_board::{ChessBoard as ChessBoardEntity, ChessBoardSignals};
-use crate::handlers::mouse;
-use crate::handlers::mouse::{mousemove, touchmove};
+use crate::handlers::{interaction_end_with_websocket, interaction_move};
 
 #[component]
 pub fn App(cx: Scope) -> impl IntoView {
@@ -41,50 +40,15 @@ fn Home(cx: Scope) -> impl IntoView {
     let (chess_board, set_chess_board) = create_signal::<ChessBoardEntity>(cx, chess_board_entity);
     let (should_render, set_should_render) = create_signal(cx, false);
     let chess_board_signals = ChessBoardSignals::new(set_chess_board, set_should_render);
-    let chessboard_socket = create_rw_signal::<Option<web_sys::WebSocket>>(cx, None);
-
-    let mouseup = move |e| {
-        if let Ok((piece_data, (old_pos, new_pos))) = mouse::mouseup(e) {
-            if let Some(socket) = chessboard_socket.get().as_ref() {
-                let msg = format!("/move {} {} {}", piece_data, old_pos, new_pos);
-
-                match socket.send_with_str(&msg) {
-                    Ok(_) => log::debug!("message successfully sent: {:?}", msg),
-                    Err(err) => log::debug!("error sending message: {:?}", err),
-                }
-            }
-        };
-    };
-
-    let touchend = move |e| {
-        if let Ok((piece_data, (old_pos, new_pos))) = mouse::touchend(e) {
-            if let Some(socket) = chessboard_socket.get().as_ref() {
-                let msg = format!("/move {} {} {}", piece_data, old_pos, new_pos);
-
-                match socket.send_with_str(&msg) {
-                    Ok(_) => log::debug!("message successfully sent: {:?}", msg),
-                    Err(err) => log::debug!("error sending message: {:?}", err),
-                }
-            }
-        };
-    };
-
-    let reset = move |_| {
-        if let Some(socket) = chessboard_socket.get().as_ref() {
-            match socket.send_with_str("/reset") {
-                Ok(_) => log::debug!("message successfully sent: {:?}", "/reset"),
-                Err(err) => log::debug!("error sending message: {:?}", err),
-            }
-        }
-    };
+    let chess_board_socket = create_rw_signal::<Option<web_sys::WebSocket>>(cx, None);
 
     view! { cx,
         <div
             class="flex overflow-hidden relative justify-center items-center px-4 w-screen h-screen sm:py-16 sm:px-16 md:py-16 md:px-0"
-            on:touchmove=touchmove
-            on:touchend=touchend
-            on:mousemove=mousemove
-            on:mouseup=mouseup
+            on:touchmove=interaction_move
+            on:touchend=move |e| interaction_end_with_websocket(chess_board_socket, e)
+            on:mousemove=interaction_move
+            on:mouseup=move |e| interaction_end_with_websocket(chess_board_socket, e)
         >
             <Show
                 when=move || should_render.get()
@@ -103,8 +67,7 @@ fn Home(cx: Scope) -> impl IntoView {
             </Show>
             <Overlay
                 chess_board=set_chess_board
-                reset=reset
-                chess_board_socket=chessboard_socket
+                chess_board_socket=chess_board_socket
                 chess_board_signals=chess_board_signals
             />
         </div>

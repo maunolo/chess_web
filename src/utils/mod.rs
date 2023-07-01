@@ -1,6 +1,7 @@
 pub mod class_list;
 pub mod element_pool;
 pub mod elements;
+pub mod events;
 pub mod style;
 
 use cfg_if::cfg_if;

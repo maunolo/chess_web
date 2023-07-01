@@ -1,7 +1,7 @@
 use leptos::*;
 
 use crate::entities::stone::Stone;
-use crate::handlers::mouse::{mousedown, touchstart};
+use crate::handlers::interaction_start;
 
 #[derive(Clone, Copy, PartialEq)]
 pub enum TrashType {
@@ -59,8 +59,8 @@ where
                     view! { cx,
                         <div
                             class=format!("piece {} deleted", stone.image_class.clone())
-                            on:mousedown=mousedown
-                            on:touchstart=touchstart
+                            on:mousedown=interaction_start
+                            on:touchstart=interaction_start
                             on:dragstart=move |e| e.prevent_default()
                             data-square="deleted"
                             data-piece=stone.image_class.clone()

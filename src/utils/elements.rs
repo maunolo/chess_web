@@ -1,15 +1,10 @@
-use web_sys::{Document, DomRect, Element, Event};
+use web_sys::{Document, DomRect, Element};
 
 use super::class_list::ClassListExt;
 use super::style::StyleExt;
 
 pub fn document() -> Document {
     web_sys::window().unwrap().document().unwrap()
-}
-
-pub fn event_target_elem(event: &Event) -> Option<Element> {
-    let target = event.target().unwrap();
-    super::js_cast::<Element, _>(target)
 }
 
 pub fn query_selector(class: &str) -> Option<Element> {

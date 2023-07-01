@@ -4,7 +4,7 @@ use crate::components::trash::{Trash, TrashType};
 use crate::entities::chess_board::ChessBoard as ChessBoardEntity;
 use crate::entities::position::Position;
 use crate::entities::stone::Stone;
-use crate::handlers::mouse::{mousedown, touchstart};
+use crate::handlers::interaction_start;
 use leptos::*;
 
 #[component]
@@ -25,8 +25,8 @@ pub fn ChessBoard(cx: Scope, chess_board: ReadSignal<ChessBoardEntity>) -> impl 
                     view! { cx,
                         <div
                             class=format!("piece {} {}", stone.image_class.clone(), position.css_class())
-                            on:mousedown=mousedown
-                            on:touchstart=touchstart
+                            on:mousedown=interaction_start
+                            on:touchstart=interaction_start
                             on:dragstart=move |e| e.prevent_default()
                             data-square=position.to_string()
                             data-piece=stone.image_class.clone()

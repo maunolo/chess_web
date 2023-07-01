@@ -3,6 +3,7 @@ use leptos::*;
 use crate::{
     components::forms::{join::Join, username::Username},
     entities::chess_board::{ChessBoard, ChessBoardSignals},
+    utils::{get_cookie_value, jwt::decode, SessionPayload, WindowExt},
 };
 
 use cfg_if::cfg_if;
@@ -84,27 +85,26 @@ impl RoomStatus {
     }
 }
 
-fn set_local_username(username: String) {
-    let local_storage = web_sys::window().map(|w| w.local_storage());
-    match local_storage {
-        Some(Ok(Some(local_storage))) => {
-            let _ = local_storage.set_item("username", &username);
-        }
-        _ => {
-            log::debug!("No local storage available to set");
-        }
-    }
+fn set_username(
+    username: &str,
+    chess_board_socket: RwSignal<Option<web_sys::WebSocket>>,
+    chess_board_signals: ChessBoardSignals,
+) {
+    let window = web_sys::window().unwrap();
+    window.post_user_name(username, chess_board_socket, chess_board_signals);
 }
 
 #[allow(dead_code)]
-fn get_local_username() -> Option<String> {
-    let local_storage = web_sys::window()?.local_storage();
-    match local_storage {
-        Ok(Some(local_storage)) => local_storage.get_item("username").unwrap(),
-        _ => {
-            log::debug!("No local storage available to get");
-            None
-        }
+fn get_username() -> Option<String> {
+    if let Some(session_token) = get_cookie_value("session_token") {
+        let Ok(token) = decode::<SessionPayload>(&session_token) else {
+            log::debug!("Session token is not a valid JWT: {}", session_token);
+            return None;
+        };
+        let session = token.claims();
+        Some(session.name.clone())
+    } else {
+        None
     }
 }
 
@@ -128,12 +128,12 @@ pub fn Overlay(
     create_effect(cx, move |_| {
         use crate::utils::WindowExt;
 
-        if let Some(username) = get_local_username() {
-            chess_board_socket.set(chess_board_signals.start_websocket(username));
+        if let Some(username) = get_username() {
+            chess_board_socket.set(chess_board_signals.start_websocket());
         } else {
             let window = web_sys::window().unwrap();
             window.set_timeout_callback(move || set_show_form.set(Form::Username), 0);
-        }
+        };
 
         toggle_sub_menu(sub_menu_timeout_id, false);
     });
@@ -187,8 +187,7 @@ pub fn Overlay(
         if let Some(form) = form {
             let data = web_sys::FormData::new_with_form(&form).unwrap();
             let username = data.get("username").as_string().unwrap();
-            set_local_username(username.clone());
-            chess_board_socket.set(chess_board_signals.start_websocket(username));
+            set_username(&username, chess_board_socket, chess_board_signals);
         }
         set_show_form.set(Form::None);
     };

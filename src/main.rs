@@ -15,7 +15,7 @@ cfg_if! {
         use crate::app::*;
         use leptos_actix::{generate_route_list, LeptosRoutes};
         use actix_web::{
-            middleware, App, HttpServer, get, web, Error, HttpRequest, HttpResponse, Responder
+            middleware, App, HttpServer, get, post, error, web, Error, HttpRequest, HttpResponse, Responder
         };
         use actix_web_actors::ws;
         use server::{
@@ -30,15 +30,49 @@ cfg_if! {
         use std::net::SocketAddr;
         use std::sync::{atomic::AtomicUsize, Arc};
 
-        // fn is_valid_session_token(cookie: Option<Cookie>) -> bool {
-        //     match cookie {
-        //         Some(session_token) => {
-        //             let session_token = session_token.value();
-        //             true
-        //         }
-        //         None => true,
-        //     }
-        // }
+        use futures::StreamExt;
+        use serde::{Deserialize, Serialize};
+
+        use std::time::{SystemTime, UNIX_EPOCH};
+        use utils::SessionPayload;
+
+        #[derive(Serialize, Deserialize)]
+        struct PostSessionPayload {
+            username: String
+        }
+
+        const MAX_SIZE: usize = 262_144; // max payload size is 256k
+
+        #[post("/sessions")]
+        async fn create_session(mut payload: web::Payload) -> impl Responder {
+            // payload is a stream of Bytes objects
+            let mut body = web::BytesMut::new();
+            while let Some(chunk) = payload.next().await {
+                let chunk = chunk?;
+                // limit max size of in-memory payload
+                if (body.len() + chunk.len()) > MAX_SIZE {
+                    return Err(error::ErrorBadRequest("overflow"));
+                }
+                body.extend_from_slice(&chunk);
+            }
+
+            // payload is loaded, now we can deserialize serde-json
+            let payload: PostSessionPayload = serde_json::from_slice::<PostSessionPayload>(&body)?;
+
+            let iat = SystemTime::now().duration_since(UNIX_EPOCH).expect("Time went backwards").as_secs();
+            // do something with payload
+            let jwt_payload = serde_json::json!({
+                "sub": uuid::Uuid::new_v4().to_string(),
+                "name": payload.username,
+                "iat": iat,
+            });
+
+            let session_token = utils::jwt::encode(jwt_payload).expect("Failed to encode JWT");
+
+            let session_cookie = actix_web::cookie::Cookie::build("session_token", session_token).path("/").finish();
+
+            Ok(HttpResponse::Ok().cookie(session_cookie).finish()) // <- send response
+        }
 
         #[get("/style.css")]
         async fn css() -> impl Responder {
@@ -51,12 +85,18 @@ cfg_if! {
             stream: web::Payload,
             srv: web::Data<Addr<ChessServer>>,
         ) -> Result<HttpResponse, Error> {
-            // if !is_valid_session_token(req.cookie("session_token")) {
-            //     return Ok(HttpResponse::Unauthorized().finish());
-            // }
+            let Some(session_cookie) = req.cookie("session_token") else {
+                return Ok(HttpResponse::Unauthorized().finish());
+            };
+            let Ok(token) = utils::jwt::verified_decode::<SessionPayload>(&session_cookie.value().to_string()) else {
+                return Ok(HttpResponse::Unauthorized().finish());
+            };
+
+            let username = token.claims().name.clone();
+            let id = token.claims().sub.clone();
 
             ws::start(
-                WsChessSession::new(srv.get_ref().clone()),
+                WsChessSession::new(srv.get_ref().clone(), id, username),
                 &req,
                 stream,
             )
@@ -95,6 +135,7 @@ cfg_if! {
                     .wrap(CacheControlInterceptor)
                     // websocket route
                     .route("/ws", web::get().to(chess_route))
+                    .service(create_session)
                     .service(css)
                     .leptos_routes(leptos_options.to_owned(), routes.to_owned(), |cx| view! { cx, <App/> })
                     .service(Files::new("/", site_root).show_files_listing())

@@ -274,14 +274,14 @@ impl ChessBoardSignals {
     }
 
     #[allow(unused_variables)]
-    pub fn start_websocket(&self, username: String) -> Option<WebSocket> {
+    pub fn start_websocket(&self) -> Option<WebSocket> {
         let Some(room_status) = self.room_status else {
             return None;
         };
 
         cfg_if! {
             if #[cfg(not(feature = "ssr"))] {
-                crate::client::websockets::chess_board::start_websocket(self.chess_board, self.should_render, room_status, username).ok()
+                crate::client::websockets::chess_board::start_websocket(self.chess_board, self.should_render, room_status).ok()
             } else {
                 None
             }

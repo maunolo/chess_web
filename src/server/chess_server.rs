@@ -13,7 +13,6 @@ use std::{
 };
 
 use actix::prelude::*;
-use rand::{self, rngs::ThreadRng, Rng};
 
 use crate::entities::{chess_board::ChessBoard, position::Position};
 
@@ -25,19 +24,19 @@ pub struct Message(pub String);
 /// Message for chat server communications
 
 /// New chat session is created
+#[derive(Message)]
+#[rtype(result = "()")]
 pub struct Connect {
+    pub id: String,
+    pub name: String,
     pub addr: Recipient<Message>,
-}
-
-impl actix::Message for Connect {
-    type Result = (usize, String);
 }
 
 /// Session is disconnected
 #[derive(Message)]
 #[rtype(result = "()")]
 pub struct Disconnect {
-    pub id: usize,
+    pub id: String,
 }
 
 /// Send message to specific room
@@ -45,7 +44,7 @@ pub struct Disconnect {
 #[rtype(result = "()")]
 pub struct ClientMessage {
     /// Id of the client session
-    pub id: usize,
+    pub id: String,
     /// Peer message
     pub msg: String,
     /// Room name
@@ -64,7 +63,7 @@ pub struct ClientMessage {
 #[rtype(result = "()")]
 pub struct Join {
     /// Client ID
-    pub id: usize,
+    pub id: String,
 
     /// Room name
     pub name: String,
@@ -79,7 +78,7 @@ pub struct Join {
 #[derive(Message)]
 #[rtype(result = "()")]
 pub struct Move {
-    pub id: usize,
+    pub id: String,
     pub room_name: String,
     pub piece: String,
     pub from: String,
@@ -89,14 +88,14 @@ pub struct Move {
 #[derive(Message)]
 #[rtype(result = "()")]
 pub struct Reset {
-    pub id: usize,
+    pub id: String,
     pub room_name: String,
 }
 
 #[derive(Message)]
 #[rtype(result = "()")]
 pub struct UserSync {
-    pub id: usize,
+    pub id: String,
     pub name: String,
 }
 
@@ -105,15 +104,14 @@ pub struct UserSync {
 /// Implementation is very naïve.
 #[derive(Debug)]
 pub struct ChessServer {
-    sessions: HashMap<usize, User>,
+    sessions: HashMap<String, User>,
     rooms: HashMap<String, Room>,
-    rng: ThreadRng,
     visitor_count: Arc<AtomicUsize>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct User {
-    pub id: usize,
+    pub id: String,
     pub name: String,
     pub recipient: Recipient<Message>,
     pub current_room: Option<String>,
@@ -121,7 +119,7 @@ pub struct User {
 
 impl User {
     pub fn new(
-        id: usize,
+        id: String,
         name: String,
         recipient: Recipient<Message>,
         current_room: Option<String>,
@@ -144,7 +142,7 @@ pub struct Room {
     original_fen: String,
     current_fen: String,
     moves: Vec<String>,
-    sessions: HashMap<usize, User>,
+    sessions: HashMap<String, User>,
     original_trash: String,
     trash: String,
     empty_at: Option<Instant>,
@@ -167,15 +165,15 @@ impl Room {
         }
     }
 
-    pub fn sessions(&self) -> &HashMap<usize, User> {
+    pub fn sessions(&self) -> &HashMap<String, User> {
         &self.sessions
     }
 
-    pub fn insert_session(&mut self, id: usize, user: User) {
+    pub fn insert_session(&mut self, id: String, user: User) {
         self.sessions.insert(id, user);
     }
 
-    pub fn remove_session(&mut self, id: &usize) -> Option<User> {
+    pub fn remove_session(&mut self, id: &str) -> Option<User> {
         self.sessions.remove(id)
     }
 
@@ -196,7 +194,6 @@ impl ChessServer {
         ChessServer {
             sessions: HashMap::new(),
             rooms,
-            rng: rand::thread_rng(),
             visitor_count,
         }
     }
@@ -204,7 +201,8 @@ impl ChessServer {
 
 impl ChessServer {
     /// Send message to all users in the room
-    fn send_message(&self, room_name: &str, message: &str, skip_id: usize) {
+    fn send_message(&self, room_name: &str, message: &str, skip_id: Option<&str>) {
+        let skip_id = skip_id.unwrap_or("");
         if let Some(sessions) = self.rooms.get(room_name).map(|m| m.sessions()) {
             for (id, _) in sessions {
                 if *id != skip_id {
@@ -222,13 +220,13 @@ impl ChessServer {
         }
     }
 
-    fn send_message_to_session(&self, id: usize, message: &str) {
+    fn send_message_to_session(&self, id: &str, message: &str) {
         if let Some(User {
             id: _,
             name: _,
             recipient: addr,
             current_room: _,
-        }) = self.sessions.get(&id)
+        }) = self.sessions.get(id)
         {
             addr.do_send(Message(message.to_owned()));
         }
@@ -275,17 +273,18 @@ impl Actor for ChessServer {
 ///
 /// Register new session and assign unique id to this session
 impl Handler<Connect> for ChessServer {
-    type Result = MessageResult<Connect>;
+    type Result = ();
 
-    fn handle(&mut self, msg: Connect, _: &mut Context<Self>) -> Self::Result {
+    fn handle(&mut self, msg: Connect, _: &mut Context<Self>) {
         log::debug!("Someone joined");
 
         let room_name = "main".to_owned();
 
         // register session with random id
-        let id = self.rng.gen::<usize>();
-        let user = User::new(id, "unknown".to_owned(), msg.addr, Some(room_name.clone()));
-        self.sessions.insert(id, user.clone());
+        let Connect { addr, id, name } = msg;
+        let user = User::new(id.clone(), name, addr, Some(room_name.clone()));
+        let user_string = user.to_string();
+        self.sessions.insert(id.clone(), user.clone());
 
         // auto join session to main room
         let current_room = self
@@ -293,26 +292,25 @@ impl Handler<Connect> for ChessServer {
             .entry(room_name.clone())
             .or_insert_with(|| Room::new(None, None));
 
-        let users = current_room.usernames().join(",");
-
-        current_room.insert_session(id, user);
+        current_room.insert_session(id.clone(), user);
         current_room.empty_at = None;
         let current_fen = current_room.current_fen.clone();
         let trash = current_room.trash.clone();
+        let users = current_room.usernames().join(",");
 
         let count = self.visitor_count.fetch_add(1, Ordering::SeqCst);
-        self.send_message(&room_name, &format!("Total visitors {count}"), 0);
+        self.send_message(&room_name, &format!("Total visitors {count}"), None);
 
         // sync fen
         self.send_message_to_session(
-            id,
+            &id,
             &format!("/sync_board {}|{}|{}", room_name, current_fen, trash),
         );
         // sync users
-        self.send_message_to_session(id, &format!("/sync_users {}|{}", room_name, users));
+        self.send_message_to_session(&id, &format!("/sync_users {}|{}", room_name, users));
 
-        // send id, and current fen back
-        MessageResult((id, current_fen))
+        // send message to all users in the room
+        self.send_message(&room_name, &format!("/add_user {}", user_string), Some(&id));
     }
 }
 
@@ -340,7 +338,7 @@ impl Handler<Disconnect> for ChessServer {
 
             // send message to all users in all rooms
             for (room_name, message) in rooms {
-                self.send_message(&room_name, &message, 0);
+                self.send_message(&room_name, &message, None);
             }
         }
     }
@@ -351,7 +349,7 @@ impl Handler<ClientMessage> for ChessServer {
     type Result = ();
 
     fn handle(&mut self, msg: ClientMessage, _: &mut Context<Self>) {
-        self.send_message(&msg.room_name, msg.msg.as_str(), msg.id);
+        self.send_message(&msg.room_name, msg.msg.as_str(), Some(&msg.id));
     }
 }
 
@@ -403,7 +401,7 @@ impl Handler<Join> for ChessServer {
 
         // send message to all users in all rooms
         for (room_name, message) in rooms {
-            self.send_message(&room_name, &message, 0);
+            self.send_message(&room_name, &message, None);
         }
 
         let current_room = self
@@ -411,23 +409,22 @@ impl Handler<Join> for ChessServer {
             .entry(name.clone())
             .or_insert_with(|| Room::new(fen, trash));
 
-        let users = current_room.usernames().join(",");
-
-        current_room.insert_session(id, user.clone());
+        current_room.insert_session(id.clone(), user.clone());
         current_room.empty_at = None;
         let current_fen = current_room.current_fen.clone();
         let trash = current_room.trash.clone();
+        let users = current_room.usernames().join(",");
 
         // sync fen
         self.send_message_to_session(
-            id,
+            &id,
             &format!("/sync_board {}|{}|{}", name, current_fen, trash),
         );
         // sync users
-        self.send_message_to_session(id, &format!("/sync_users {}|{}", name, users));
+        self.send_message_to_session(&id, &format!("/sync_users {}|{}", name, users));
 
         // notify all users in room
-        self.send_message(&name, &format!("/add_user {}", user_string), 0);
+        self.send_message(&name, &format!("/add_user {}", user_string), Some(&id));
     }
 }
 
@@ -456,7 +453,7 @@ impl Handler<Move> for ChessServer {
 
             current_room.moves.push(move_msg.clone());
 
-            self.send_message(&room_name, &move_msg, id);
+            self.send_message(&room_name, &move_msg, Some(&id));
         };
     }
 }
@@ -477,7 +474,7 @@ impl Handler<Reset> for ChessServer {
             self.send_message(
                 &room_name,
                 &format!("/sync_board {}|{}|{}", room_name, current_fen, trash),
-                0,
+                None,
             );
         };
     }
@@ -502,7 +499,16 @@ impl Handler<UserSync> for ChessServer {
                 current_room.sessions.get_mut(&id).unwrap().name = name;
 
                 // notify all users in room
-                self.send_message(&current_room_name, &format!("/add_user {}", user_string), 0);
+                self.send_message(
+                    &current_room_name,
+                    &format!("/remove_user {}", user_string),
+                    Some(&id),
+                );
+                self.send_message(
+                    &current_room_name,
+                    &format!("/add_user {}", user_string),
+                    Some(&id),
+                );
             };
         };
     }

@@ -13,6 +13,8 @@ use futures::{
 use std::pin::Pin;
 use std::task::{Context, Poll};
 
+const FILE_PATHS: [&str; 3] = ["/style.css", "/static/", "/favicon.ico"];
+
 pub struct CacheControlInterceptor;
 
 impl<S, B, Req> Transform<S, Req> for CacheControlInterceptor
@@ -55,7 +57,7 @@ where
         Box::pin(async move {
             let mut res = fut.await?;
             let path = res.request().path();
-            if path.starts_with("/static") {
+            if FILE_PATHS.into_iter().any(|p| path.starts_with(p)) {
                 let headers = res.headers_mut();
                 headers.append(
                     HeaderName::from_lowercase(b"cache-control").unwrap(),

@@ -55,7 +55,7 @@
     }
 
     .dragging {
-        @apply z-30 cursor-grabbing;
+        @apply z-40 cursor-grabbing;
 
         &:hover {
             @apply pointer-events-none;

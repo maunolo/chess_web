@@ -353,21 +353,6 @@ impl Handler<ClientMessage> for ChessServer {
     }
 }
 
-/// Handler for `ListRooms` message.
-// impl Handler<ListMatches> for ChessServer {
-//     type Result = MessageResult<ListMatches>;
-//
-//     fn handle(&mut self, _: ListMatches, _: &mut Context<Self>) -> Self::Result {
-//         let mut rooms = Vec::new();
-//
-//         for key in self.rooms.keys() {
-//             rooms.push(key.to_owned())
-//         }
-//
-//         MessageResult(rooms)
-//     }
-// }
-
 /// Join room, send disconnect message to old room
 /// send join message to new room
 impl Handler<Join> for ChessServer {

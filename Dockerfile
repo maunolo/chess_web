@@ -31,6 +31,7 @@ RUN yarn install && yarn build:styles
 # Env variables
 ENV NODE_ENV=${NODE_ENV}
 ENV PORT=3000
+ENV JWT_SECRET=secret
 ENV LEPTOS_OUTPUT_NAME=chess_web
 ENV LEPTOS_SITE_ROOT=target/site
 ENV LEPTOS_SITE_PKG_DIR=pkg

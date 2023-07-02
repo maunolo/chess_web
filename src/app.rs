@@ -7,7 +7,8 @@ use crate::components::chess_board::ChessBoard;
 use crate::components::coordinates::Coordinates;
 use crate::components::overlay::Overlay;
 use crate::components::trash::{Trash, TrashType};
-use crate::entities::chess_board::{ChessBoard as ChessBoardEntity, ChessBoardSignals};
+use crate::entities::chess_board::{ChessBoard as ChessBoardEntity, ChessBoardSignalsBuilder};
+use crate::entities::room::RoomStatus;
 use crate::handlers::{interaction_end_with_websocket, interaction_move};
 
 #[component]
@@ -39,8 +40,15 @@ fn Home(cx: Scope) -> impl IntoView {
     let chess_board_entity = ChessBoardEntity::new(fen);
     let (chess_board, set_chess_board) = create_signal::<ChessBoardEntity>(cx, chess_board_entity);
     let (should_render, set_should_render) = create_signal(cx, false);
-    let chess_board_signals = ChessBoardSignals::new(set_chess_board, set_should_render);
     let chess_board_socket = create_rw_signal::<Option<web_sys::WebSocket>>(cx, None);
+    let room_status = create_rw_signal::<Option<RoomStatus>>(cx, None);
+    let chess_board_signals = ChessBoardSignalsBuilder::new()
+        .chess_board(set_chess_board)
+        .should_render(set_should_render)
+        .room_status(room_status)
+        .chess_board_socket(chess_board_socket)
+        .build()
+        .unwrap();
 
     view! { cx,
         <div
@@ -65,11 +73,7 @@ fn Home(cx: Scope) -> impl IntoView {
             >
                 <ChessBoard chess_board=chess_board/>
             </Show>
-            <Overlay
-                chess_board=set_chess_board
-                chess_board_socket=chess_board_socket
-                chess_board_signals=chess_board_signals
-            />
+            <Overlay chess_board_signals=chess_board_signals/>
         </div>
     }
 }

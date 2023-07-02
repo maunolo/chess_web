@@ -1,7 +1,7 @@
 @layer components {
     .menu {
         @apply pointer-events-none bg-neutral-200 fixed h-15 z-30 left-0 top-0 rounded-br-lg drop-shadow pb-2 max-w-xs;
-        transition: all .2s ease-in-out;
+        transition: height .2s ease-in-out;
         overflow: hidden;
 
         .sub-menu {
@@ -16,88 +16,171 @@
             }
         }
 
+        .menu-header {
+            @apply flex items-center gap-2 h-fit px-4 py-3.5;
+
+            .menu-btn {
+                @apply pointer-events-auto block bg-transparent cursor-pointer h-8 w-8 outline-none relative; 
+                transition: background-color .2s ease-in-out;
+
+                .line,
+                .line::after,
+                .line::before {
+                    @apply pointer-events-none bg-neutral-700 rounded;
+                    display: block;
+                    height: 0.2rem;
+                    width: 1.5rem;
+
+                    @media (min-width: 640px) {
+                        height: 0.25rem;
+                        width: 1.5rem;
+                    }
+                }
+
+                .line {
+                    margin: 0 auto;
+                    position: relative;
+                    top: 0;
+                    transition-delay: .2s;
+                    transition-duration: 0s;
+
+                    &::before,
+                    &::after {
+                        content: '';
+                        position: absolute;
+                    }
+
+                    &::before {
+                        margin-top: -8px;
+                        transition-delay: .2s, 0s;
+                        transition-duration: .2s;
+                        transition-property: margin, transform;
+                    }
+
+                    &::after {
+                        margin-top: 8px;
+                        transition-delay: .2s, 0s;
+                        transition-duration: .2s;
+                        transition-property: margin, transform;
+                    }
+                }
+
+                &--is-active {
+                    .line,
+                    .line::after,
+                    .line::before {
+                        @apply bg-neutral-700;
+                    }
+
+                    .line {
+                        background-color: rgba(0, 0, 0, 0);
+                        transition-delay: .1s;
+
+                        &::before {
+                            margin-top: 0;
+                            transform: rotate(45deg);
+                            transition-delay: 0s, .2s;
+                        }
+
+                        &::after {
+                            margin-top: 0;
+                            transform: rotate(-45deg);
+                            transition-delay: 0s, .2s;
+                        }
+                    }
+                }
+            }
+
+            .room-title {
+                @apply text-lg/3 sm:text-xl/3 font-black capitalize decoration-neutral-700 border-l border-neutral-500 pl-3 py-1 truncate;
+            }
+        }
+
         &--is-active {
             @apply pointer-events-auto h-48 sm:h-51;
         }
     }
 
-    .menu-header {
-        @apply flex items-center gap-2 h-fit px-4 py-3.5;
-    }
+    .status-menu {
+        @apply pointer-events-none bg-neutral-200 fixed h-15 w-15 z-30 right-0 top-0 rounded-bl-lg drop-shadow max-w-xs;
+        transition-property: width, height;
+        transition-duration: .2s;
+        transition-timing-function: ease-in-out;
+        transition: width .2sdd ddease-in-out;
+        overflow: hidden;
 
-    .menu-btn {
-        @apply pointer-events-auto block bg-transparent cursor-pointer h-8 w-8 outline-none relative; 
-        transition: background-color .2s ease-in-out;
+        .status-menu-header {
+            @apply w-30 h-15 absolute top-0 right-0 flex justify-end overflow-hidden;
 
-        .line,
-        .line::after,
-        .line::before {
-            @apply pointer-events-none bg-neutral-700 rounded;
-            display: block;
-            height: 0.2rem;
-            width: 1.5rem;
+            .status-refresh-btn {
+                @apply pointer-events-auto cursor-pointer h-15 w-15 hidden items-center justify-center;
 
-            @media (min-width: 640px) {
-                height: 0.25rem;
-                width: 1.5rem;
+                svg {
+                    @apply h-6 w-6;
+                }
+
+                &--is-active {
+                    @apply flex;
+                }
+            }
+
+            .status-menu-btn {
+                @apply pointer-events-auto cursor-pointer h-15 w-15 flex items-center justify-center;
+
+                .circle {
+                    @apply h-8 w-8 rounded-full bg-red-500 flex items-center justify-center shadow-inner;
+                    transition-duration: 2s;
+                    transition-property: width, height;
+                    transition-timing-function: ease-in-out;
+
+                    .inner-circle {
+                        @apply h-6 w-6 rounded-full bg-red-400 shadow-inner;
+                    }
+
+                }
+
+                &--is-active {
+                    .circle {
+                        @apply bg-green-500;
+
+                        .inner-circle {
+                            @apply bg-green-400;
+                        }
+                    }
+                }
             }
         }
 
-        .line {
-            margin: 0 auto;
-            position: relative;
-            top: 0;
-            transition-delay: .2s;
-            transition-duration: 0s;
+        .status-sub-menu {
+            @apply mt-23 hidden flex-col items-end justify-end text-sm sm:text-base font-medium;
 
-            &::before,
-            &::after {
-                content: '';
-                position: absolute;
-            }
+            ul {
+                @apply w-full;
+                
+                li {
+                    @apply w-full h-8 px-4 flex justify-end;
 
-            &::before {
-                margin-top: -8px;
-                transition-delay: .2s, 0s;
-                transition-duration: .2s;
-                transition-property: margin, transform;
-            }
+                    span {
+                        @apply overflow-hidden truncate rounded-full bg-neutral-300 px-2 leading-6 h-6 text-ellipsis align-middle max-w-32 sm:max-w-40;
+                    }
+                }
 
-            &::after {
-                margin-top: 8px;
-                transition-delay: .2s, 0s;
-                transition-duration: .2s;
-                transition-property: margin, transform;
+                .current-user {
+                    @apply absolute top-15 right-0
+                }
             }
+        }
+
+        &--refresh {
+            @apply w-30;
         }
 
         &--is-active {
-            .line,
-            .line::after,
-            .line::before {
-                @apply bg-neutral-700;
-            }
+            @apply pointer-events-auto w-40 sm:w-48;
 
-            .line {
-                background-color: rgba(0, 0, 0, 0);
-                transition-delay: .1s;
-
-                &::before {
-                    margin-top: 0;
-                    transform: rotate(45deg);
-                    transition-delay: 0s, .2s;
-                }
-
-                &::after {
-                    margin-top: 0;
-                    transform: rotate(-45deg);
-                    transition-delay: 0s, .2s;
-                }
+            .status-sub-menu {
+                @apply flex;
             }
         }
-    }
-
-    .room-title {
-        @apply text-lg/3 sm:text-xl/3 font-black capitalize decoration-neutral-700 border-l border-neutral-500 pl-3 py-1 truncate;
     }
 }

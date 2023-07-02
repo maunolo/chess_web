@@ -1,10 +1,9 @@
 use cfg_if::cfg_if;
-use leptos::WriteSignal;
+use leptos::{RwSignal, SignalSet, WriteSignal};
 use web_sys::WebSocket;
 
-use crate::components::overlay::RoomStatus;
-
 use super::position::Position;
+use super::room::RoomStatus;
 use super::stone::Stone;
 
 pub fn fen_to_passant(field: &str) -> Option<Position> {
@@ -18,24 +17,39 @@ pub fn fen_to_passant(field: &str) -> Option<Position> {
 }
 
 pub fn fen_to_castle_rules(field: &str) -> CastleRules {
-    let mut castle_rules = CastleRules {
-        white: vec![],
-        black: vec![],
-    };
+    let mut white_castle_options = CastleOptions::CanNotCastle;
+    let mut black_castle_options = CastleOptions::CanNotCastle;
 
     field.chars().for_each(|c| {
         if c == 'K' {
-            castle_rules.white.push(CastleOptions::CanCastleKingside);
+            white_castle_options = CastleOptions::CanCastleKingSide;
         } else if c == 'Q' {
-            castle_rules.white.push(CastleOptions::CanCastleQueenside);
+            match white_castle_options {
+                CastleOptions::CanCastleKingSide => {
+                    white_castle_options = CastleOptions::CanCastleBothSides;
+                }
+                _ => {
+                    white_castle_options = CastleOptions::CanCastleQueenSide;
+                }
+            }
         } else if c == 'k' {
-            castle_rules.black.push(CastleOptions::CanCastleKingside);
+            black_castle_options = CastleOptions::CanCastleKingSide;
         } else if c == 'q' {
-            castle_rules.black.push(CastleOptions::CanCastleQueenside);
+            match black_castle_options {
+                CastleOptions::CanCastleKingSide => {
+                    black_castle_options = CastleOptions::CanCastleBothSides;
+                }
+                _ => {
+                    black_castle_options = CastleOptions::CanCastleQueenSide;
+                }
+            }
         }
     });
 
-    castle_rules
+    CastleRules {
+        white: white_castle_options,
+        black: black_castle_options,
+    }
 }
 
 pub fn fen_to_stones(field: &str) -> [[Option<Stone>; 8]; 8] {
@@ -67,14 +81,17 @@ pub fn fen_to_stones(field: &str) -> [[Option<Stone>; 8]; 8] {
 
 #[derive(Clone)]
 pub enum CastleOptions {
-    CanCastleKingside,
-    CanCastleQueenside,
+    CanCastleKingSide,
+    CanCastleQueenSide,
+    CanNotCastle,
+    CanCastleBothSides,
 }
 
 #[derive(Clone)]
+#[allow(dead_code)]
 pub struct CastleRules {
-    white: Vec<CastleOptions>,
-    black: Vec<CastleOptions>,
+    white: CastleOptions,
+    black: CastleOptions,
 }
 
 #[derive(Clone)]
@@ -252,49 +269,103 @@ impl ChessBoard {
     }
 }
 
+pub struct ChessBoardSignalsBuilder {
+    chess_board: Option<WriteSignal<ChessBoard>>,
+    should_render: Option<WriteSignal<bool>>,
+    room_status: Option<RwSignal<Option<RoomStatus>>>,
+    chess_board_socket: Option<RwSignal<Option<WebSocket>>>,
+}
+
+impl ChessBoardSignalsBuilder {
+    pub fn new() -> Self {
+        Self {
+            chess_board: None,
+            should_render: None,
+            room_status: None,
+            chess_board_socket: None,
+        }
+    }
+
+    pub fn chess_board(mut self, chess_board: WriteSignal<ChessBoard>) -> Self {
+        self.chess_board = Some(chess_board);
+        self
+    }
+
+    pub fn should_render(mut self, should_render: WriteSignal<bool>) -> Self {
+        self.should_render = Some(should_render);
+        self
+    }
+
+    pub fn room_status(mut self, room_status: RwSignal<Option<RoomStatus>>) -> Self {
+        self.room_status = Some(room_status);
+        self
+    }
+
+    pub fn chess_board_socket(mut self, chess_board_socket: RwSignal<Option<WebSocket>>) -> Self {
+        self.chess_board_socket = Some(chess_board_socket);
+        self
+    }
+
+    pub fn build(self) -> Result<ChessBoardSignals, ()> {
+        let Some(chess_board) = self.chess_board else {
+            return Err(());
+        };
+        let Some(should_render) = self.should_render else {
+            return Err(());
+        };
+        let Some(room_status) = self.room_status else {
+            return Err(());
+        };
+        let Some(chess_board_socket) = self.chess_board_socket else {
+            return Err(());
+        };
+
+        Ok(ChessBoardSignals {
+            chess_board,
+            should_render,
+            room_status,
+            chess_board_socket,
+        })
+    }
+}
+
 #[allow(dead_code)]
 #[derive(Copy, Clone)]
 pub struct ChessBoardSignals {
     chess_board: WriteSignal<ChessBoard>,
     should_render: WriteSignal<bool>,
-    room_status: Option<WriteSignal<Option<RoomStatus>>>,
+    room_status: RwSignal<Option<RoomStatus>>,
+    chess_board_socket: RwSignal<Option<WebSocket>>,
 }
 
+#[allow(dead_code)]
 impl ChessBoardSignals {
-    pub fn new(chess_board: WriteSignal<ChessBoard>, should_render: WriteSignal<bool>) -> Self {
-        Self {
-            chess_board,
-            should_render,
-            room_status: None,
-        }
+    pub fn socket(&self) -> RwSignal<Option<WebSocket>> {
+        self.chess_board_socket
     }
 
-    pub fn set_room_status(&mut self, room_status: WriteSignal<Option<RoomStatus>>) {
-        self.room_status = Some(room_status);
+    pub fn room_status(&self) -> RwSignal<Option<RoomStatus>> {
+        self.room_status
+    }
+
+    pub fn chess_board(&self) -> WriteSignal<ChessBoard> {
+        self.chess_board
+    }
+
+    pub fn should_render(&self) -> WriteSignal<bool> {
+        self.should_render
     }
 
     #[allow(unused_variables)]
-    pub fn start_websocket(&self) -> Option<WebSocket> {
-        let Some(room_status) = self.room_status else {
-            return None;
-        };
-
+    pub fn start_websocket(&self) {
         cfg_if! {
             if #[cfg(not(feature = "ssr"))] {
-                crate::client::websockets::chess_board::start_websocket(self.chess_board, self.should_render, room_status).ok()
+                let ws = crate::client::websockets::chess_board::start_websocket(*self).ok();
             } else {
-                None
+                let ws = None;
             }
         }
+
+        self.chess_board_socket.set(ws);
     }
 }
-
-// impl PartialEq<ChessBoard> for ChessBoard {
-//     fn eq(&self, other: &ChessBoard) -> bool {
-//         self.fen == other.fen
-//     }
-
-//     fn ne(&self, other: &ChessBoard) -> bool {
-//         self.fen != other.fen
-//     }
-// }

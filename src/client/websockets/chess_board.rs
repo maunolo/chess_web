@@ -1,10 +1,12 @@
 use leptos::{SignalSet, SignalUpdate, WriteSignal};
 use wasm_bindgen::prelude::*;
-use web_sys::{Element, ErrorEvent, MessageEvent, WebSocket};
+use web_sys::{CloseEvent, Element, ErrorEvent, MessageEvent, WebSocket};
 
 use crate::{
-    components::overlay::RoomStatus,
-    entities::chess_board::ChessBoard,
+    entities::{
+        chess_board::{ChessBoard, ChessBoardSignals},
+        room::RoomStatus,
+    },
     utils::{
         class_list::ClassListExt,
         elements::{self, document},
@@ -145,11 +147,7 @@ fn on_message_callback(
     })
 }
 
-pub fn start_websocket(
-    chessboard: WriteSignal<ChessBoard>,
-    should_render: WriteSignal<bool>,
-    room_status: WriteSignal<Option<RoomStatus>>,
-) -> Result<WebSocket, JsValue> {
+pub fn start_websocket(chess_board_signals: ChessBoardSignals) -> Result<WebSocket, JsValue> {
     let location = web_sys::window().unwrap().location();
 
     let proto = location
@@ -167,7 +165,11 @@ pub fn start_websocket(
     // Connect to an echo server
     let ws = WebSocket::new(&ws_uri)?;
 
-    let onmessage_callback = on_message_callback(chessboard, should_render, room_status);
+    let onmessage_callback = on_message_callback(
+        chess_board_signals.chess_board(),
+        chess_board_signals.should_render(),
+        chess_board_signals.room_status().write_only(),
+    );
     // set message event handler on WebSocket
     ws.set_onmessage(Some(onmessage_callback.as_ref().unchecked_ref()));
     // forget the callback to keep it alive
@@ -184,6 +186,13 @@ pub fn start_websocket(
     });
     ws.set_onopen(Some(onopen_callback.as_ref().unchecked_ref()));
     onopen_callback.forget();
+
+    let onclose_callback = Closure::<dyn FnMut(_)>::new(move |e: CloseEvent| {
+        log::debug!("socket closed: {:?}", e);
+        chess_board_signals.socket().set(None);
+    });
+    ws.set_onclose(Some(onclose_callback.as_ref().unchecked_ref()));
+    onclose_callback.forget();
 
     Ok(ws)
 }

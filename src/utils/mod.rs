@@ -6,12 +6,11 @@ pub mod jwt;
 pub mod style;
 
 use cfg_if::cfg_if;
-use leptos::RwSignal;
 use serde::{Deserialize, Serialize};
 
 use crate::entities::chess_board::ChessBoardSignals;
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Clone)]
 pub struct SessionPayload {
     pub sub: String,
     pub name: String,
@@ -79,12 +78,7 @@ pub trait WindowExt {
     where
         F: FnMut() + 'static;
 
-    fn post_user_name(
-        &self,
-        name: &str,
-        chess_board_socket: RwSignal<Option<web_sys::WebSocket>>,
-        chess_board_signals: ChessBoardSignals,
-    );
+    fn post_user_name(&self, name: &str, chess_board_signals: ChessBoardSignals);
 }
 
 #[allow(unused_variables)]
@@ -112,16 +106,10 @@ impl WindowExt for web_sys::Window {
         }
     }
 
-    fn post_user_name(
-        &self,
-        name: &str,
-        chess_board_socket: RwSignal<Option<web_sys::WebSocket>>,
-        chess_board_signals: ChessBoardSignals,
-    ) {
+    fn post_user_name(&self, name: &str, chess_board_signals: ChessBoardSignals) {
         cfg_if! {
             if #[cfg(not(feature = "ssr"))] {
                 use wasm_bindgen::JsValue;
-                use leptos::SignalSet;
 
                 let mut request_init = web_sys::RequestInit::new();
                 request_init
@@ -130,7 +118,7 @@ impl WindowExt for web_sys::Window {
                 let promise = self.fetch_with_str_and_init("/sessions", &request_init);
 
                 let start_websocket = closure_with_arg(move |_: JsValue| {
-                    chess_board_socket.set(chess_board_signals.start_websocket());
+                    chess_board_signals.start_websocket();
                 });
                 let _ = promise.then(&start_websocket);
                 start_websocket.forget();

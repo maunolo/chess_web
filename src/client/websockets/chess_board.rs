@@ -138,6 +138,20 @@ fn on_message_callback(
                             }
                         });
                     }
+                    "/disconnect_user" => {
+                        room_status.update(|room_status| {
+                            if let Some(room_status) = room_status {
+                                room_status.disconnect_user(input);
+                            }
+                        });
+                    }
+                    "/connect_user" => {
+                        room_status.update(|room_status| {
+                            if let Some(room_status) = room_status {
+                                room_status.connect_user(input);
+                            }
+                        });
+                    }
                     _ => {}
                 }
             }

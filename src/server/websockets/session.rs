@@ -31,6 +31,9 @@ pub struct WsChessSession {
 
     /// Is authenticated
     pub authenticated_at: Option<Instant>,
+
+    /// Disconnected at
+    pub disconnected_at: Option<Instant>,
 }
 
 impl WsChessSession {
@@ -42,6 +45,7 @@ impl WsChessSession {
             name,
             addr,
             authenticated_at: None,
+            disconnected_at: None,
         }
     }
 
@@ -63,8 +67,10 @@ impl WsChessSession {
                 log::info!("Websocket Client heartbeat failed, disconnecting!");
 
                 // notify chat server
-                act.addr
-                    .do_send(chess_server::Disconnect { id: act.id.clone() });
+                act.addr.do_send(chess_server::Disconnect {
+                    id: act.id.clone(),
+                    notify: act.disconnected_at.is_none(),
+                });
 
                 // stop actor
                 ctx.stop();
@@ -104,6 +110,7 @@ impl Actor for WsChessSession {
         // notify chat server
         self.addr.do_send(chess_server::Disconnect {
             id: self.id.clone(),
+            notify: self.disconnected_at.is_none(),
         });
         Running::Stop
     }
@@ -123,6 +130,15 @@ impl Handler<chess_server::UserSync> for WsChessSession {
 
     fn handle(&mut self, msg: chess_server::UserSync, _: &mut Self::Context) {
         self.name = msg.name;
+    }
+}
+
+impl Handler<chess_server::Disconnect> for WsChessSession {
+    type Result = ();
+
+    fn handle(&mut self, _: chess_server::Disconnect, ctx: &mut Self::Context) {
+        self.disconnected_at = Some(Instant::now());
+        ctx.stop();
     }
 }
 

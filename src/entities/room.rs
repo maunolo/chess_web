@@ -7,7 +7,6 @@ pub struct RoomStatus {
 }
 
 #[derive(Clone)]
-#[allow(dead_code)]
 pub enum UserStatus {
     Online,
     Offline,
@@ -106,6 +105,22 @@ impl RoomStatus {
     pub fn remove_user(&mut self, username: &str) {
         if let Ok(user) = username.parse::<User>() {
             self.users.remove(&user.id());
+        };
+    }
+
+    pub fn disconnect_user(&mut self, username: &str) {
+        if let Ok(user) = username.parse::<User>() {
+            if let Some(user) = self.users.get_mut(&user.id()) {
+                user.status = UserStatus::Away;
+            }
+        };
+    }
+
+    pub fn connect_user(&mut self, username: &str) {
+        if let Ok(user) = username.parse::<User>() {
+            if let Some(user) = self.users.get_mut(&user.id()) {
+                user.status = UserStatus::Online;
+            }
         };
     }
 }

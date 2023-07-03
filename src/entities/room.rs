@@ -42,12 +42,31 @@ impl FromStr for User {
     type Err = ();
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let split = s.split_once(":").unwrap();
+        let mut split = s.splitn(3, ":");
+
+        let Some(id) = split.next() else {
+            return Err(());
+        };
+
+        let Some(username) = split.next() else {
+            return Err(());
+        };
+
+        let Some(status) = split.next() else {
+            return Err(());
+        };
+
+        let status = match status {
+            "online" => UserStatus::Online,
+            "offline" => UserStatus::Offline,
+            "away" => UserStatus::Away,
+            _ => return Err(()),
+        };
 
         Ok(Self {
-            id: split.0.to_string(),
-            username: split.1.to_string(),
-            status: UserStatus::Online,
+            id: id.to_string(),
+            username: username.to_string(),
+            status,
         })
     }
 }

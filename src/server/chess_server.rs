@@ -138,7 +138,12 @@ impl User {
     }
 
     pub fn to_string(&self) -> String {
-        format!("{}:{}", self.id, self.name)
+        let status = if self.disconected_at.is_some() {
+            "away"
+        } else {
+            "online"
+        };
+        format!("{}:{}:{}", self.id, self.name, status)
     }
 }
 

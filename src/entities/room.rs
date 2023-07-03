@@ -7,9 +7,18 @@ pub struct RoomStatus {
 }
 
 #[derive(Clone)]
+#[allow(dead_code)]
+pub enum UserStatus {
+    Online,
+    Offline,
+    Away,
+}
+
+#[derive(Clone)]
 pub struct User {
     id: String,
     username: String,
+    status: UserStatus,
 }
 
 impl User {
@@ -19,6 +28,14 @@ impl User {
 
     pub fn username(&self) -> String {
         self.username.clone()
+    }
+
+    pub fn status(&self) -> String {
+        match self.status {
+            UserStatus::Online => "online".to_string(),
+            UserStatus::Offline => "offline".to_string(),
+            UserStatus::Away => "away".to_string(),
+        }
     }
 }
 
@@ -31,6 +48,7 @@ impl FromStr for User {
         Ok(Self {
             id: split.0.to_string(),
             username: split.1.to_string(),
+            status: UserStatus::Online,
         })
     }
 }
@@ -66,17 +84,17 @@ impl RoomStatus {
         self.users = users
             .iter()
             .map(|user| {
-                let split = user.split_once(":").unwrap();
+                let user = user.parse::<User>().unwrap();
 
-                (
-                    split.0.to_string(),
-                    User {
-                        id: split.0.to_string(),
-                        username: split.1.to_string(),
-                    },
-                )
+                (user.id.to_string(), user)
             })
             .collect();
+    }
+
+    pub fn set_all_users_offline(&mut self) {
+        for user in self.users.values_mut() {
+            user.status = UserStatus::Offline;
+        }
     }
 
     pub fn add_user(&mut self, username: &str) {

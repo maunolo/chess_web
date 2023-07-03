@@ -6,20 +6,23 @@ use crate::{
     utils::{get_cookie_value, jwt::decode, SessionPayload, WindowExt},
 };
 
-#[allow(unused_variables)]
-fn toggle_menu(menu_timeout_id: RwSignal<Option<i32>>, show_menu: bool) {
+fn toggle_sub_menu(menu_timeout_id: RwSignal<Option<i32>>, show_menu: bool, menu_base_class: &str) {
+    use crate::utils::class_list::ClassListExt;
+
     let window = web_sys::window().unwrap();
     let sub_menu = window
         .document()
         .unwrap()
-        .get_element_by_id("sub-menu")
+        .get_element_by_id(menu_base_class)
         .unwrap();
 
+    let is_active_class = format!("{}--is-active", menu_base_class);
+
     if show_menu {
-        sub_menu.set_class_name("sub-menu sub-menu--is-active")
+        sub_menu.class_list_add(&is_active_class)
     } else {
         if let Some(id) =
-            window.set_timeout_callback(move || sub_menu.set_class_name("sub-menu"), 250)
+            window.set_timeout_callback(move || sub_menu.class_list_remove(&is_active_class), 250)
         {
             menu_timeout_id.set(Some(id))
         };
@@ -99,7 +102,7 @@ pub fn Overlay(cx: Scope, chess_board_signals: ChessBoardSignals) -> impl IntoVi
     let toggle_menu = move |_| {
         set_show_menu.update(|show_menu| {
             clear_timeout(menu_timeout_id.get());
-            toggle_menu(menu_timeout_id, !*show_menu);
+            toggle_sub_menu(menu_timeout_id, !*show_menu, "sub-menu");
 
             *show_menu = !*show_menu;
         });
@@ -107,8 +110,12 @@ pub fn Overlay(cx: Scope, chess_board_signals: ChessBoardSignals) -> impl IntoVi
 
     let toggle_status_menu = move |_| {
         set_show_status_menu.update(|show_status_menu| {
-            // clear_timeout(sub_menu_timeout_id.get());
-            // toggle_status_menu(sub_menu_timeout_id, !*show_status_menu);
+            clear_timeout(status_menu_timeout_id.get());
+            toggle_sub_menu(
+                status_menu_timeout_id,
+                !*show_status_menu,
+                "status-sub-menu",
+            );
 
             *show_status_menu = !*show_status_menu;
         });
@@ -168,12 +175,8 @@ pub fn Overlay(cx: Scope, chess_board_signals: ChessBoardSignals) -> impl IntoVi
 
     let status_menu_css = move || {
         let is_active = show_status_menu.get();
-        let needs_refresh = chess_board_signals.socket().get().is_none();
         let mut class = "status-menu".to_string();
 
-        if needs_refresh {
-            class.push_str(" status-menu--refresh");
-        }
         if is_active {
             class.push_str(" status-menu--is-active");
         }
@@ -213,7 +216,10 @@ pub fn Overlay(cx: Scope, chess_board_signals: ChessBoardSignals) -> impl IntoVi
             let users_count = chess_board_signals
                 .room_status()
                 .with(|status| status.as_ref().map(|s| s.users_count()).unwrap_or(0));
-            let height = 3.75 + (2 * users_count) as f64 + 0.5;
+            let mut height = 3.75 + (2 * (users_count - 1)) as f64;
+            if users_count > 1 {
+                height += 0.5;
+            }
 
             format!("height: {}rem;", height)
         } else {
@@ -259,6 +265,12 @@ pub fn Overlay(cx: Scope, chess_board_signals: ChessBoardSignals) -> impl IntoVi
             <div class=status_menu_css style=status_menu_style>
                 <div class="status-menu-header">
                     <button
+                        class=status_menu_btn_css
+                        on:click=toggle_status_menu
+                    >
+                        <span class="circle"></span>
+                    </button>
+                    <button
                         class=status_refresh_btn_css
                         on:click=start_websocket
                     >
@@ -269,31 +281,23 @@ pub fn Overlay(cx: Scope, chess_board_signals: ChessBoardSignals) -> impl IntoVi
                             </g>
                         </svg>
                     </button>
-
-                    <button
-                        class=status_menu_btn_css
-                        on:click=toggle_status_menu
-                    >
-                        <div class="circle"><div class="inner-circle"/></div>
-                    </button>
                 </div>
-                <div class="status-sub-menu">
+                <div class="status-sub-menu" id="status-sub-menu">
                     <ul>
                         <For
                             each=move || {
                                 chess_board_signals.room_status().with(|status| status.as_ref().map(|s| s.users()).unwrap_or(vec![]))
                             }
-                            key=move |user: &User| format!("{}:{}", user.id(), user.username())
+                            key=move |user: &User| format!("{}:{}:{}", user.id(), user.username(), user.status())
                             view=move |cx, user: User| {
-                                let user_id = format!("user-{}", user.id());
+                                let status_class = format!("status status--{}", user.status());
                                 if user.id() == get_user_payload().map(|p| p.sub).unwrap_or_default() {
                                     view! {
                                         cx,
-                                        <li class="current-user" id=user_id>
+                                        <li class="current-user">
                                             <span>
                                                 {user.username()}
                                             </span>
-                                            <span class="you">{"(You)"}</span>
                                             <button on:click=username>
                                                 <svg xmlns="http://www.w3.org/2000/svg" id="Layer_1" data-name="Layer 1" viewBox="0 0 24 24" width="512" height="512">
                                                     <polygon points="14.604 5.687 0 20.29 0 24 3.71 24 18.313 9.396 14.604 5.687"/>
@@ -305,9 +309,11 @@ pub fn Overlay(cx: Scope, chess_board_signals: ChessBoardSignals) -> impl IntoVi
                                 } else {
                                     view! {
                                         cx,
-                                        <li id=user_id>
+                                        <li>
                                             <span>
                                                 {user.username()}
+                                            </span>
+                                            <span class=status_class>
                                             </span>
                                         </li>
                                     }

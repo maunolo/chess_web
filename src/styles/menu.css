@@ -92,7 +92,7 @@
             }
 
             .room-title {
-                @apply text-lg/3 sm:text-xl/3 font-black capitalize decoration-neutral-700 border-l border-neutral-500 pl-3 py-1 truncate;
+                @apply text-lg/3 sm:text-xl/3 font-black capitalize decoration-neutral-700 pl-3 py-1 truncate;
             }
         }
 
@@ -110,10 +110,10 @@
         overflow: hidden;
 
         .status-menu-header {
-            @apply w-25 h-15 absolute top-0 right-0 flex justify-end items-center overflow-hidden;
+            @apply w-15 h-15 absolute top-0 right-0 flex justify-end items-center overflow-hidden;
 
             .status-refresh-btn {
-                @apply pointer-events-auto cursor-pointer h-15 w-10 hidden items-center justify-end;
+                @apply absolute pointer-events-auto cursor-pointer h-15 w-15 hidden items-center justify-center;
 
                 svg {
                     @apply h-5 w-5;
@@ -125,78 +125,80 @@
             }
 
             .status-menu-btn {
-                @apply pointer-events-auto cursor-pointer rounded-bl h-15 w-15 flex items-center justify-center hover:bg-neutral-300 transition-colors duration-200 ease-in-out;
+                @apply absolute pointer-events-auto cursor-pointer rounded-bl h-15 w-15 flex items-center justify-center hover:bg-neutral-300 transition-colors duration-200 ease-in-out;
 
                 .circle {
-                    @apply h-8 w-8 rounded-full bg-red-500 flex items-center justify-center shadow-inner;
+                    @apply h-8 w-8 rounded-full bg-red-400 flex items-center justify-center shadow-inner animate-pulse-brightness transition-all;
                     transition-duration: .2s;
                     transition-property: background-color;
                     transition-timing-function: ease-in-out;
-
-                    .inner-circle {
-                        @apply h-6 w-6 rounded-full bg-red-400 shadow-inner;
-                        transition-duration: .2s;
-                        transition-property: background-color;
-                        transition-timing-function: ease-in-out;
-                    }
-
                 }
 
                 &--is-active {
                     .circle {
-                        @apply bg-red-400;
-
-                        .inner-circle {
-                            @apply bg-red-500;
-                        }
+                        @apply bg-red-500;
                     }
                 }
 
                 &--is-online {
                     .circle {
-                        @apply bg-green-500;
-
-                        .inner-circle {
-                            @apply bg-green-400;
-                        }
+                        @apply bg-green-400;
                     }
                 }
 
                 &--is-online--is-active {
                     .circle {
-                        @apply bg-green-400;
-
-                        .inner-circle {
-                            @apply bg-green-500;
-                        }
+                        @apply bg-green-500;
                     }
                 }
             }
         }
 
         .status-sub-menu {
-            @apply mt-23 hidden flex-col items-end justify-end text-xs sm:text-sm font-medium;
+            @apply fixed top-15 right-0 hidden flex-col items-end justify-end text-xs sm:text-sm font-medium w-52 sm:w-56;
 
-            ul {
-                @apply w-full;
-                
+            ul {                
                 li {
-                    @apply w-full h-8 px-4 flex justify-end items-center;
+                    @apply h-8 px-4 flex justify-end items-center;
 
                     span {
-                        @apply overflow-hidden truncate rounded-full bg-neutral-300 px-2 leading-6 h-6 truncate align-middle max-w-44 sm:max-w-48;
+                        @apply overflow-hidden rounded-l-full rounded-r-none bg-neutral-300 px-2 leading-6 h-6 truncate align-middle max-w-37 sm:max-w-41;
                     }
+
+                    .status {
+                        @apply h-6 w-7 bg-neutral-300 rounded-l-none rounded-r-full flex items-center justify-center px-2;
+
+                        &::after {
+                            @apply top-0 h-4 w-4 rounded-full px-2 animate-pulse-brightness;
+                            content: '';
+                        }
+
+                        &--online {
+                            &::after {
+                                @apply bg-green-500;
+                            }
+                        }
+
+                        &--offline {
+                            &::after {
+                                @apply bg-red-500;
+                            }
+                        }
+
+                        &--away {
+                            &::after {
+                                @apply bg-yellow-500;
+                            }
+                        }
+                    }
+
                 }
 
                 .current-user {
-                    @apply absolute top-15 right-0;
+                    @apply fixed top-3.5 right-15 w-37 sm:w-41 pr-1 pl-4;
 
                     span {
-                        @apply rounded-l-full rounded-r-none;
-                    }
-
-                    .you {
-                        @apply rounded-none px-0 min-w-fit w-fit;
+                        @apply rounded-l-full rounded-r-none w-full;
                     }
 
                     button {
@@ -208,19 +210,14 @@
                     }
                 }
             }
-        }
 
-        &--refresh {
-            @apply w-25;
+            &--is-active {
+                @apply flex;
+            }
         }
 
         &--is-active {
             @apply pointer-events-auto w-52 sm:w-56;
-
-            .status-sub-menu {
-                @apply flex;
-            }
-
         }
     }
 }

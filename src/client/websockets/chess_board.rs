@@ -190,6 +190,11 @@ pub fn start_websocket(chess_board_signals: ChessBoardSignals) -> Result<WebSock
     let onclose_callback = Closure::<dyn FnMut(_)>::new(move |e: CloseEvent| {
         log::debug!("socket closed: {:?}", e);
         chess_board_signals.socket().set(None);
+        chess_board_signals.room_status().update(|room_status| {
+            if let Some(room_status) = room_status {
+                room_status.set_all_users_offline();
+            }
+        });
     });
     ws.set_onclose(Some(onclose_callback.as_ref().unchecked_ref()));
     onclose_callback.forget();

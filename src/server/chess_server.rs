@@ -39,7 +39,6 @@ pub struct Connect {
 #[rtype(result = "()")]
 pub struct Disconnect {
     pub id: String,
-    pub notify: bool,
 }
 
 /// Send message to specific room
@@ -271,10 +270,7 @@ impl ChessServer {
 
     fn connect_session(&mut self, id: &str, addr: Addr<WsChessSession>) -> Option<&mut User> {
         if let Some(user) = self.sessions.get_mut(id) {
-            user.addr.do_send(Disconnect {
-                id: id.to_string(),
-                notify: false,
-            });
+            user.addr.do_send(Disconnect { id: id.to_string() });
 
             user.disconected_at = None;
             user.addr = addr.clone();
@@ -435,12 +431,10 @@ impl Handler<Disconnect> for ChessServer {
 
         // remove address
         if let Some(user) = self.disconnect_session(&msg.id) {
-            if msg.notify {
-                rooms.push((
-                    user.current_room.clone(),
-                    format!("/disconnect_user {}", user.to_string()),
-                ));
-            }
+            rooms.push((
+                user.current_room.clone(),
+                format!("/disconnect_user {}", user.to_string()),
+            ));
         }
 
         // send message to all users in all rooms

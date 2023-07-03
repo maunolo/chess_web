@@ -67,10 +67,8 @@ impl WsChessSession {
                 log::info!("Websocket Client heartbeat failed, disconnecting!");
 
                 // notify chat server
-                act.addr.do_send(chess_server::Disconnect {
-                    id: act.id.clone(),
-                    notify: act.disconnected_at.is_none(),
-                });
+                act.addr
+                    .do_send(chess_server::Disconnect { id: act.id.clone() });
 
                 // stop actor
                 ctx.stop();
@@ -108,10 +106,11 @@ impl Actor for WsChessSession {
 
     fn stopping(&mut self, _: &mut Self::Context) -> Running {
         // notify chat server
-        self.addr.do_send(chess_server::Disconnect {
-            id: self.id.clone(),
-            notify: self.disconnected_at.is_none(),
-        });
+        if self.disconnected_at.is_none() {
+            self.addr.do_send(chess_server::Disconnect {
+                id: self.id.clone(),
+            });
+        }
         Running::Stop
     }
 }

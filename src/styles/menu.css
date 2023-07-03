@@ -5,7 +5,7 @@
         overflow: hidden;
 
         .sub-menu {
-            @apply hidden flex-col text-sm sm:text-base font-medium gap-1.5 items-center;
+            @apply hidden flex-col text-sm sm:text-base font-medium gap-1.5 items-center mt-1;
 
             .sub-menu-item {
                 @apply h-fit w-10/12 py-2 rounded bg-neutral-300 hover:bg-neutral-400 px-2;
@@ -17,10 +17,10 @@
         }
 
         .menu-header {
-            @apply flex items-center gap-2 h-fit px-4 py-3.5;
+            @apply flex items-center h-15 pr-4;
 
             .menu-btn {
-                @apply pointer-events-auto block bg-transparent cursor-pointer h-8 w-8 outline-none relative; 
+                @apply pointer-events-auto block bg-transparent cursor-pointer h-15 w-15 outline-none rounded-br relative hover:bg-neutral-300 transition-colors duration-200 ease-in-out;
                 transition: background-color .2s ease-in-out;
 
                 .line,
@@ -97,7 +97,7 @@
         }
 
         &--is-active {
-            @apply pointer-events-auto h-48 sm:h-51;
+            @apply pointer-events-auto h-49 sm:h-52;
         }
     }
 
@@ -110,13 +110,13 @@
         overflow: hidden;
 
         .status-menu-header {
-            @apply w-30 h-15 absolute top-0 right-0 flex justify-end overflow-hidden;
+            @apply w-25 h-15 absolute top-0 right-0 flex justify-end items-center overflow-hidden;
 
             .status-refresh-btn {
-                @apply pointer-events-auto cursor-pointer h-15 w-15 hidden items-center justify-center;
+                @apply pointer-events-auto cursor-pointer h-15 w-10 hidden items-center justify-end;
 
                 svg {
-                    @apply h-6 w-6;
+                    @apply h-5 w-5;
                 }
 
                 &--is-active {
@@ -125,21 +125,34 @@
             }
 
             .status-menu-btn {
-                @apply pointer-events-auto cursor-pointer h-15 w-15 flex items-center justify-center;
+                @apply pointer-events-auto cursor-pointer rounded-bl h-15 w-15 flex items-center justify-center hover:bg-neutral-300 transition-colors duration-200 ease-in-out;
 
                 .circle {
                     @apply h-8 w-8 rounded-full bg-red-500 flex items-center justify-center shadow-inner;
-                    transition-duration: 2s;
-                    transition-property: width, height;
+                    transition-duration: .2s;
+                    transition-property: background-color;
                     transition-timing-function: ease-in-out;
 
                     .inner-circle {
                         @apply h-6 w-6 rounded-full bg-red-400 shadow-inner;
+                        transition-duration: .2s;
+                        transition-property: background-color;
+                        transition-timing-function: ease-in-out;
                     }
 
                 }
 
                 &--is-active {
+                    .circle {
+                        @apply bg-red-400;
+
+                        .inner-circle {
+                            @apply bg-red-500;
+                        }
+                    }
+                }
+
+                &--is-online {
                     .circle {
                         @apply bg-green-500;
 
@@ -148,39 +161,66 @@
                         }
                     }
                 }
+
+                &--is-online--is-active {
+                    .circle {
+                        @apply bg-green-400;
+
+                        .inner-circle {
+                            @apply bg-green-500;
+                        }
+                    }
+                }
             }
         }
 
         .status-sub-menu {
-            @apply mt-23 hidden flex-col items-end justify-end text-sm sm:text-base font-medium;
+            @apply mt-23 hidden flex-col items-end justify-end text-xs sm:text-sm font-medium;
 
             ul {
                 @apply w-full;
                 
                 li {
-                    @apply w-full h-8 px-4 flex justify-end;
+                    @apply w-full h-8 px-4 flex justify-end items-center;
 
                     span {
-                        @apply overflow-hidden truncate rounded-full bg-neutral-300 px-2 leading-6 h-6 text-ellipsis align-middle max-w-32 sm:max-w-40;
+                        @apply overflow-hidden truncate rounded-full bg-neutral-300 px-2 leading-6 h-6 truncate align-middle max-w-44 sm:max-w-48;
                     }
                 }
 
                 .current-user {
-                    @apply absolute top-15 right-0
+                    @apply absolute top-15 right-0;
+
+                    span {
+                        @apply rounded-l-full rounded-r-none;
+                    }
+
+                    .you {
+                        @apply rounded-none px-0 min-w-fit w-fit;
+                    }
+
+                    button {
+                        @apply h-6 w-7 bg-neutral-300 rounded-r-full flex items-center justify-center cursor-pointer px-2 hover:bg-neutral-400 transition-colors duration-200 ease-in-out;
+
+                        svg {
+                            @apply h-3 w-3;
+                        }
+                    }
                 }
             }
         }
 
         &--refresh {
-            @apply w-30;
+            @apply w-25;
         }
 
         &--is-active {
-            @apply pointer-events-auto w-40 sm:w-48;
+            @apply pointer-events-auto w-52 sm:w-56;
 
             .status-sub-menu {
                 @apply flex;
             }
+
         }
     }
 }

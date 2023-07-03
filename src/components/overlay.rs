@@ -83,6 +83,10 @@ pub fn Overlay(cx: Scope, chess_board_signals: ChessBoardSignals) -> impl IntoVi
         set_show_form.set(Form::Join);
     };
 
+    let username = move |_| {
+        set_show_form.set(Form::Username);
+    };
+
     let reset = move |_| {
         if let Some(socket) = chess_board_signals.socket().get().as_ref() {
             match socket.send_with_str("/reset") {
@@ -178,10 +182,15 @@ pub fn Overlay(cx: Scope, chess_board_signals: ChessBoardSignals) -> impl IntoVi
     };
 
     let status_menu_btn_css = move || {
-        let is_active = chess_board_signals.socket().get().is_some();
+        let is_active = show_status_menu.get();
+        let is_online = chess_board_signals.socket().with(|s| s.is_some());
         let mut class = "status-menu-btn".to_string();
 
-        if is_active {
+        if is_online && is_active {
+            class.push_str(" status-menu-btn--is-online--is-active");
+        } else if is_online {
+            class.push_str(" status-menu-btn--is-online");
+        } else if is_active {
             class.push_str(" status-menu-btn--is-active");
         }
 
@@ -274,20 +283,34 @@ pub fn Overlay(cx: Scope, chess_board_signals: ChessBoardSignals) -> impl IntoVi
                             each=move || {
                                 chess_board_signals.room_status().with(|status| status.as_ref().map(|s| s.users()).unwrap_or(vec![]))
                             }
-                            key=move |user: &User| user.id()
+                            key=move |user: &User| format!("{}:{}", user.id(), user.username())
                             view=move |cx, user: User| {
-                                let li_css = if user.id() == get_user_payload().map(|p| p.sub).unwrap_or_default() {
-                                    "current-user"
+                                let user_id = format!("user-{}", user.id());
+                                if user.id() == get_user_payload().map(|p| p.sub).unwrap_or_default() {
+                                    view! {
+                                        cx,
+                                        <li class="current-user" id=user_id>
+                                            <span>
+                                                {user.username()}
+                                            </span>
+                                            <span class="you">{"(You)"}</span>
+                                            <button on:click=username>
+                                                <svg xmlns="http://www.w3.org/2000/svg" id="Layer_1" data-name="Layer 1" viewBox="0 0 24 24" width="512" height="512">
+                                                    <polygon points="14.604 5.687 0 20.29 0 24 3.71 24 18.313 9.396 14.604 5.687"/>
+                                                    <path d="M23.232.768a2.624,2.624,0,0,0-3.71,0l-3.5,3.505,3.709,3.709,3.5-3.5A2.624,2.624,0,0,0,23.232.768Z"/>
+                                                </svg>
+                                            </button>
+                                        </li>
+                                    }
                                 } else {
-                                    ""
-                                };
-                                view! {
-                                    cx,
-                                    <li class=li_css>
-                                        <span>
-                                            {user.username()}
-                                        </span>
-                                    </li>
+                                    view! {
+                                        cx,
+                                        <li id=user_id>
+                                            <span>
+                                                {user.username()}
+                                            </span>
+                                        </li>
+                                    }
                                 }
                             }
                         />

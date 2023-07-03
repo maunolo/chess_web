@@ -16,6 +16,8 @@ use actix::prelude::*;
 
 use crate::entities::{chess_board::ChessBoard, position::Position};
 
+use super::websockets::session::WsChessSession;
+
 /// Chat server sends this messages to session
 #[derive(Message)]
 #[rtype(result = "()")]
@@ -29,7 +31,7 @@ pub struct Message(pub String);
 pub struct Connect {
     pub id: String,
     pub name: String,
-    pub addr: Recipient<Message>,
+    pub addr: Addr<WsChessSession>,
 }
 
 /// Session is disconnected
@@ -92,7 +94,7 @@ pub struct Reset {
     pub room_name: String,
 }
 
-#[derive(Message)]
+#[derive(Message, Clone)]
 #[rtype(result = "()")]
 pub struct UserSync {
     pub id: String,
@@ -113,7 +115,7 @@ pub struct ChessServer {
 pub struct User {
     pub id: String,
     pub name: String,
-    pub recipient: Recipient<Message>,
+    pub addr: Addr<WsChessSession>,
     pub current_room: Option<String>,
 }
 
@@ -121,13 +123,13 @@ impl User {
     pub fn new(
         id: String,
         name: String,
-        recipient: Recipient<Message>,
+        addr: Addr<WsChessSession>,
         current_room: Option<String>,
     ) -> Self {
         Self {
             id,
             name,
-            recipient,
+            addr,
             current_room,
         }
     }
@@ -209,7 +211,7 @@ impl ChessServer {
                     if let Some(User {
                         id: _,
                         name: _,
-                        recipient: addr,
+                        addr,
                         current_room: _,
                     }) = self.sessions.get(id)
                     {
@@ -224,7 +226,7 @@ impl ChessServer {
         if let Some(User {
             id: _,
             name: _,
-            recipient: addr,
+            addr,
             current_room: _,
         }) = self.sessions.get(id)
         {
@@ -469,7 +471,7 @@ impl Handler<UserSync> for ChessServer {
     type Result = ();
 
     fn handle(&mut self, msg: UserSync, _: &mut Self::Context) -> Self::Result {
-        let UserSync { id, name } = msg;
+        let UserSync { id, name } = msg.clone();
 
         let Some(user) = self.sessions.get_mut(&id) else {
             log::error!("No user found for id {}", id);
@@ -477,6 +479,7 @@ impl Handler<UserSync> for ChessServer {
         };
 
         user.name = name.clone();
+        let addr = user.addr.clone();
         if let Some(current_room_name) = user.current_room.clone() {
             let user_string = user.to_string();
 
@@ -486,15 +489,11 @@ impl Handler<UserSync> for ChessServer {
                 // notify all users in room
                 self.send_message(
                     &current_room_name,
-                    &format!("/remove_user {}", user_string),
-                    Some(&id),
-                );
-                self.send_message(
-                    &current_room_name,
                     &format!("/add_user {}", user_string),
-                    Some(&id),
+                    None,
                 );
             };
         };
+        addr.do_send(msg);
     }
 }

@@ -96,7 +96,7 @@ impl Actor for WsChessSession {
         self.addr.do_send(chess_server::Connect {
             id: self.id.clone(),
             name: self.name.clone(),
-            addr: addr.recipient(),
+            addr,
         })
     }
 
@@ -115,6 +115,14 @@ impl Handler<chess_server::Message> for WsChessSession {
 
     fn handle(&mut self, msg: chess_server::Message, ctx: &mut Self::Context) {
         ctx.text(msg.0);
+    }
+}
+
+impl Handler<chess_server::UserSync> for WsChessSession {
+    type Result = ();
+
+    fn handle(&mut self, msg: chess_server::UserSync, _: &mut Self::Context) {
+        self.name = msg.name;
     }
 }
 

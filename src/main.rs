@@ -6,6 +6,8 @@ mod utils;
 
 use cfg_if::cfg_if;
 
+use crate::server::chess_server;
+
 cfg_if! {
     if #[cfg(feature = "ssr")] {
         mod server;
@@ -44,7 +46,7 @@ cfg_if! {
         const MAX_SIZE: usize = 262_144; // max payload size is 256k
 
         #[post("/sessions")]
-        async fn create_session(mut payload: web::Payload) -> impl Responder {
+        async fn create_session(req: HttpRequest, mut payload: web::Payload, srv: web::Data<Addr<ChessServer>>) -> impl Responder {
             // payload is a stream of Bytes objects
             let mut body = web::BytesMut::new();
             while let Some(chunk) = payload.next().await {
@@ -59,15 +61,33 @@ cfg_if! {
             // payload is loaded, now we can deserialize serde-json
             let payload: PostSessionPayload = serde_json::from_slice::<PostSessionPayload>(&body)?;
 
-            let iat = SystemTime::now().duration_since(UNIX_EPOCH).expect("Time went backwards").as_secs();
-            // do something with payload
-            let jwt_payload = serde_json::json!({
-                "sub": uuid::Uuid::new_v4().to_string(),
-                "name": payload.username,
-                "iat": iat,
-            });
+            let session_payload = if let Some(session_cookie) = req.cookie("session_token") {
+                let Ok(token) = utils::jwt::verified_decode::<SessionPayload>(&session_cookie.value().to_string()) else {
+                    return Ok(HttpResponse::Unauthorized().finish());
+                };
 
-            let session_token = utils::jwt::encode(jwt_payload).expect("Failed to encode JWT");
+                let chess_server_addr = srv.get_ref().clone();
+
+                chess_server_addr.do_send(
+                    chess_server::UserSync { id: token.claims().sub.clone(), name: payload.username.clone() }
+                );
+
+                SessionPayload {
+                    sub: token.claims().sub.clone(),
+                    name: payload.username,
+                    iat: token.claims().iat,
+                }
+            } else {
+                let iat = SystemTime::now().duration_since(UNIX_EPOCH).expect("Time went backwards").as_secs();
+                SessionPayload {
+                    sub: uuid::Uuid::new_v4().to_string(),
+                    name: payload.username,
+                    iat: iat,
+                }
+            };
+
+
+            let session_token = utils::jwt::encode(session_payload).expect("Failed to encode JWT");
 
             let session_cookie = actix_web::cookie::Cookie::build("session_token", session_token).path("/").finish();
 

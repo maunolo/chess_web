@@ -1,5 +1,5 @@
 use cfg_if::cfg_if;
-use leptos::{RwSignal, SignalSet, WriteSignal};
+use leptos::{RwSignal, SignalSet, SignalWithUntracked, WriteSignal};
 use web_sys::WebSocket;
 
 use super::position::Position;
@@ -358,6 +358,10 @@ impl ChessBoardSignals {
 
     #[allow(unused_variables)]
     pub fn start_websocket(&self) {
+        if self.chess_board_socket.with_untracked(|ws| ws.is_some()) {
+            return;
+        }
+
         cfg_if! {
             if #[cfg(not(feature = "ssr"))] {
                 let ws = crate::client::websockets::chess_board::start_websocket(*self).ok();

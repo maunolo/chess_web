@@ -465,11 +465,12 @@ impl Handler<Join> for ChessServer {
             fen,
             trash,
         } = msg;
-        let Some(user) = self.sessions.get(&id) else {
+        let Some(user) = self.sessions.get_mut(&id) else {
             log::error!("No user found for id {}", id);
             return;
         };
 
+        user.current_room = name.clone();
         let mut rooms: Vec<(String, String)> = Vec::new();
         let user_string = user.to_string();
 
@@ -484,11 +485,6 @@ impl Handler<Join> for ChessServer {
             }
         }
 
-        // send message to all users in all rooms
-        for (room_name, message) in rooms {
-            self.send_message(&room_name, &message, None);
-        }
-
         let current_room = self
             .rooms
             .entry(name.clone())
@@ -500,6 +496,10 @@ impl Handler<Join> for ChessServer {
         let trash = current_room.trash.clone();
         let users = current_room.usernames().join(",");
 
+        // send message to all users in all rooms
+        for (room_name, message) in rooms {
+            self.send_message(&room_name, &message, None);
+        }
         // sync fen
         self.send_message_to_session(
             &id,

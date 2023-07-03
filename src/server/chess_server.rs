@@ -359,12 +359,11 @@ impl Handler<Connect> for ChessServer {
     fn handle(&mut self, msg: Connect, _: &mut Context<Self>) {
         log::debug!("Someone joined");
 
-        let room_name = "main".to_owned();
-
         // register session with random id
         let Connect { addr, id, name } = msg;
         if let Some(user) = self.connect_session(&id, addr.clone()).cloned() {
             let user_string = user.to_string();
+            let room_name = user.current_room.clone();
 
             if let Some(current_room) = self.rooms.get(&user.current_room) {
                 let current_fen = current_room.current_fen.clone();
@@ -387,6 +386,7 @@ impl Handler<Connect> for ChessServer {
                 self.send_message_to_session(&id, &format!("/sync_users {}|{}", room_name, users));
             }
         } else {
+            let room_name = "main".to_string();
             let user = User::new(id.clone(), name, addr, room_name.clone(), None);
 
             let user_string = user.to_string();

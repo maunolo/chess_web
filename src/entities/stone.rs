@@ -69,7 +69,7 @@ impl FromStr for Stone {
         };
 
         let mut c = s.chars().nth(1).unwrap().to_string();
-        if color == "White" {
+        if color == "Light" {
             c = c.to_uppercase();
         }
 

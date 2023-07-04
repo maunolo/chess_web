@@ -49,8 +49,6 @@ pub struct ClientMessage {
     pub id: String,
     /// Peer message
     pub msg: String,
-    /// Room name
-    pub room_name: String,
 }
 
 /// List of available rooms
@@ -81,7 +79,6 @@ pub struct Join {
 #[rtype(result = "()")]
 pub struct Move {
     pub id: String,
-    pub room_name: String,
     pub piece: String,
     pub from: String,
     pub to: String,
@@ -91,7 +88,6 @@ pub struct Move {
 #[rtype(result = "()")]
 pub struct Reset {
     pub id: String,
-    pub room_name: String,
 }
 
 #[derive(Message, Clone)]
@@ -454,7 +450,12 @@ impl Handler<ClientMessage> for ChessServer {
     type Result = ();
 
     fn handle(&mut self, msg: ClientMessage, _: &mut Context<Self>) {
-        self.send_message(&msg.room_name, msg.msg.as_str(), Some(&msg.id));
+        let Some(session) = self.sessions.get(&msg.id) else {
+            log::error!("No user found for id {}", msg.id);
+            return;
+        };
+
+        self.send_message(&session.current_room, msg.msg.as_str(), Some(&msg.id));
     }
 }
 
@@ -524,13 +525,17 @@ impl Handler<Move> for ChessServer {
     fn handle(&mut self, msg: Move, _: &mut Self::Context) -> Self::Result {
         let Move {
             id,
-            room_name,
             piece,
             from,
             to,
         } = msg;
 
-        if let Some(current_room) = self.rooms.get_mut(&room_name) {
+        let Some(session) = self.sessions.get(&id) else {
+            log::error!("No user found for id {}", id);
+            return;
+        };
+
+        if let Some(current_room) = self.rooms.get_mut(&session.current_room) {
             let mut chessboard = ChessBoard::new(current_room.current_fen.as_str());
             chessboard.set_trash_from_str(current_room.trash.as_str());
             let from_position: Option<Position> = from.parse().ok();
@@ -543,7 +548,7 @@ impl Handler<Move> for ChessServer {
 
             current_room.moves.push(move_msg.clone());
 
-            self.send_message(&room_name, &move_msg, Some(&id));
+            self.send_message(&session.current_room, &move_msg, Some(&id));
         };
     }
 }
@@ -552,9 +557,12 @@ impl Handler<Reset> for ChessServer {
     type Result = ();
 
     fn handle(&mut self, msg: Reset, _: &mut Self::Context) -> Self::Result {
-        let Reset { id: _, room_name } = msg;
+        let Some(session) = self.sessions.get(&msg.id) else {
+            log::error!("No user found for id {}", msg.id);
+            return;
+        };
 
-        if let Some(current_room) = self.rooms.get_mut(&room_name) {
+        if let Some(current_room) = self.rooms.get_mut(&session.current_room) {
             current_room.current_fen = current_room.original_fen.clone();
             current_room.trash = current_room.original_trash.to_owned();
 
@@ -562,8 +570,11 @@ impl Handler<Reset> for ChessServer {
             let trash = current_room.trash.clone();
 
             self.send_message(
-                &room_name,
-                &format!("/sync_board {}|{}|{}", room_name, current_fen, trash),
+                &session.current_room,
+                &format!(
+                    "/sync_board {}|{}|{}",
+                    session.current_room, current_fen, trash
+                ),
                 None,
             );
         };

@@ -20,9 +20,6 @@ pub struct WsChessSession {
     /// otherwise we drop connection.
     pub hb: Instant,
 
-    /// joined room
-    pub room_name: String,
-
     /// peer name
     pub name: String,
 
@@ -41,7 +38,6 @@ impl WsChessSession {
         Self {
             id,
             hb: Instant::now(),
-            room_name: "main".to_owned(),
             name,
             addr,
             authenticated_at: None,
@@ -170,7 +166,7 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for WsChessSession {
                         "/join" => {
                             let v: Vec<&str> = input.splitn(2, ' ').collect();
                             if v.len() >= 1 && v.len() <= 2 {
-                                self.room_name = v[0].to_owned();
+                                let room_name = v[0].to_owned();
                                 let params: Option<(Option<String>, Option<String>)> =
                                     v.get(1).map(|s| match s.to_owned().split_once("|") {
                                         Some((fen, trash)) => {
@@ -180,7 +176,7 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for WsChessSession {
                                     });
                                 self.addr.do_send(chess_server::Join {
                                     id: self.id.clone(),
-                                    name: self.room_name.clone(),
+                                    name: room_name,
                                     fen: params.clone().unwrap_or((None, None)).0,
                                     trash: params.unwrap_or((None, None)).1,
                                 });
@@ -209,7 +205,6 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for WsChessSession {
 
                                 self.addr.do_send(chess_server::Move {
                                     id: self.id.clone(),
-                                    room_name: self.room_name.clone(),
                                     piece,
                                     from,
                                     to,
@@ -221,7 +216,6 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for WsChessSession {
                         "/reset" => {
                             self.addr.do_send(chess_server::Reset {
                                 id: self.id.clone(),
-                                room_name: self.room_name.clone(),
                             });
                         }
                         _ => ctx.text(format!("!!! unknown command: {m:?}")),
@@ -232,7 +226,6 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for WsChessSession {
                     self.addr.do_send(chess_server::ClientMessage {
                         id: self.id.clone(),
                         msg,
-                        room_name: self.room_name.clone(),
                     })
                 }
             }

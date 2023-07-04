@@ -17,6 +17,7 @@
         @apply pointer-events-none absolute z-10 w-full h-full;
 
         text {
+            font-weight: 900;
             fill: #0000007b;
         }
     }
@@ -38,7 +39,7 @@
     }
 
     .piece {
-        @apply z-30 absolute bg-contain bg-center bg-no-repeat;
+        @apply z-30 absolute bg-90 bg-piece bg-no-repeat;
 
         width: 12.5%;
         height: 12.5%;

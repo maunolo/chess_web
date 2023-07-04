@@ -5,6 +5,6 @@
 
 @each $piece, $filename in var(--piece-names), var(--piece-filenames) {
   .$(piece) {
-    background-image: url('/static/chess/pieces/$(filename).svg');
+    background-image: url('/static/chess/pieces/$(filename).png');
   }
 }

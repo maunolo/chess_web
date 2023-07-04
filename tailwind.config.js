@@ -5,6 +5,12 @@ module.exports = {
   },
   theme: {
     extend: {
+        backgroundPosition: {
+            'piece': 'center bottom .1rem',
+        },
+        backgroundSize: {
+            '90': '90%',
+        },
         keyframes: {
             'pulse-brightness': {
                 '0%, 100%': { filter: 'brightness(0.9)' },

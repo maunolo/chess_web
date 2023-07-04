@@ -13,7 +13,7 @@ pub fn BoardBackground(cx: Scope) -> impl IntoView {
                     let rotate = format!("rotate(180, {}, {})", x + 6.25, y + 12.5);
                     view! { cx,
                         <image
-                            href="/static/chess/board/aluminium.png"
+                            href="/static/chess/board/blue.webp"
                             x=format!("{}", x)
                             y=format!("{}", y)
                             height="25"

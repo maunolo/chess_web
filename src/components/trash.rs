@@ -28,9 +28,9 @@ where
         if (matches!(id, TrashType::Dark) && white_view())
             || (matches!(id, TrashType::Light) && !white_view())
         {
-            "-bottom-10 sm:-bottom-12 rounded-b".to_string()
+            "-bottom-10 sm:-bottom-14 rounded-b".to_string()
         } else {
-            "-top-10 sm:-top-12 rounded-t".to_string()
+            "-top-10 sm:-top-14 rounded-t".to_string()
         }
     };
 
@@ -41,12 +41,7 @@ where
             .enumerate()
     };
 
-    let trash_class = move || {
-        format!(
-            "flex absolute h-10 sm:h-12 w-full z-20 bg-neutral-500 {}",
-            position_css()
-        )
-    };
+    let trash_class = move || format!("trash {}", position_css());
 
     let trash_id = move || format!("{}-trash", String::from(id));
 

@@ -49,10 +49,11 @@
     }
 
     .deleted {
-        @apply relative;
+        @apply relative max-h-full shrink;
 
+        aspect-ratio: 1 / 1;
         width: 6.25%;
-        height: 100%;
+        height: auto;
     }
 
     .dragging {
@@ -73,5 +74,16 @@
 
     .element-pool {
         display: none;
+    }
+
+    .trash {
+        @apply flex absolute h-10 sm:h-14 w-full z-20 bg-neutral-500 overflow-x-scroll;
+
+        -ms-overflow-style: none;
+        scrollbar-width: none;
+
+        &::-webkit-scrollbar {
+            @apply hidden;
+        }
     }
 }

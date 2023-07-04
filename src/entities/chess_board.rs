@@ -1,5 +1,5 @@
 use cfg_if::cfg_if;
-use leptos::{RwSignal, SignalSet, SignalWithUntracked, WriteSignal};
+use leptos::{RwSignal, Scope, SignalSet, SignalWithUntracked, WriteSignal};
 use web_sys::WebSocket;
 
 use super::position::Position;
@@ -270,6 +270,7 @@ impl ChessBoard {
 }
 
 pub struct ChessBoardSignalsBuilder {
+    cx: Option<Scope>,
     chess_board: Option<WriteSignal<ChessBoard>>,
     should_render: Option<WriteSignal<bool>>,
     room_status: Option<RwSignal<Option<RoomStatus>>>,
@@ -279,11 +280,17 @@ pub struct ChessBoardSignalsBuilder {
 impl ChessBoardSignalsBuilder {
     pub fn new() -> Self {
         Self {
+            cx: None,
             chess_board: None,
             should_render: None,
             room_status: None,
             chess_board_socket: None,
         }
+    }
+
+    pub fn cx(mut self, cx: Scope) -> Self {
+        self.cx = Some(cx);
+        self
     }
 
     pub fn chess_board(mut self, chess_board: WriteSignal<ChessBoard>) -> Self {
@@ -307,6 +314,9 @@ impl ChessBoardSignalsBuilder {
     }
 
     pub fn build(self) -> Result<ChessBoardSignals, ()> {
+        let Some(cx) = self.cx else {
+            return Err(());
+        };
         let Some(chess_board) = self.chess_board else {
             return Err(());
         };
@@ -321,6 +331,7 @@ impl ChessBoardSignalsBuilder {
         };
 
         Ok(ChessBoardSignals {
+            cx,
             chess_board,
             should_render,
             room_status,
@@ -332,6 +343,7 @@ impl ChessBoardSignalsBuilder {
 #[allow(dead_code)]
 #[derive(Copy, Clone)]
 pub struct ChessBoardSignals {
+    cx: Scope,
     chess_board: WriteSignal<ChessBoard>,
     should_render: WriteSignal<bool>,
     room_status: RwSignal<Option<RoomStatus>>,
@@ -340,6 +352,10 @@ pub struct ChessBoardSignals {
 
 #[allow(dead_code)]
 impl ChessBoardSignals {
+    pub fn cx(&self) -> Scope {
+        self.cx.clone()
+    }
+
     pub fn socket(&self) -> RwSignal<Option<WebSocket>> {
         self.chess_board_socket
     }

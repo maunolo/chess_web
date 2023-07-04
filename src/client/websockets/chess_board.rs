@@ -1,11 +1,11 @@
-use leptos::{SignalSet, SignalUpdate, WriteSignal};
+use leptos::{SignalGetUntracked, SignalSet, SignalUpdate};
 use wasm_bindgen::prelude::*;
 use web_sys::{CloseEvent, Element, ErrorEvent, MessageEvent, WebSocket};
 
 use crate::{
     entities::{
         chess_board::{ChessBoard, ChessBoardSignals},
-        room::RoomStatus,
+        room::{RoomStatus, User, UserStatus},
     },
     utils::{
         class_list::ClassListExt,
@@ -19,11 +19,7 @@ fn query_position(square: &str) -> Option<Element> {
         .unwrap()
 }
 
-fn on_message_callback(
-    chessboard: WriteSignal<ChessBoard>,
-    should_render: WriteSignal<bool>,
-    room_status: WriteSignal<Option<RoomStatus>>,
-) -> Closure<dyn FnMut(MessageEvent)> {
+fn on_message_callback(chess_board_signals: ChessBoardSignals) -> Closure<dyn FnMut(MessageEvent)> {
     Closure::<dyn FnMut(_)>::new(move |e: MessageEvent| {
         // Handle difference Text/Binary,...
         if let Ok(txt) = e.data().dyn_into::<js_sys::JsString>() {
@@ -80,22 +76,23 @@ fn on_message_callback(
                         }
                     }
                     "/sync_board" => {
-                        should_render.set(false);
+                        chess_board_signals.should_render().set(false);
                         let mut input = input.split("|");
 
                         let room_name = input.next().unwrap();
                         let fen = input.next().unwrap();
                         let trash = input.next().unwrap();
 
-                        room_status.update(|room_status| {
+                        chess_board_signals.room_status().update(|room_status| {
                             if let Some(room_status) = room_status {
                                 room_status.set_name(room_name);
                             } else {
-                                *room_status = Some(RoomStatus::new(room_name));
+                                *room_status =
+                                    Some(RoomStatus::new(chess_board_signals.cx(), room_name));
                             }
                         });
 
-                        chessboard.update(|chessboard| {
+                        chess_board_signals.chess_board().update(|chessboard| {
                             let reset_count = chessboard.reset_count() + 1;
 
                             let mut new_chessboard = ChessBoard::new(fen);
@@ -106,7 +103,7 @@ fn on_message_callback(
                             new_chessboard.set_reset_count(reset_count);
                             *chessboard = new_chessboard;
                         });
-                        should_render.set(true);
+                        chess_board_signals.should_render().set(true);
                     }
                     "/sync_users" => {
                         let mut input = input.split("|");
@@ -114,43 +111,76 @@ fn on_message_callback(
                         let users: Vec<String> =
                             input.next().unwrap().split(",").map(String::from).collect();
 
-                        room_status.update(|room_status| {
-                            if let Some(room_status) = room_status {
-                                room_status.sync_users(users);
-                            } else {
-                                let mut new_room_status = RoomStatus::new(room_name);
-                                new_room_status.sync_users(users);
-                                *room_status = Some(new_room_status);
+                        let room_status = chess_board_signals.room_status().get_untracked();
+
+                        if let Some(mut room_status) = room_status {
+                            for user in users.iter().map(|user| user.parse::<User>().unwrap()) {
+                                if let Some(old_user) = room_status.get_user(&user.id()) {
+                                    match user.status() {
+                                        UserStatus::Away => old_user.update(|u| u.disconnect()),
+                                        UserStatus::Online => old_user.update(|u| u.connect()),
+                                        _ => {}
+                                    }
+                                }
                             }
-                        });
+
+                            room_status.sync_users(users);
+
+                            chess_board_signals.room_status().set(Some(room_status));
+                        } else {
+                            let mut new_room_status =
+                                RoomStatus::new(chess_board_signals.cx(), room_name);
+                            new_room_status.sync_users(users);
+                            chess_board_signals.room_status().set(Some(new_room_status));
+                        }
                     }
                     "/add_user" => {
-                        room_status.update(|room_status| {
-                            if let Some(room_status) = room_status {
-                                room_status.add_user(input);
+                        let room_status = chess_board_signals.room_status().get_untracked();
+
+                        let new_user = input.parse::<User>().unwrap();
+
+                        if let Some(mut room_status) = room_status {
+                            if let Some(old_user) = room_status.get_user(&new_user.id()) {
+                                old_user.update(|user| {
+                                    user.set_username(&new_user.username());
+                                    user.connect();
+                                });
+                            } else {
+                                room_status.add_user(new_user);
+                                chess_board_signals.room_status().set(Some(room_status));
                             }
-                        });
+                        }
                     }
                     "/remove_user" => {
-                        room_status.update(|room_status| {
+                        chess_board_signals.room_status().update(|room_status| {
                             if let Some(room_status) = room_status {
                                 room_status.remove_user(input);
                             }
                         });
                     }
                     "/disconnect_user" => {
-                        room_status.update(|room_status| {
-                            if let Some(room_status) = room_status {
-                                room_status.disconnect_user(input);
-                            }
-                        });
+                        let (id, _) = input.split_once(":").unwrap_or((input, ""));
+
+                        let user = chess_board_signals
+                            .room_status()
+                            .get_untracked()
+                            .and_then(|room_status| room_status.get_user(id));
+
+                        if let Some(user) = user {
+                            user.update(|u| u.disconnect());
+                        }
                     }
                     "/connect_user" => {
-                        room_status.update(|room_status| {
-                            if let Some(room_status) = room_status {
-                                room_status.connect_user(input);
-                            }
-                        });
+                        let (id, _) = input.split_once(":").unwrap_or((input, ""));
+
+                        let user = chess_board_signals
+                            .room_status()
+                            .get_untracked()
+                            .and_then(|room_status| room_status.get_user(id));
+
+                        if let Some(user) = user {
+                            user.update(|u| u.connect());
+                        }
                     }
                     _ => {}
                 }
@@ -179,11 +209,7 @@ pub fn start_websocket(chess_board_signals: ChessBoardSignals) -> Result<WebSock
     // Connect to an echo server
     let ws = WebSocket::new(&ws_uri)?;
 
-    let onmessage_callback = on_message_callback(
-        chess_board_signals.chess_board(),
-        chess_board_signals.should_render(),
-        chess_board_signals.room_status().write_only(),
-    );
+    let onmessage_callback = on_message_callback(chess_board_signals);
     // set message event handler on WebSocket
     ws.set_onmessage(Some(onmessage_callback.as_ref().unchecked_ref()));
     // forget the callback to keep it alive
@@ -204,11 +230,14 @@ pub fn start_websocket(chess_board_signals: ChessBoardSignals) -> Result<WebSock
     let onclose_callback = Closure::<dyn FnMut(_)>::new(move |e: CloseEvent| {
         log::debug!("socket closed: {:?}", e);
         chess_board_signals.socket().set(None);
-        chess_board_signals.room_status().update(|room_status| {
-            if let Some(room_status) = room_status {
-                room_status.set_all_users_offline();
+        let room_status = chess_board_signals.room_status().get_untracked();
+        if let Some(room_status) = room_status {
+            for user in room_status.users() {
+                user.update(|u| u.logout());
             }
-        });
+
+            chess_board_signals.room_status().set(Some(room_status));
+        }
     });
     ws.set_onclose(Some(onclose_callback.as_ref().unchecked_ref()));
     onclose_callback.forget();

@@ -43,6 +43,7 @@ fn Home(cx: Scope) -> impl IntoView {
     let chess_board_socket = create_rw_signal::<Option<web_sys::WebSocket>>(cx, None);
     let room_status = create_rw_signal::<Option<RoomStatus>>(cx, None);
     let chess_board_signals = ChessBoardSignalsBuilder::new()
+        .cx(cx)
         .chess_board(set_chess_board)
         .should_render(set_should_render)
         .room_status(room_status)

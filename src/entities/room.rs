@@ -1,9 +1,12 @@
-use std::{collections::HashMap, str::FromStr};
+use std::{collections::BTreeMap, str::FromStr};
+
+use leptos::{create_rw_signal, RwSignal, Scope};
 
 #[derive(Clone)]
 pub struct RoomStatus {
     name: String,
-    users: HashMap<String, User>,
+    users: BTreeMap<String, RwSignal<User>>,
+    cx: Scope,
 }
 
 #[derive(Clone)]
@@ -20,6 +23,7 @@ pub struct User {
     status: UserStatus,
 }
 
+#[allow(dead_code)]
 impl User {
     pub fn id(&self) -> String {
         self.id.clone()
@@ -29,12 +33,34 @@ impl User {
         self.username.clone()
     }
 
-    pub fn status(&self) -> String {
+    pub fn status(&self) -> UserStatus {
+        self.status.clone()
+    }
+
+    pub fn status_str(&self) -> String {
         match self.status {
             UserStatus::Online => "online".to_string(),
             UserStatus::Offline => "offline".to_string(),
             UserStatus::Away => "away".to_string(),
         }
+    }
+
+    pub fn set_username(&mut self, username: &str) {
+        if self.username != username {
+            self.username = username.to_string();
+        }
+    }
+
+    pub fn disconnect(&mut self) {
+        self.status = UserStatus::Away;
+    }
+
+    pub fn connect(&mut self) {
+        self.status = UserStatus::Online;
+    }
+
+    pub fn logout(&mut self) {
+        self.status = UserStatus::Offline;
     }
 }
 
@@ -73,19 +99,24 @@ impl FromStr for User {
 
 #[allow(dead_code)]
 impl RoomStatus {
-    pub fn new(name: &str) -> Self {
+    pub fn new(cx: Scope, name: &str) -> Self {
         Self {
+            cx,
             name: name.to_string(),
-            users: HashMap::new(),
+            users: BTreeMap::new(),
         }
     }
 
     pub fn users_count(&self) -> usize {
-        self.users.len()
+        self.users.values().len()
     }
 
-    pub fn users(&self) -> Vec<User> {
+    pub fn users(&self) -> Vec<RwSignal<User>> {
         self.users.values().cloned().collect()
+    }
+
+    pub fn users_map(self) -> BTreeMap<String, RwSignal<User>> {
+        self.users
     }
 
     pub fn name(&self) -> String {
@@ -100,46 +131,30 @@ impl RoomStatus {
 
     pub fn sync_users(&mut self, users: Vec<String>) {
         self.users = users
-            .iter()
+            .into_iter()
             .map(|user| {
                 let user = user.parse::<User>().unwrap();
-
-                (user.id.to_string(), user)
+                if let Some(old_user) = self.users.remove(&user.id()) {
+                    (user.id(), old_user)
+                } else {
+                    (user.id(), create_rw_signal(self.cx, user))
+                }
             })
             .collect();
     }
 
-    pub fn set_all_users_offline(&mut self) {
-        for user in self.users.values_mut() {
-            user.status = UserStatus::Offline;
-        }
+    pub fn get_user(&self, id: &str) -> Option<RwSignal<User>> {
+        self.users.get(id).cloned()
     }
 
-    pub fn add_user(&mut self, username: &str) {
-        if let Ok(user) = username.parse::<User>() {
-            self.users.insert(user.id(), user);
-        };
+    pub fn add_user(&mut self, user: User) {
+        self.users
+            .insert(user.id(), create_rw_signal(self.cx, user));
     }
 
     pub fn remove_user(&mut self, username: &str) {
         if let Ok(user) = username.parse::<User>() {
             self.users.remove(&user.id());
-        };
-    }
-
-    pub fn disconnect_user(&mut self, username: &str) {
-        if let Ok(user) = username.parse::<User>() {
-            if let Some(user) = self.users.get_mut(&user.id()) {
-                user.status = UserStatus::Away;
-            }
-        };
-    }
-
-    pub fn connect_user(&mut self, username: &str) {
-        if let Ok(user) = username.parse::<User>() {
-            if let Some(user) = self.users.get_mut(&user.id()) {
-                user.status = UserStatus::Online;
-            }
         };
     }
 }

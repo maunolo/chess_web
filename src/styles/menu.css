@@ -155,9 +155,17 @@
         }
 
         .status-sub-menu {
-            @apply fixed top-15 right-0 hidden flex-col items-end justify-end text-xs sm:text-sm font-medium w-52 sm:w-56;
+            @apply fixed top-15 right-0 hidden flex-col text-xs overflow-y-scroll h-88 sm:text-sm font-medium w-52 sm:w-56;
 
-            ul {                
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+
+            &::-webkit-scrollbar {
+                @apply hidden;
+            }
+
+            ul {
+
                 li {
                     @apply h-8 px-4 flex justify-end items-center;
 

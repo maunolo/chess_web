@@ -51,7 +51,6 @@
     .deleted {
         @apply relative max-h-full bg-center;
 
-        aspect-ratio: 1 / 1;
         width: 6.25%;
         height: auto;
     }
@@ -77,13 +76,6 @@
     }
 
     .trash {
-        @apply flex absolute h-10 sm:h-14 w-full z-20 bg-neutral-500 overflow-x-scroll;
-
-        -ms-overflow-style: none;
-        scrollbar-width: none;
-
-        &::-webkit-scrollbar {
-            @apply hidden;
-        }
+        @apply pointer-events-none flex absolute h-10 sm:h-14 w-full z-20 bg-neutral-500;
     }
 }

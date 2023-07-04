@@ -15,8 +15,11 @@ use crate::handlers::{interaction_end_with_websocket, interaction_move};
 pub fn App(cx: Scope) -> impl IntoView {
     provide_meta_context(cx);
 
+    let app_title = env!("APP_TITLE");
+
     view! { cx,
         <Stylesheet id="leptos" href="/style.css"/>
+        <Title text=app_title/>
         <Link rel="shortcut icon" type_="image/ico" href="/favicon.ico"/>
         <Link rel="preconnect" href="https://fonts.googleapis.com"/>
         <Link rel="preconnect" href="https://fonts.gstatic.com" crossorigin=""/>

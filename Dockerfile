@@ -2,6 +2,7 @@ FROM rustlang/rust:nightly-slim
 
 # Args
 ARG NODE_ENV=production
+ARG APP_TITLE=Chess
 
 # # Install deps
 RUN apt-get -y update \

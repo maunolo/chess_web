@@ -323,7 +323,7 @@ impl Actor for ChessServer {
             for (name, room) in &mut act.rooms {
                 if let Some(empty_at) = room.empty_at {
                     if empty_at.elapsed() > room_timeout {
-                        log::debug!("Room {} is empty, removing", name);
+                        log::info!("Room {} is empty, removing", name);
                         rooms.push(name.clone());
                     }
                 }
@@ -332,7 +332,7 @@ impl Actor for ChessServer {
             for (id, user) in &mut act.sessions {
                 if let Some(disconected_at) = user.disconected_at {
                     if disconected_at.elapsed() > user_timeout {
-                        log::debug!("User {} is disconected, removing", id);
+                        log::info!("User {}:{} is disconected, removing", id, user.name);
                         sessions.push(id.clone());
                     }
                 }

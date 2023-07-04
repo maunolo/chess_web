@@ -49,7 +49,7 @@
     }
 
     .deleted {
-        @apply relative max-h-full shrink;
+        @apply relative max-h-full bg-center;
 
         aspect-ratio: 1 / 1;
         width: 6.25%;

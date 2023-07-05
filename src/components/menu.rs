@@ -42,8 +42,8 @@ pub fn Menu(
     let reset = move |_| {
         if let Some(socket) = chess_board_signals.socket().get().as_ref() {
             match socket.send_with_str("/reset") {
-                Ok(_) => log::debug!("message successfully sent: {:?}", "/reset"),
-                Err(err) => log::debug!("error sending message: {:?}", err),
+                Ok(_) => {}
+                Err(err) => log::error!("Error sending message: {:?}", err),
             }
         }
     };

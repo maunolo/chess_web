@@ -167,21 +167,15 @@ impl ChessBoard {
     }
 
     pub fn trash_string(&self) -> String {
-        let keys = self
-            .deleted_stones
-            .iter()
-            .map(|s| s.image_class.clone())
-            .collect::<Vec<String>>();
-        keys.join(",")
+        self.deleted_stones.iter().map(|s| s.c.clone()).collect()
     }
 
     pub fn set_trash_from_str(&mut self, trash: &str) {
-        let keys = trash.split(",");
-        for key in keys {
-            if key == "" {
+        for c in trash.chars() {
+            let Some(stone) = Stone::from_char(c) else {
+                log::error!("Error parsing stone from char: {:?}", c);
                 continue;
-            }
-            let stone = key.parse::<Stone>().unwrap();
+            };
             self.deleted_stones.push(stone);
         }
     }

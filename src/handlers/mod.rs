@@ -29,17 +29,6 @@ impl fmt::Display for EventError {
     }
 }
 
-// Only works in the browser
-
-// Possible events:
-// fn select_piece_square(piece: &Element) {
-//     let square = piece.get_attribute("data-square").unwrap();
-//     let selected_square = elements::generate::selected_square(&square);
-//     log::debug!("Selected square: {:?}", selected_square);
-//     elements::add_to_board(&selected_square);
-//     log::debug!("Selected square: {}", square);
-// }
-
 pub fn interaction_move<E>(event: E)
 where
     E: EventPositionExt,
@@ -56,7 +45,7 @@ where
     E: EventPositionExt + EventTargetExt,
 {
     let Some(piece) = event.target_element() else {
-        log::debug!("No piece found");
+        log::error!("No target found to start interaction");
         return;
     };
     // select_piece_square(&piece);
@@ -139,8 +128,8 @@ where
             let msg = format!("/move {} {} {}", piece_data, old_pos, new_pos);
 
             match socket.send_with_str(&msg) {
-                Ok(_) => log::debug!("message successfully sent: {:?}", msg),
-                Err(err) => log::debug!("error sending message: {:?}", err),
+                Ok(_) => {}
+                Err(err) => log::error!("error sending message: {:?}", err),
             }
         }
     };

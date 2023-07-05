@@ -23,8 +23,6 @@ fn on_message_callback(chess_board_signals: ChessBoardSignals) -> Closure<dyn Fn
     Closure::<dyn FnMut(_)>::new(move |e: MessageEvent| {
         // Handle difference Text/Binary,...
         if let Ok(txt) = e.data().dyn_into::<js_sys::JsString>() {
-            log::debug!("message event, received Text: {:?}", txt);
-
             let text: String = txt.as_string().unwrap();
             if text.starts_with('/') {
                 let (cmd, input) = text.split_once(" ").unwrap_or((text.as_str(), ""));
@@ -185,8 +183,6 @@ fn on_message_callback(chess_board_signals: ChessBoardSignals) -> Closure<dyn Fn
                     _ => {}
                 }
             }
-        } else {
-            log::debug!("message event, received Unknown: {:?}", e.data());
         }
     })
 }
@@ -216,19 +212,19 @@ pub fn start_websocket(chess_board_signals: ChessBoardSignals) -> Result<WebSock
     onmessage_callback.forget();
 
     let onerror_callback = Closure::<dyn FnMut(_)>::new(move |e: ErrorEvent| {
-        log::debug!("error event: {:?}", e);
+        log::error!("Error event: {:?}", e);
     });
     ws.set_onerror(Some(onerror_callback.as_ref().unchecked_ref()));
     onerror_callback.forget();
 
     let onopen_callback = Closure::<dyn FnMut()>::new(move || {
-        log::debug!("socket opened");
+        log::info!("socket opened");
     });
     ws.set_onopen(Some(onopen_callback.as_ref().unchecked_ref()));
     onopen_callback.forget();
 
     let onclose_callback = Closure::<dyn FnMut(_)>::new(move |e: CloseEvent| {
-        log::debug!("socket closed: {:?}", e);
+        log::info!("socket closed");
         chess_board_signals.socket().set(None);
         let room_status = chess_board_signals.room_status().get_untracked();
         if let Some(room_status) = room_status {

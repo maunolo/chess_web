@@ -61,7 +61,7 @@ fn set_username(username: &str, chess_board_signals: ChessBoardSignals) {
 pub fn get_user_payload() -> Option<SessionPayload> {
     if let Some(session_token) = get_cookie_value("session_token") {
         let Ok(token) = decode::<SessionPayload>(&session_token) else {
-            log::debug!("Session token is not a valid JWT: {}", session_token);
+            log::error!("Session token is not a valid JWT: {}", session_token);
             return None;
         };
         Some(token.claims().clone())
@@ -96,8 +96,8 @@ pub fn Overlay(cx: Scope, chess_board_signals: ChessBoardSignals) -> impl IntoVi
                 let room = data.get("room").as_string().unwrap();
                 let msg = format!("/join {}", room);
                 match socket.send_with_str(&msg) {
-                    Ok(_) => log::debug!("message successfully sent: {:?}", msg),
-                    Err(err) => log::debug!("error sending message: {:?}", err),
+                    Ok(_) => {}
+                    Err(err) => log::error!("error sending message: {:?}", err),
                 }
             }
             show_form.set(Form::None);

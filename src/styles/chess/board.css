@@ -45,7 +45,7 @@
         height: 12.5%;
         cursor: grab;
         pointer-events: all;
-        transition: all 0.2s ease-in-out;
+        transition: all 0.1s;
     }
 
     .deleted {

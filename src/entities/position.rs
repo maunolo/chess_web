@@ -1,24 +1,16 @@
 use std::str::FromStr;
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Eq, Hash)]
 pub struct Position {
-    pub x: i32,
-    pub y: i32,
-    pub ui_x: Option<f64>,
-    pub ui_y: Option<f64>,
+    pub x: usize,
+    pub y: usize,
 }
 
 impl Position {
-    pub fn new(x: i32, y: i32) -> Position {
-        Position {
-            x,
-            y,
-            ui_x: None,
-            ui_y: None,
-        }
+    pub fn new(x: usize, y: usize) -> Position {
+        Position { x, y }
     }
 
-    #[allow(dead_code)]
     pub fn from_ui_position(ui_x: f64, ui_y: f64, is_white_view: bool) -> Position {
         let (x, y) = match is_white_view {
             true => (ui_x, ui_y),
@@ -40,12 +32,7 @@ impl Position {
             y = 7;
         }
 
-        Position {
-            x,
-            y,
-            ui_x: Some(ui_x),
-            ui_y: Some(ui_y),
-        }
+        Position::new(x as usize, y as usize)
     }
 
     pub fn to_string(&self) -> String {
@@ -90,7 +77,7 @@ impl FromStr for Position {
             .to_string()
             .parse::<i32>()
             .map_err(|_| ())?;
-        Ok(Position::new(x, y))
+        Ok(Position::new(x as usize, y as usize))
     }
 }
 

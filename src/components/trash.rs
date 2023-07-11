@@ -37,7 +37,7 @@ where
     let trash = move || {
         trash()
             .into_iter()
-            .filter(move |stone| stone.color.to_lowercase() == String::from(id))
+            .filter(move |stone| stone.color().to_string() == String::from(id))
             .enumerate()
     };
 
@@ -49,16 +49,16 @@ where
         <div class=trash_class data-trash=move || String::from(id) id=trash_id>
             <For
                 each=trash
-                key=move |(idx, stone)| { format!("{}-{}", idx, stone.image_class) }
+                key=move |(idx, stone)| { format!("{}-{}", idx, stone.image_class()) }
                 view=move |cx, (_, stone)| {
                     view! { cx,
                         <div
-                            class=format!("piece {} deleted", stone.image_class.clone())
+                            class=format!("piece {} deleted", stone.image_class())
                             on:mousedown=interaction_start
                             on:touchstart=interaction_start
                             on:dragstart=move |e| e.prevent_default()
                             data-square="deleted"
-                            data-piece=stone.image_class.clone()
+                            data-piece=stone.image_class()
                         ></div>
                     }
                 }

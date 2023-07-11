@@ -40,7 +40,7 @@ pub fn App(cx: Scope) -> impl IntoView {
 #[component]
 fn Home(cx: Scope) -> impl IntoView {
     let fen = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
-    let chess_board_entity = ChessBoardEntity::new(fen);
+    let chess_board_entity = ChessBoardEntity::new(fen).unwrap();
     let (chess_board, set_chess_board) = create_signal::<ChessBoardEntity>(cx, chess_board_entity);
     let (should_render, set_should_render) = create_signal(cx, false);
     let chess_board_socket = create_rw_signal::<Option<web_sys::WebSocket>>(cx, None);

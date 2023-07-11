@@ -1,90 +1,124 @@
+use std::collections::HashSet;
+use std::ops::Not;
+
 use cfg_if::cfg_if;
 use leptos::{RwSignal, Scope, SignalSet, SignalWithUntracked, WriteSignal};
 use web_sys::WebSocket;
 
 use super::position::Position;
 use super::room::RoomStatus;
-use super::stone::Stone;
+use super::stone::{Color, Kind, Stone};
 
-pub fn fen_to_passant(field: &str) -> Option<Position> {
+pub fn fen_to_passant(field: &str) -> Result<Option<Position>, ()> {
     if field == "-" {
-        return None;
+        return Ok(None);
     }
 
-    let x = field.chars().nth(0).unwrap() as i32 - 97;
-    let y = 8 - field.chars().nth(1).unwrap().to_digit(10).unwrap() as i32;
-    Some(Position::new(x, y))
+    let x = field.chars().nth(0).ok_or(())? as usize - 97;
+    let y = 8 - field.chars().nth(1).ok_or(())?.to_digit(10).ok_or(())? as usize;
+    Ok(Some(Position::new(x, y)))
 }
 
-pub fn fen_to_castle_rules(field: &str) -> CastleRules {
-    let mut white_castle_options = CastleOptions::CanNotCastle;
-    let mut black_castle_options = CastleOptions::CanNotCastle;
+pub fn fen_to_castle_rules(field: &str) -> Result<CastleRules, ()> {
+    let mut white_castle_options = CastleOptions::None;
+    let mut black_castle_options = CastleOptions::None;
 
-    field.chars().for_each(|c| {
-        if c == 'K' {
-            white_castle_options = CastleOptions::CanCastleKingSide;
-        } else if c == 'Q' {
-            match white_castle_options {
-                CastleOptions::CanCastleKingSide => {
-                    white_castle_options = CastleOptions::CanCastleBothSides;
-                }
-                _ => {
-                    white_castle_options = CastleOptions::CanCastleQueenSide;
-                }
+    for c in field.chars() {
+        match c {
+            'K' => {
+                white_castle_options = CastleOptions::KingSide;
             }
-        } else if c == 'k' {
-            black_castle_options = CastleOptions::CanCastleKingSide;
-        } else if c == 'q' {
-            match black_castle_options {
-                CastleOptions::CanCastleKingSide => {
-                    black_castle_options = CastleOptions::CanCastleBothSides;
+            'Q' => match white_castle_options {
+                CastleOptions::KingSide => {
+                    white_castle_options = CastleOptions::BothSides;
                 }
                 _ => {
-                    black_castle_options = CastleOptions::CanCastleQueenSide;
+                    white_castle_options = CastleOptions::QueenSide;
                 }
+            },
+            'k' => {
+                black_castle_options = CastleOptions::KingSide;
+            }
+            'q' => match black_castle_options {
+                CastleOptions::KingSide => {
+                    black_castle_options = CastleOptions::BothSides;
+                }
+                _ => {
+                    black_castle_options = CastleOptions::QueenSide;
+                }
+            },
+            '-' => {
+                break;
+            }
+            _ => {
+                return Err(());
             }
         }
-    });
+    }
 
-    CastleRules {
+    Ok(CastleRules {
         white: white_castle_options,
         black: black_castle_options,
-    }
+    })
 }
 
-pub fn fen_to_stones(field: &str) -> [[Option<Stone>; 8]; 8] {
+pub fn fen_to_stones(field: &str) -> Result<[[Option<Stone>; 8]; 8], ()> {
     const INIT: Option<Stone> = None;
     const ROW: [Option<Stone>; 8] = [INIT; 8];
     let mut stones = [ROW; 8];
 
-    field.split("/").enumerate().for_each(|(y, row)| {
-        row.chars()
-            .flat_map(|c| {
-                if c.is_digit(10) {
-                    let n = c.to_digit(10).unwrap();
-                    (0..n).map(|_| '_').collect::<Vec<char>>()
-                } else {
-                    vec![c]
-                }
-            })
-            .enumerate()
-            .for_each(|(x, c)| match Stone::from_char(c) {
-                Some(stone) => {
-                    stones[y][x] = Some(stone);
-                }
-                _ => {}
-            })
-    });
+    for (y, row) in field.split("/").enumerate() {
+        if y > 7 {
+            return Err(());
+        }
 
-    stones
+        let mut empty_squares = 0;
+
+        for (x, c) in row.chars().enumerate() {
+            if x > 7 {
+                return Err(());
+            }
+
+            if c.is_digit(10) {
+                let n = c.to_digit(10).ok_or(())?;
+                let x = x + empty_squares as usize;
+                empty_squares += n - 1;
+                for i in 0..n {
+                    let x = x + i as usize;
+                    if x > 7 {
+                        return Err(());
+                    }
+                    stones[y][x] = None;
+                }
+            } else {
+                let x = x + empty_squares as usize;
+                if x > 7 {
+                    return Err(());
+                }
+                stones[y][x] = Some(Stone::try_from(c)?);
+            }
+        }
+    }
+
+    Ok(stones)
+}
+
+pub fn fen_to_turn(field: &str) -> Result<Turn, ()> {
+    if field == "w" {
+        Ok(Turn::White)
+    } else if field == "b" {
+        Ok(Turn::Black)
+    } else {
+        Err(())
+    }
 }
 
 #[derive(Clone)]
 pub enum CastleOptions {
-    CanCastleKingSide,
-    CanCastleQueenSide,
-    CanNotCastle,
-    CanCastleBothSides,
+    KingSide,
+    QueenSide,
+    BothSides,
+    None,
 }
 
 #[derive(Clone)]
@@ -94,72 +128,214 @@ pub struct CastleRules {
     black: CastleOptions,
 }
 
+impl CastleRules {
+    pub fn white(&self) -> &CastleOptions {
+        &self.white
+    }
+
+    pub fn black(&self) -> &CastleOptions {
+        &self.black
+    }
+}
+
+#[derive(Clone, Copy)]
+pub enum Turn {
+    White,
+    Black,
+}
+
+impl Not for Turn {
+    type Output = Turn;
+
+    fn not(self) -> Self::Output {
+        match self {
+            Turn::White => Turn::Black,
+            Turn::Black => Turn::White,
+        }
+    }
+}
+
 #[derive(Clone)]
 pub struct ChessBoard {
     pub fen: String,
     pub stones: [[Option<Stone>; 8]; 8],
-    pub turn: String,
+    pub treat_map: [[bool; 8]; 8],
+    pub turn: Turn,
     pub castle_rules: CastleRules,
     pub passant: Option<Position>,
     pub half_move_clock: i32,
     pub full_move_clock: i32,
     pub deleted_stones: Vec<Stone>,
     pub is_white_view: bool,
-    pub reset_count: usize,
+    pub validation: bool,
 }
 
 #[allow(dead_code)]
 impl ChessBoard {
-    pub fn new(fen: &str) -> Self {
+    pub fn new(fen: &str) -> Result<Self, ()> {
         let fen_fields = fen.split(" ").collect::<Vec<&str>>();
-        Self {
+        let mut chess_board = Self {
             fen: fen.to_string(),
-            stones: fen_to_stones(fen_fields[0]),
-            turn: fen_fields[1].to_string(),
-            castle_rules: fen_to_castle_rules(fen_fields[2]),
-            passant: fen_to_passant(fen_fields[3]),
-            half_move_clock: fen_fields[4].parse::<i32>().unwrap(),
-            full_move_clock: fen_fields[5].parse::<i32>().unwrap(),
+            stones: fen_to_stones(fen_fields[0])?,
+            treat_map: [[false; 8]; 8],
+            turn: fen_to_turn(fen_fields[1])?,
+            castle_rules: fen_to_castle_rules(fen_fields[2])?,
+            passant: fen_to_passant(fen_fields[3])?,
+            half_move_clock: fen_fields[4].parse::<i32>().map_err(|_| ())?,
+            full_move_clock: fen_fields[5].parse::<i32>().map_err(|_| ())?,
             deleted_stones: Vec::new(),
             is_white_view: true,
-            reset_count: 0,
+            validation: false,
+        };
+        chess_board.sync_treat_map();
+        if !chess_board.valid_castle_rules() {
+            return Err(());
         }
+        Ok(chess_board)
     }
 
-    // TODO: use this or remove it
-    //   pub fn get(&self, position: &Position) -> Option<Stone> {
-    //       self.stones[position.y as usize][position.x as usize].clone()
-    //   }
+    pub fn is_in_check(&self) -> bool {
+        let Some((position, _)) = self.stones_and_positions_iter().find(|(_, stone)| {
+            matches!(stone.kind(), Kind::King)
+                && match self.turn {
+                    Turn::White => matches!(stone.color(), Color::Light),
+                    Turn::Black => matches!(stone.color(), Color::Dark),
+                }
+        }) else {
+            return false;
+        };
 
-    pub fn stones_and_positions(&self) -> Vec<(Position, Stone)> {
+        self.treat_at(position.x, position.y)
+    }
+
+    pub fn valid_castle_rules(&self) -> bool {
+        match self.castle_rules.white() {
+            CastleOptions::KingSide => {
+                if !self.stone_at_is(5, 7, Kind::King) {
+                    return false;
+                }
+
+                if !self.stone_at_is(7, 7, Kind::Rook) {
+                    return false;
+                }
+            }
+            CastleOptions::QueenSide => {
+                if !self.stone_at_is(5, 7, Kind::King) {
+                    return false;
+                }
+
+                if !self.stone_at_is(0, 7, Kind::Rook) {
+                    return false;
+                }
+            }
+            CastleOptions::BothSides => {
+                if !self.stone_at_is(5, 7, Kind::King) {
+                    return false;
+                }
+
+                if !self.stone_at_is(7, 7, Kind::Rook) {
+                    return false;
+                }
+
+                if !self.stone_at_is(0, 7, Kind::Rook) {
+                    return false;
+                }
+            }
+            _ => {}
+        }
+
+        match self.castle_rules.black() {
+            CastleOptions::KingSide => {
+                if !self.stone_at_is(5, 0, Kind::King) {
+                    return false;
+                }
+
+                if !self.stone_at_is(7, 0, Kind::Rook) {
+                    return false;
+                }
+            }
+            CastleOptions::QueenSide => {
+                if !self.stone_at_is(5, 0, Kind::King) {
+                    return false;
+                }
+
+                if !self.stone_at_is(0, 0, Kind::Rook) {
+                    return false;
+                }
+            }
+            CastleOptions::BothSides => {
+                if !self.stone_at_is(5, 0, Kind::King) {
+                    return false;
+                }
+
+                if !self.stone_at_is(7, 0, Kind::Rook) {
+                    return false;
+                }
+
+                if !self.stone_at_is(0, 0, Kind::Rook) {
+                    return false;
+                }
+            }
+            _ => {}
+        }
+
+        true
+    }
+
+    #[allow(unused_variables)]
+    pub fn stone_at_is(&self, x: usize, y: usize, kind: Kind) -> bool {
+        self.stone_at(x, y)
+            .map(|s| matches!(s.kind(), kind))
+            .unwrap_or(false)
+    }
+
+    pub fn toggle_validation(&mut self) {
+        self.validation = !self.validation;
+    }
+
+    pub fn castle_rules(&self) -> &CastleRules {
+        &self.castle_rules
+    }
+
+    pub fn stone_at(&self, x: usize, y: usize) -> Option<&Stone> {
+        self.stones[y][x].as_ref()
+    }
+
+    pub fn take_stone_at(&mut self, x: usize, y: usize) -> Option<Stone> {
+        self.stones[y][x].take()
+    }
+
+    pub fn cloned_stones_and_positions(&self) -> Vec<(Position, Stone)> {
+        self.stones_and_positions_iter()
+            .map(|(position, stone)| (position, stone.clone()))
+            .collect()
+    }
+
+    pub fn stones_and_positions(&self) -> Vec<(Position, &Stone)> {
+        self.stones_and_positions_iter().collect()
+    }
+
+    pub fn stones_and_positions_iter(&self) -> impl Iterator<Item = (Position, &Stone)> + '_ {
         self.stones
             .iter()
             .enumerate()
             .flat_map(|(y, row)| {
-                let row_pieces: Vec<(Position, Stone)> = row
+                let row_pieces: Vec<(Position, &Stone)> = row
                     .iter()
                     .enumerate()
                     .filter_map(|(x, stone)| {
-                        let stone = stone.clone()?;
-                        let position = Position::new(x as i32, y as i32);
+                        let stone = stone.as_ref()?;
+                        let position = Position::new(x, y);
                         Some((position, stone))
                     })
                     .collect();
                 row_pieces
             })
-            .collect()
+            .into_iter()
     }
 
     pub fn deleted_stones(&self) -> Vec<Stone> {
         self.deleted_stones.clone()
-    }
-
-    pub fn set_reset_count(&mut self, count: usize) {
-        self.reset_count = count;
-    }
-
-    pub fn reset_count(&self) -> usize {
-        self.reset_count
     }
 
     pub fn flip(&mut self) {
@@ -167,17 +343,87 @@ impl ChessBoard {
     }
 
     pub fn trash_string(&self) -> String {
-        self.deleted_stones.iter().map(|s| s.c.clone()).collect()
+        self.deleted_stones.iter().map(|s| s.char()).collect()
     }
 
     pub fn set_trash_from_str(&mut self, trash: &str) {
         for c in trash.chars() {
-            let Some(stone) = Stone::from_char(c) else {
+            let Ok(stone) = Stone::try_from(c) else {
                 log::error!("Error parsing stone from char: {:?}", c);
                 continue;
             };
             self.deleted_stones.push(stone);
         }
+    }
+
+    pub fn set_treat(&mut self, x: usize, y: usize) {
+        self.treat_map[y][x] = true;
+    }
+
+    pub fn treat_at(&self, x: usize, y: usize) -> bool {
+        self.treat_map[y][x]
+    }
+
+    pub fn free_at(&self, x: usize, y: usize) -> bool {
+        self.stone_at(x, y).is_none() && !self.treat_at(x, y)
+    }
+
+    pub fn set_treat_map(&mut self, turn: Turn) {
+        self.treat_map = [[false; 8]; 8];
+
+        let mut treat_moves = HashSet::new();
+
+        match turn {
+            Turn::White => {
+                for (position, stone) in self
+                    .stones_and_positions_iter()
+                    .filter(|(_, stone)| matches!(stone.color(), Color::Dark))
+                {
+                    for move_pos in stone.possible_moves(&position, &self) {
+                        treat_moves.insert(move_pos);
+                    }
+                }
+            }
+            Turn::Black => {
+                for (position, stone) in self
+                    .stones_and_positions_iter()
+                    .filter(|(_, stone)| matches!(stone.color(), Color::Light))
+                {
+                    for move_pos in stone.possible_moves(&position, &self) {
+                        treat_moves.insert(move_pos);
+                    }
+                }
+            }
+        }
+
+        for position in treat_moves {
+            self.set_treat(position.x, position.y);
+        }
+    }
+
+    pub fn sync_treat_map(&mut self) {
+        self.set_treat_map(self.turn);
+    }
+
+    pub fn possible_moves(&self, position: &Position) -> Vec<Position> {
+        let Some(ref stone) = self.stone_at(position.x, position.y) else {
+            return Vec::new();
+        };
+        let mut moves = Vec::new();
+        for possible_move in stone.possible_moves(position, &self) {
+            let mut chess_board = self.clone();
+            chess_board.move_piece(
+                &stone.image_class(),
+                Some(position.clone()),
+                Some(possible_move.clone()),
+            );
+            chess_board.turn = !chess_board.turn;
+            chess_board.sync_treat_map();
+            if !chess_board.is_in_check() {
+                moves.push(possible_move);
+            }
+        }
+        moves
     }
 
     pub fn move_piece(&mut self, piece: &str, from: Option<Position>, to: Option<Position>) {
@@ -189,11 +435,11 @@ impl ChessBoard {
             if let Some(stone_idx) = self
                 .deleted_stones
                 .iter()
-                .position(|s| s.image_class == piece)
+                .position(|s| s.image_class() == piece)
             {
                 let stone = self.deleted_stones.remove(stone_idx);
                 let to = to.unwrap();
-                let old_piece = self.stones[to.y as usize][to.x as usize].take();
+                let old_piece = self.take_stone_at(to.x, to.y);
                 self.stones[to.y as usize][to.x as usize] = Some(stone);
                 if let Some(old_piece) = old_piece {
                     self.deleted_stones.push(old_piece);
@@ -201,22 +447,24 @@ impl ChessBoard {
             };
         } else if to.is_none() {
             let from = from.unwrap();
-            let stone = self.stones[from.y as usize][from.x as usize].take();
+            let stone = self.take_stone_at(from.x, from.y);
             if let Some(stone) = stone {
                 self.deleted_stones.push(stone);
             }
         } else {
             let from = from.unwrap();
             let to = to.unwrap();
-            let old_piece = self.stones[to.y as usize][to.x as usize].take();
-            let stone = self.stones[from.y as usize][from.x as usize].take();
+            let old_piece = self.take_stone_at(to.x, to.y);
+            let stone = self.take_stone_at(from.x, from.y);
             self.stones[to.y as usize][to.x as usize] = stone;
             if let Some(old_piece) = old_piece {
                 self.deleted_stones.push(old_piece);
             }
         }
 
+        self.turn = !self.turn;
         self.sync_fen();
+        self.sync_treat_map();
     }
 
     pub fn sync_fen(&mut self) {
@@ -229,7 +477,7 @@ impl ChessBoard {
                         new_fen.push_str(&empty.to_string());
                         empty = 0;
                     }
-                    new_fen.push_str(&stone.c.clone());
+                    new_fen.push_str(&stone.char().to_string());
                 } else {
                     empty += 1;
                 }
@@ -241,8 +489,13 @@ impl ChessBoard {
                 new_fen.push('/');
             }
         }
+        if matches!(self.turn, Turn::White) {
+            new_fen.push_str(" w");
+        } else {
+            new_fen.push_str(" b");
+        }
         let fen_clone = self.fen.clone();
-        let fen_split = fen_clone.split(" ").skip(1);
+        let fen_split = fen_clone.split(" ").skip(2);
         let fen_rest = fen_split.collect::<Vec<&str>>().join(" ");
         new_fen.push_str(&format!(" {}", fen_rest));
 
@@ -381,5 +634,21 @@ impl ChessBoardSignals {
         }
 
         self.chess_board_socket.set(ws);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_chess_board() {
+        let fen = "4kbnr/p3pppp/3b4/8/8/8/PPP2PPP/RNBQKBNR b KQk - 0 1";
+        let chess_board = ChessBoard::new(fen).unwrap();
+
+        assert_eq!(
+            Vec::<Position>::new(),
+            chess_board.possible_moves(&Position::new(3, 2))
+        );
     }
 }

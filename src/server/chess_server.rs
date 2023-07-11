@@ -536,7 +536,7 @@ impl Handler<Move> for ChessServer {
         };
 
         if let Some(current_room) = self.rooms.get_mut(&session.current_room) {
-            let mut chessboard = ChessBoard::new(current_room.current_fen.as_str());
+            let mut chessboard = ChessBoard::new(current_room.current_fen.as_str()).unwrap();
             chessboard.set_trash_from_str(current_room.trash.as_str());
             let from_position: Option<Position> = from.parse().ok();
             let to_position: Option<Position> = to.parse().ok();

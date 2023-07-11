@@ -91,14 +91,12 @@ fn on_message_callback(chess_board_signals: ChessBoardSignals) -> Closure<dyn Fn
                         });
 
                         chess_board_signals.chess_board().update(|chessboard| {
-                            let reset_count = chessboard.reset_count() + 1;
-
-                            let mut new_chessboard = ChessBoard::new(fen);
+                            let mut new_chessboard = ChessBoard::new(fen).unwrap();
                             if chessboard.white_view() != new_chessboard.white_view() {
                                 new_chessboard.flip();
                             }
                             new_chessboard.set_trash_from_str(trash);
-                            new_chessboard.set_reset_count(reset_count);
+
                             *chessboard = new_chessboard;
                         });
                         chess_board_signals.should_render().set(true);
@@ -223,7 +221,7 @@ pub fn start_websocket(chess_board_signals: ChessBoardSignals) -> Result<WebSock
     ws.set_onopen(Some(onopen_callback.as_ref().unchecked_ref()));
     onopen_callback.forget();
 
-    let onclose_callback = Closure::<dyn FnMut(_)>::new(move |e: CloseEvent| {
+    let onclose_callback = Closure::<dyn FnMut(_)>::new(move |_: CloseEvent| {
         log::info!("socket closed");
         chess_board_signals.socket().set(None);
         let room_status = chess_board_signals.room_status().get_untracked();

@@ -11,7 +11,7 @@ use leptos::*;
 pub fn ChessBoard(cx: Scope, chess_board: ReadSignal<ChessBoardEntity>) -> impl IntoView {
     let css_class = move || chess_board.with(|c| c.css_class());
     let white_view = move || chess_board.with(|c| c.white_view());
-    let stones_and_positions = move || chess_board.with(|c| c.stones_and_positions());
+    let stones_and_positions = move || chess_board.with(|c| c.cloned_stones_and_positions());
     let trash = move || chess_board.with(|c| c.deleted_stones());
 
     view! { cx,
@@ -20,16 +20,16 @@ pub fn ChessBoard(cx: Scope, chess_board: ReadSignal<ChessBoardEntity>) -> impl 
             <Coordinates white_view=white_view/>
             <For
                 each=stones_and_positions
-                key=move |(position, stone)| { format!("{}-{}", position.to_string(), stone.image_class) }
+                key=move |(position, stone)| { format!("{}-{}", position.to_string(), stone.image_class()) }
                 view=move |cx, (position, stone): (Position, Stone)| {
                     view! { cx,
                         <div
-                            class=format!("piece {} {}", stone.image_class.clone(), position.css_class())
+                            class=format!("piece {} {}", stone.image_class(), position.css_class())
                             on:mousedown=interaction_start
                             on:touchstart=interaction_start
                             on:dragstart=move |e| e.prevent_default()
                             data-square=position.to_string()
-                            data-piece=stone.image_class.clone()
+                            data-piece=stone.image_class()
                         ></div>
                     }
                 }

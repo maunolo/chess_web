@@ -2,6 +2,8 @@
 
 Available at: [chess.maunolo.dev](https://chess.maunolo.dev)
 
+![image](https://github.com/maunolo/chess_web/assets/44609720/39a3c9b7-9089-4564-b8ff-8b13c5b5416c)
+
 # Development
 
 ## Docker

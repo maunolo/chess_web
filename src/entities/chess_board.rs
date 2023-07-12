@@ -2,6 +2,7 @@ use std::collections::HashSet;
 use std::ops::Not;
 
 use cfg_if::cfg_if;
+use leptos::html::i;
 use leptos::{RwSignal, Scope, SignalSet, SignalWithUntracked, WriteSignal};
 use web_sys::WebSocket;
 
@@ -113,7 +114,7 @@ pub fn fen_to_turn(field: &str) -> Result<Turn, ()> {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub enum CastleOptions {
     KingSide,
     QueenSide,
@@ -121,7 +122,7 @@ pub enum CastleOptions {
     None,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 #[allow(dead_code)]
 pub struct CastleRules {
     white: CastleOptions,
@@ -138,7 +139,7 @@ impl CastleRules {
     }
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 pub enum Turn {
     White,
     Black,
@@ -155,7 +156,105 @@ impl Not for Turn {
     }
 }
 
-#[derive(Clone)]
+pub struct ChessBoardBuilder {
+    fen: Option<String>,
+    deleted_stones: Option<String>,
+    is_white_view: Option<bool>,
+    validation: Option<bool>,
+    sync: Option<bool>,
+}
+
+impl ChessBoardBuilder {
+    pub fn new() -> Self {
+        Self {
+            fen: None,
+            deleted_stones: Some(String::new()),
+            is_white_view: Some(true),
+            validation: Some(true),
+            sync: Some(true),
+        }
+    }
+
+    pub fn fen(mut self, fen: &str) -> Self {
+        self.fen = Some(fen.to_owned());
+        self
+    }
+
+    pub fn deleted_stones(mut self, deleted_stones: &str) -> Self {
+        self.deleted_stones = Some(deleted_stones.to_owned());
+        self
+    }
+
+    pub fn is_white_view(mut self, is_white_view: bool) -> Self {
+        self.is_white_view = Some(is_white_view);
+        self
+    }
+
+    pub fn validation(mut self, validation: bool) -> Self {
+        self.validation = Some(validation);
+        self
+    }
+
+    pub fn sync(mut self, sync: bool) -> Self {
+        self.sync = Some(sync);
+        self
+    }
+
+    pub fn build(self) -> Result<ChessBoard, ()> {
+        let Some(fen) = self.fen else {
+            return Err(());
+        };
+
+        let Some(deleted_stones_str) = self.deleted_stones else {
+            return Err(());
+        };
+
+        let Some(is_white_view) = self.is_white_view else {
+            return Err(());
+        };
+
+        let Some(validation) = self.validation else {
+            return Err(());
+        };
+
+        let Some(sync) = self.sync else {
+            return Err(());
+        };
+
+        let fen_fields = fen.split(" ").collect::<Vec<&str>>();
+        let mut deleted_stones = Vec::new();
+        for c in deleted_stones_str.chars() {
+            deleted_stones.push(Stone::try_from(c)?);
+        }
+
+        let mut chess_board = ChessBoard {
+            fen: fen.to_string(),
+            stones: fen_to_stones(fen_fields[0])?,
+            treat_map: [[false; 8]; 8],
+            turn: fen_to_turn(fen_fields[1])?,
+            castle_rules: fen_to_castle_rules(fen_fields[2])?,
+            passant: fen_to_passant(fen_fields[3])?,
+            half_move_clock: fen_fields[4].parse::<i32>().map_err(|_| ())?,
+            full_move_clock: fen_fields[5].parse::<i32>().map_err(|_| ())?,
+            deleted_stones,
+            is_white_view,
+            validation,
+            sync,
+        };
+
+        if chess_board.sync {
+            chess_board.sync_treat_map();
+        }
+
+        if chess_board.validation && !chess_board.valid_castle_rules() {
+            return Err(());
+        }
+
+        Ok(chess_board)
+    }
+}
+
+#[derive(Clone, Debug)]
 pub struct ChessBoard {
     pub fen: String,
     pub stones: [[Option<Stone>; 8]; 8],
@@ -168,6 +267,7 @@ pub struct ChessBoard {
     pub deleted_stones: Vec<Stone>,
     pub is_white_view: bool,
     pub validation: bool,
+    pub sync: bool,
 }
 
 #[allow(dead_code)]
@@ -186,9 +286,12 @@ impl ChessBoard {
             deleted_stones: Vec::new(),
             is_white_view: true,
             validation: false,
+            sync: true,
         };
-        chess_board.sync_treat_map();
-        if !chess_board.valid_castle_rules() {
+        if chess_board.sync {
+            chess_board.sync_treat_map();
+        }
+        if chess_board.validation && !chess_board.valid_castle_rules() {
             return Err(());
         }
         Ok(chess_board)
@@ -368,12 +471,12 @@ impl ChessBoard {
         self.stone_at(x, y).is_none() && !self.treat_at(x, y)
     }
 
-    pub fn set_treat_map(&mut self, turn: Turn) {
+    pub fn sync_treat_map(&mut self) {
         self.treat_map = [[false; 8]; 8];
 
         let mut treat_moves = HashSet::new();
 
-        match turn {
+        match self.turn {
             Turn::White => {
                 for (position, stone) in self
                     .stones_and_positions_iter()
@@ -401,10 +504,6 @@ impl ChessBoard {
         }
     }
 
-    pub fn sync_treat_map(&mut self) {
-        self.set_treat_map(self.turn);
-    }
-
     pub fn possible_moves(&self, position: &Position) -> Vec<Position> {
         let Some(ref stone) = self.stone_at(position.x, position.y) else {
             return Vec::new();
@@ -412,12 +511,13 @@ impl ChessBoard {
         let mut moves = Vec::new();
         for possible_move in stone.possible_moves(position, &self) {
             let mut chess_board = self.clone();
+            chess_board.validation = false;
+            chess_board.sync = false;
             chess_board.move_piece(
                 &stone.image_class(),
                 Some(position.clone()),
                 Some(possible_move.clone()),
             );
-            chess_board.turn = !chess_board.turn;
             chess_board.sync_treat_map();
             if !chess_board.is_in_check() {
                 moves.push(possible_move);
@@ -462,9 +562,11 @@ impl ChessBoard {
             }
         }
 
-        self.turn = !self.turn;
-        self.sync_fen();
-        self.sync_treat_map();
+        if self.sync {
+            self.turn = !self.turn;
+            self.sync_fen();
+            self.sync_treat_map();
+        }
     }
 
     pub fn sync_fen(&mut self) {
@@ -643,7 +745,7 @@ mod tests {
 
     #[test]
     fn test_chess_board() {
-        let fen = "4kbnr/p3pppp/3b4/8/8/8/PPP2PPP/RNBQKBNR b KQk - 0 1";
+        let fen = "3k1bnr/p3pppp/3b4/8/8/8/PPP2PPP/RNBQKBNR b KQk - 0 1";
         let chess_board = ChessBoard::new(fen).unwrap();
 
         assert_eq!(

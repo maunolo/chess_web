@@ -14,7 +14,10 @@ use std::{
 
 use actix::prelude::*;
 
-use crate::entities::{chess_board::ChessBoard, position::Position};
+use crate::entities::{
+    chess_board::{ChessBoard, ChessBoardBuilder},
+    position::Position,
+};
 
 use super::websockets::session::WsChessSession;
 
@@ -147,6 +150,7 @@ impl User {
 pub struct Room {
     original_fen: String,
     current_fen: String,
+    chess_board: ChessBoard,
     moves: Vec<String>,
     sessions: HashMap<String, User>,
     original_trash: String,
@@ -155,20 +159,26 @@ pub struct Room {
 }
 
 impl Room {
-    pub fn new(fen: Option<String>, trash: Option<String>) -> Self {
+    pub fn new(fen: Option<String>, trash: Option<String>) -> Result<Self, ()> {
         let fen =
             fen.unwrap_or("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1".to_string());
         let trash = trash.unwrap_or("".to_string());
+        let chess_board = ChessBoardBuilder::new()
+            .fen(&fen)
+            .deleted_stones(&trash)
+            .validation(false)
+            .build()?;
 
-        Self {
+        Ok(Self {
             original_fen: fen.clone(),
-            current_fen: fen,
+            current_fen: fen.clone(),
+            chess_board,
             moves: vec![],
             sessions: HashMap::new(),
             trash: trash.clone(),
             original_trash: trash,
             empty_at: Some(Instant::now()),
-        }
+        })
     }
 
     pub fn sessions(&self) -> &HashMap<String, User> {
@@ -208,7 +218,10 @@ impl ChessServer {
     pub fn new(visitor_count: Arc<AtomicUsize>) -> ChessServer {
         // default room
         let mut rooms = HashMap::new();
-        rooms.insert("main".to_owned(), Room::new(None, None));
+        rooms.insert(
+            "main".to_owned(),
+            Room::new(None, None).expect("Failed to create default room"),
+        );
 
         ChessServer {
             sessions: HashMap::new(),
@@ -396,7 +409,7 @@ impl Handler<Connect> for ChessServer {
             let current_room = self
                 .rooms
                 .entry(room_name.clone())
-                .or_insert_with(|| Room::new(None, None));
+                .or_insert_with(|| Room::new(None, None).expect("Failed to create default room"));
 
             current_room.insert_session(id.clone(), user);
             current_room.empty_at = None;
@@ -491,10 +504,17 @@ impl Handler<Join> for ChessServer {
             }
         }
 
-        let current_room = self
-            .rooms
-            .entry(name.clone())
-            .or_insert_with(|| Room::new(fen, trash));
+        let current_room = self.rooms.get_mut(&name);
+
+        let current_room = if current_room.is_some() {
+            current_room.unwrap()
+        } else {
+            let Ok(room) = Room::new(fen.clone(), trash.clone()) else {
+                log::warn!("Failed to create room {}|{}", fen.unwrap_or("".to_owned()), trash.unwrap_or("".to_owned()));
+                return;
+            };
+            self.rooms.entry(name.clone()).or_insert_with(|| room)
+        };
 
         current_room.insert_session(id.clone(), user.clone());
         current_room.empty_at = None;
@@ -536,8 +556,7 @@ impl Handler<Move> for ChessServer {
         };
 
         if let Some(current_room) = self.rooms.get_mut(&session.current_room) {
-            let mut chessboard = ChessBoard::new(current_room.current_fen.as_str()).unwrap();
-            chessboard.set_trash_from_str(current_room.trash.as_str());
+            let chessboard = &mut current_room.chess_board;
             let from_position: Option<Position> = from.parse().ok();
             let to_position: Option<Position> = to.parse().ok();
             chessboard.move_piece(&piece, from_position, to_position);
@@ -599,7 +618,14 @@ impl Handler<UserSync> for ChessServer {
         let current_room_name = user.current_room.clone();
 
         if let Some(current_room) = self.rooms.get_mut(&current_room_name) {
-            current_room.sessions.get_mut(&id).unwrap().name = name;
+            current_room
+                .sessions
+                .get_mut(&id)
+                .expect(&format!(
+                    "User {}:{} was expected to be in the room {}",
+                    user.name, user.id, current_room_name
+                ))
+                .name = name;
 
             // notify all users in room
             self.send_message(

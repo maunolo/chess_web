@@ -5,6 +5,7 @@ use super::{
     position::Position,
 };
 
+#[derive(Debug)]
 pub struct MovePattern {
     patterns: Vec<(i32, i32)>,
     sliding: bool,
@@ -146,7 +147,7 @@ impl Color {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 #[allow(dead_code)]
 pub struct Stone {
     c: char,
@@ -196,6 +197,11 @@ impl Stone {
                         if let Some(stone) = chess_board.stone_at(x as usize, y as usize) {
                             if stone.color != self.color {
                                 moves.insert(Position::new(x as usize, y as usize));
+                            }
+                        } else if let Some(passant_position) = chess_board.passant.as_ref() {
+                            let new_position = Position::new(x as usize, y as usize);
+                            if new_position == *passant_position {
+                                moves.insert(new_position);
                             }
                         }
                     }

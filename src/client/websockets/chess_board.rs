@@ -4,7 +4,7 @@ use web_sys::{CloseEvent, Element, ErrorEvent, MessageEvent, WebSocket};
 
 use crate::{
     entities::{
-        chess_board::{ChessBoard, ChessBoardSignals},
+        chess_board::{ChessBoardBuilder, ChessBoardSignals},
         room::{RoomStatus, User, UserStatus},
     },
     utils::{
@@ -91,11 +91,13 @@ fn on_message_callback(chess_board_signals: ChessBoardSignals) -> Closure<dyn Fn
                         });
 
                         chess_board_signals.chess_board().update(|chessboard| {
-                            let mut new_chessboard = ChessBoard::new(fen).unwrap();
-                            if chessboard.white_view() != new_chessboard.white_view() {
-                                new_chessboard.flip();
-                            }
-                            new_chessboard.set_trash_from_str(trash);
+                            let new_chessboard = ChessBoardBuilder::new()
+                                .fen(fen)
+                                .deleted_stones(trash)
+                                .is_white_view(chessboard.white_view())
+                                .validation(false)
+                                .build()
+                                .unwrap();
 
                             *chessboard = new_chessboard;
                         });

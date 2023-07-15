@@ -1,6 +1,8 @@
+use std::collections::BTreeMap;
+
 use leptos::*;
 
-use crate::entities::stone::Stone;
+use crate::entities::chess_board::{ChessBoardSignals, StoneSignal};
 use crate::handlers::interaction_start;
 
 #[derive(Clone, Copy, PartialEq)]
@@ -19,10 +21,16 @@ impl From<TrashType> for String {
 }
 
 #[component]
-pub fn Trash<W, T>(cx: Scope, id: TrashType, white_view: W, trash: T) -> impl IntoView
+pub fn Trash<W, T>(
+    cx: Scope,
+    chess_board_signals: ChessBoardSignals,
+    id: TrashType,
+    white_view: W,
+    trash: T,
+) -> impl IntoView
 where
     W: Fn() -> bool + 'static,
-    T: Fn() -> Vec<Stone> + 'static,
+    T: Fn() -> BTreeMap<usize, RwSignal<StoneSignal>> + 'static,
 {
     let position_css = move || {
         if (matches!(id, TrashType::Dark) && white_view())
@@ -35,10 +43,9 @@ where
     };
 
     let trash = move || {
-        trash()
-            .into_iter()
-            .filter(move |stone| stone.color().to_string() == String::from(id))
-            .enumerate()
+        trash().into_iter().filter(move |(_, stone_signal)| {
+            stone_signal.get().stone().color().to_string() == String::from(id)
+        })
     };
 
     let trash_class = move || format!("trash {}", position_css());
@@ -49,16 +56,26 @@ where
         <div class=trash_class data-trash=move || String::from(id) id=trash_id>
             <For
                 each=trash
-                key=move |(idx, stone)| { format!("{}-{}", idx, stone.image_class()) }
-                view=move |cx, (_, stone)| {
+                key=move |(idx, _)| { format!("{}", idx) }
+                view=move |cx, (idx, stone_signal)| {
+                    let stone = move || stone_signal.get().stone();
+                    let dragging_class = move || {
+                        if stone_signal.get().is_dragging() {
+                            "dragging".to_string()
+                        } else {
+                            "".to_string()
+                        }
+                    };
+
                     view! { cx,
                         <div
-                            class=format!("piece {} deleted", stone.image_class())
-                            on:mousedown=interaction_start
-                            on:touchstart=interaction_start
+                            class=move || format!("piece {} deleted {}", stone().image_class(), dragging_class())
+                            on:mousedown=move |e| interaction_start(chess_board_signals, e)
+                            on:touchstart=move |e| interaction_start(chess_board_signals, e)
                             on:dragstart=move |e| e.prevent_default()
                             data-square="deleted"
-                            data-piece=stone.image_class()
+                            data-piece=stone().image_class()
+                            data-key=move || idx.to_string()
                         ></div>
                     }
                 }

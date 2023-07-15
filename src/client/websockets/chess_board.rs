@@ -1,4 +1,4 @@
-use leptos::{SignalGetUntracked, SignalSet, SignalUpdate};
+use leptos::{SignalGetUntracked, SignalSet, SignalUpdate, SignalWithUntracked};
 use wasm_bindgen::prelude::*;
 use web_sys::{CloseEvent, Element, ErrorEvent, MessageEvent, WebSocket};
 
@@ -7,10 +7,7 @@ use crate::{
         chess_board::{ChessBoardBuilder, ChessBoardSignals},
         room::{RoomStatus, User, UserStatus},
     },
-    utils::{
-        class_list::ClassListExt,
-        elements::{self, document},
-    },
+    utils::elements::document,
 };
 
 fn query_position(square: &str) -> Option<Element> {
@@ -35,46 +32,46 @@ fn on_message_callback(chess_board_signals: ChessBoardSignals) -> Closure<dyn Fn
                         let old_pos = input.next().unwrap();
                         let new_pos = input.next().unwrap();
 
-                        if old_pos == new_pos {
-                            return;
-                        }
-
-                        let query_old = query_position(old_pos);
-                        let query_new = query_position(new_pos);
-                        if old_pos == "deleted" {
-                            if let Some(element) = elements::query_selector(&format!(
-                                ".deleted[data-piece=\"{}\"]",
-                                piece_data
-                            )) {
-                                elements::restore_piece(&element);
-                                element.set_attribute("data-square", &new_pos).unwrap();
-                                element.class_list_add(&format!("square-{}", new_pos));
-
-                                if let Some(element) = query_new {
-                                    elements::soft_delete_piece(&element);
-                                    element.set_attribute("data-square", "deleted").unwrap();
-                                }
-                            };
-                        } else if new_pos == "deleted" {
-                            if let Some(element) = query_old {
-                                elements::soft_delete_piece(&element);
-                                element.set_attribute("data-square", "deleted").unwrap();
-                            }
-                        } else {
-                            if let Some(element) = query_old {
-                                element.set_attribute("data-square", &new_pos).unwrap();
-                                element.class_list_remove(&format!("square-{}", old_pos));
-                                element.class_list_add(&format!("square-{}", new_pos));
-
-                                if let Some(element) = query_new {
-                                    elements::soft_delete_piece(&element);
-                                    element.set_attribute("data-square", "deleted").unwrap();
-                                }
-                            }
-                        }
+                        chess_board_signals.move_piece(
+                            piece_data.to_string(),
+                            old_pos.to_string(),
+                            new_pos.to_string(),
+                        )
+                        // let query_old = query_position(old_pos);
+                        // let query_new = query_position(new_pos);
+                        // if old_pos == "deleted" {
+                        //     if let Some(element) = elements::query_selector(&format!(
+                        //         ".deleted[data-piece=\"{}\"]",
+                        //         piece_data
+                        //     )) {
+                        //         elements::restore_piece(&element);
+                        //         element.set_attribute("data-square", &new_pos).unwrap();
+                        //         element.class_list_add(&format!("square-{}", new_pos));
+                        //
+                        //         if let Some(element) = query_new {
+                        //             elements::soft_delete_piece(&element);
+                        //             element.set_attribute("data-square", "deleted").unwrap();
+                        //         }
+                        //     };
+                        // } else if new_pos == "deleted" {
+                        //     if let Some(element) = query_old {
+                        //         elements::soft_delete_piece(&element);
+                        //         element.set_attribute("data-square", "deleted").unwrap();
+                        //     }
+                        // } else {
+                        //     if let Some(element) = query_old {
+                        //         element.set_attribute("data-square", &new_pos).unwrap();
+                        //         element.class_list_remove(&format!("square-{}", old_pos));
+                        //         element.class_list_add(&format!("square-{}", new_pos));
+                        //
+                        //         if let Some(element) = query_new {
+                        //             elements::soft_delete_piece(&element);
+                        //             element.set_attribute("data-square", "deleted").unwrap();
+                        //         }
+                        //     }
+                        // }
                     }
                     "/sync_board" => {
-                        chess_board_signals.should_render().set(false);
                         let mut input = input.split("|");
 
                         let room_name = input.next().unwrap();
@@ -101,7 +98,29 @@ fn on_message_callback(chess_board_signals: ChessBoardSignals) -> Closure<dyn Fn
 
                             *chessboard = new_chessboard;
                         });
-                        chess_board_signals.should_render().set(true);
+                        chess_board_signals
+                            .stones_signals()
+                            .update(|stones_signals| {
+                                stones_signals.clear_board_stones();
+                                stones_signals.clear_deleted_stones();
+                            });
+                        let positions_and_stones = chess_board_signals
+                            .chess_board()
+                            .with_untracked(|cb| cb.cloned_stones_and_positions());
+                        let deleted_stones = chess_board_signals
+                            .chess_board()
+                            .with_untracked(|cb| cb.cloned_deleted_stones());
+                        let cx = chess_board_signals.cx();
+                        chess_board_signals
+                            .stones_signals()
+                            .update(|stones_signals| {
+                                for (position, stone) in positions_and_stones {
+                                    stones_signals.add_board_stone(cx, position, stone);
+                                }
+                                for stone in deleted_stones {
+                                    stones_signals.add_deleted_stone(cx, stone);
+                                }
+                            });
                     }
                     "/sync_users" => {
                         let mut input = input.split("|");

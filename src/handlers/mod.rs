@@ -1,5 +1,6 @@
-use leptos::{RwSignal, SignalGet};
+use leptos::{SignalGet, SignalGetUntracked, SignalUpdate, SignalWith, SignalWithUntracked};
 
+use crate::entities::chess_board::ChessBoardSignals;
 use crate::entities::position::Position;
 use crate::utils::class_list::ClassListExt;
 use crate::utils::elements::{self, mouse_position_in_bounding};
@@ -29,18 +30,19 @@ impl fmt::Display for EventError {
     }
 }
 
-pub fn interaction_move<E>(event: E)
+pub fn interaction_move<E>(chess_board_signals: ChessBoardSignals, event: E)
 where
     E: EventPositionExt,
 {
     if let Some(piece) = elements::query_selector(".dragging") {
         let position = event.position();
         let client_position = (position.0 as f64, position.1 as f64);
-        elements::move_piece(&piece, client_position);
+
+        elements::move_piece(chess_board_signals, &piece, client_position);
     }
 }
 
-pub fn interaction_start<E>(event: E)
+pub fn interaction_start<E>(chess_board_signals: ChessBoardSignals, event: E)
 where
     E: EventPositionExt + EventTargetExt,
 {
@@ -49,31 +51,60 @@ where
         return;
     };
     // select_piece_square(&piece);
-    piece.class_list_add("dragging");
-
-    // Add dragging-over class to the board
-    if let Some(square) = piece.parent_element() {
-        square.class_list_add("dragging-over");
+    let data_key = piece.get_attribute("data-key").unwrap();
+    let data_square = piece.get_attribute("data-square").unwrap();
+    let stone_signal;
+    if data_square == "deleted" {
+        let key = data_key.parse::<usize>().unwrap();
+        stone_signal = chess_board_signals
+            .stones_signals()
+            .with_untracked(|ss| ss.get_deleted_stone(&key));
+    } else {
+        stone_signal = chess_board_signals
+            .stones_signals()
+            .with_untracked(|ss| ss.get_board_stone(&data_key));
     }
 
     let position = event.position();
-
     // Move the piece to client cursor position
     let client_position = (position.0 as f64, position.1 as f64);
-    elements::move_piece(&piece, client_position);
+
+    if let Some(stone_signal) = stone_signal {
+        stone_signal.update(|ss| ss.enable_dragging());
+
+        elements::move_piece(chess_board_signals, &piece, client_position);
+    }
 }
 
-pub fn interaction_end<E>(event: E) -> Result<(String, (String, String))>
+pub fn interaction_end<E>(chess_board_signals: ChessBoardSignals, event: E)
 where
     E: EventPositionExt,
 {
     if let Some(piece) = elements::query_selector(".dragging") {
-        piece.remove_style("transform");
-        piece.remove_style("transition");
-
-        let old_square = piece.get_attribute("data-square").unwrap();
-        let old_pos = old_square.clone();
+        let data_square = piece.get_attribute("data-square").unwrap();
+        let data_key = piece.get_attribute("data-key").unwrap();
+        let piece_data = piece.get_attribute("data-piece").unwrap();
+        let old_pos: String;
         let new_pos: String;
+
+        if data_square == "deleted" {
+            let key = data_key.parse::<usize>().unwrap();
+            let stone_signal = chess_board_signals
+                .stones_signals()
+                .with_untracked(|ss| ss.get_deleted_stone(&key));
+
+            if let Some(stone_signal) = stone_signal {
+                let stone_signal = stone_signal.get_untracked();
+                if stone_signal.position().is_none() {
+                } else {
+                    old_pos = "deleted".to_string();
+                }
+            } else {
+                old_pos = "deleted".to_string();
+            }
+        } else {
+            old_pos = data_square.to_string();
+        }
 
         if !piece.class_list_include("deleted") {
             let chess_board = piece.parent_element().unwrap();
@@ -82,49 +113,15 @@ where
 
             let client_position = (position.0 as f64, position.1 as f64);
             let (x, y) = mouse_position_in_bounding(client_position, &bounding);
-            let is_white_view = !chess_board.class_list_include("flipped");
+            let is_white_view = chess_board_signals.chess_board().with(|cb| cb.white_view());
             let position = Position::from_ui_position(x, y, is_white_view);
 
-            if position.to_string() != old_square {
-                if let Some(old_piece) =
-                    elements::query_selector(&format!("[data-square=\"{}\"]", position.to_string()))
-                {
-                    elements::soft_delete_piece(&old_piece);
-                    old_piece.set_attribute("data-square", "deleted").unwrap();
-                }
-                piece
-                    .set_attribute("data-square", &position.to_string())
-                    .unwrap();
-                piece.class_list_remove(&format!("square-{}", old_square));
-            }
-            piece.class_list_add(&format!("square-{}", position.to_string()));
             new_pos = position.to_string();
         } else {
-            piece.set_attribute("data-square", "deleted").unwrap();
             new_pos = "deleted".to_string();
         }
 
-        // Remove the hovered class from the square
-        if let Some(square) = elements::query_selector(".dragging-over") {
-            square.class_list_remove("dragging-over");
-        }
-
-        piece.class_list_remove("dragging");
-        Ok((
-            piece.get_attribute("data-piece").unwrap(),
-            (old_pos, new_pos),
-        ))
-    } else {
-        Err(EventError::new("No piece being dragged found"))
-    }
-}
-
-pub fn interaction_end_with_websocket<E>(websocket: RwSignal<Option<web_sys::WebSocket>>, event: E)
-where
-    E: EventPositionExt,
-{
-    if let Ok((piece_data, (old_pos, new_pos))) = interaction_end(event) {
-        if let Some(socket) = websocket.get().as_ref() {
+        if let Some(socket) = chess_board_signals.socket().get().as_ref() {
             let msg = format!("/move {} {} {}", piece_data, old_pos, new_pos);
 
             match socket.send_with_str(&msg) {
@@ -132,5 +129,25 @@ where
                 Err(err) => log::error!("error sending message: {:?}", err),
             }
         }
-    };
+
+        chess_board_signals.move_piece(piece_data, old_pos, new_pos)
+    }
 }
+
+// pub fn interaction_end_with_signals<E>(chess_board_signals: ChessBoardSignals, event: E)
+// where
+//     E: EventPositionExt,
+// {
+//     if let Ok((piece_data, (old_pos, new_pos))) = interaction_end(chess_board_signals, event) {
+//         if let Some(socket) = chess_board_signals.socket().get().as_ref() {
+//             let msg = format!("/move {} {} {}", piece_data, old_pos, new_pos);
+//
+//             match socket.send_with_str(&msg) {
+//                 Ok(_) => {}
+//                 Err(err) => log::error!("error sending message: {:?}", err),
+//             }
+//         }
+//
+//         chess_board_signals.move_piece(piece_data, old_pos, new_pos)
+//     };
+// }

@@ -76,6 +76,7 @@ where
                             data-square="deleted"
                             data-piece=stone().image_class()
                             data-key=move || idx.to_string()
+                            data-deleted=move || format!("{}", stone_signal().is_deleted())
                         ></div>
                     }
                 }

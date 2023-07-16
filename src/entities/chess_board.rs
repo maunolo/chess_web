@@ -740,7 +740,7 @@ impl StonesSignals {
     }
 
     pub fn add_deleted_stone(&mut self, cx: Scope, stone: Stone) {
-        let stone_signal = StoneSignal::new(None, stone);
+        let stone_signal = StoneSignal::new_deleted(stone);
         let stone_signal = create_rw_signal(cx, stone_signal);
         self.deleted_stones
             .insert(self.deleted_stones_idx, stone_signal);
@@ -874,7 +874,7 @@ impl StoneSignal {
             self.position
                 .clone()
                 .map(|p| p.to_string())
-                .unwrap_or("".to_string()),
+                .unwrap_or("deleted".to_string()),
             self.stone.char()
         )
     }
@@ -917,8 +917,6 @@ impl ChessBoardSignals {
             return;
         }
 
-        log::debug!("move_piece: {} {} {}", piece, old_pos, new_pos);
-
         let old_pos = match old_pos.as_str() {
             "deleted" => None,
             _ => Some(old_pos.parse::<Position>().unwrap()),
@@ -928,13 +926,10 @@ impl ChessBoardSignals {
             _ => Some(new_pos.parse::<Position>().unwrap()),
         };
 
-        log::debug!("Here: {:?} {:?}", old_pos, new_pos);
-
         let old_pos_clone = old_pos.clone();
         let new_pos_clone = new_pos.clone();
 
         let stones_signals = self.stones_signals().get_untracked();
-        let board_stones = stones_signals.board_stones();
         let deleted_stones = stones_signals.deleted_stones();
         let mut new_pos_stone: Option<Stone> = None;
         if let Some(new_pos) = new_pos.clone() {
@@ -951,10 +946,6 @@ impl ChessBoardSignals {
             chessboard.move_piece(&piece, old_pos_clone, new_pos_clone);
         });
 
-        log::debug!("ChessBoard updated");
-
-        log::debug!("new_pos_stone: {:?}", new_pos_stone);
-
         if old_pos.is_none() {
             let new_pos = new_pos.expect("new_pos should be Some");
 
@@ -962,11 +953,19 @@ impl ChessBoardSignals {
                 .iter()
                 .find(|(_, stone)| *stone.get_untracked().stone().image_class() == piece);
 
-            log::debug!("OLD NONE -> stone_key: {:?}", stone_key);
-
             if let Some(new_pos_stone) = new_pos_stone {
                 let stone_key =
                     StoneSignal::new(Some(new_pos.clone()), new_pos_stone.clone()).unique_key();
+
+                if let Some(stone_signal) = self
+                    .stones_signals()
+                    .with_untracked(|ss| ss.get_board_stone(&stone_key))
+                {
+                    stone_signal.update(|ss| {
+                        ss.set_position(None);
+                        ss.delete();
+                    });
+                };
 
                 self.stones_signals().update(|stones| {
                     if let Some(stone) = stones.remove_board_stone(stone_key) {
@@ -988,6 +987,7 @@ impl ChessBoardSignals {
                     ss.set_position(Some(new_pos.clone()));
                     ss.set_transform(None);
                     ss.disable_dragging();
+                    ss.restore();
                 });
 
                 let key = key.clone();
@@ -1008,8 +1008,6 @@ impl ChessBoardSignals {
             )
             .unique_key();
 
-            log::debug!("NEW NONE -> stone_signal_key: {:?}", stone_signal_key);
-
             let mut stone_signal: Option<RwSignal<StoneSignal>> = None;
 
             self.stones_signals().update(|stones| {
@@ -1023,6 +1021,7 @@ impl ChessBoardSignals {
                 stone_signal.update(|ss| {
                     ss.set_position(None);
                     ss.set_transform(None);
+                    ss.delete();
                     ss.disable_dragging();
                 });
             }
@@ -1041,16 +1040,6 @@ impl ChessBoardSignals {
             let new_pos_stone_signal_key = new_pos_stone
                 .map(|stone| StoneSignal::new(Some(new_pos.clone()), stone.clone()).unique_key());
 
-            log::debug!(
-                "NEW and OLD SOME -> stone_signal_key: {:?}",
-                stone_signal_key
-            );
-
-            log::debug!(
-                "NEW and OLD SOME -> new_pos_stone_signal_key: {:?}",
-                new_pos_stone_signal_key
-            );
-
             let mut stone_signal: Option<RwSignal<StoneSignal>> = None;
             let mut deleted_stone_signal: Option<RwSignal<StoneSignal>> = None;
             let new_key = StoneSignal::new(
@@ -1060,6 +1049,18 @@ impl ChessBoardSignals {
                     .expect("piece_data should be a valid stone"),
             )
             .unique_key();
+
+            if let Some(key) = new_pos_stone_signal_key.clone() {
+                if let Some(stone_signal) = self
+                    .stones_signals()
+                    .with_untracked(|ss| ss.get_board_stone(&key))
+                {
+                    stone_signal.update(|ss| {
+                        ss.set_position(None);
+                        ss.delete();
+                    });
+                };
+            }
 
             self.stones_signals().update(|stones| {
                 if let Some(stone_key) = new_pos_stone_signal_key {

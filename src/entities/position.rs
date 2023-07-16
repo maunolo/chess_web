@@ -44,6 +44,14 @@ impl Position {
         format!("square-{}", self.to_string())
     }
 
+    pub fn x(&self) -> usize {
+        self.x
+    }
+
+    pub fn y(&self) -> usize {
+        self.y
+    }
+
     // TODO: use this or remove it
     // pub fn set_ui_position(& mut self, is_white_view: bool) {
     //   let (ui_x, ui_y) = (self.x as f64 * 100.0, self.y as f64 * 100.0);

@@ -14,9 +14,7 @@ pub fn ChessBoard(cx: Scope, chess_board_signals: ChessBoardSignals) -> impl Int
             .stones_signals()
             .get()
             .board_stones()
-            .values()
-            .cloned()
-            .collect::<Vec<RwSignal<StoneSignal>>>()
+            .clone()
     };
     let deleted_stones_signals = move || {
         chess_board_signals
@@ -26,7 +24,7 @@ pub fn ChessBoard(cx: Scope, chess_board_signals: ChessBoardSignals) -> impl Int
             .clone()
     };
 
-    let piece_view = move |cx, stone_signal: RwSignal<StoneSignal>| {
+    let piece_view = move |cx, (key, stone_signal): (String, RwSignal<StoneSignal>)| {
         let position = move || stone_signal().position().map(|p| p.to_string());
         let stone = move || stone_signal().stone();
         let dragging_class = move || {
@@ -42,7 +40,7 @@ pub fn ChessBoard(cx: Scope, chess_board_signals: ChessBoardSignals) -> impl Int
                 stone().image_class(),
                 position()
                     .map(|s| format!("square-{}", s))
-                    .unwrap_or("deleted".to_string()),
+                    .unwrap_or("".to_string()),
                 dragging_class()
             )
         };
@@ -61,7 +59,7 @@ pub fn ChessBoard(cx: Scope, chess_board_signals: ChessBoardSignals) -> impl Int
                 on:dragstart=move |e| e.prevent_default()
                 data-square=move || position().unwrap_or("deleted".to_string())
                 data-piece=move || stone().image_class()
-                data-key=move || stone_signal().unique_key()
+                data-key=key
                 data-deleted=move || format!("{}", stone_signal().is_deleted())
                 style=style
             ></div>
@@ -74,7 +72,7 @@ pub fn ChessBoard(cx: Scope, chess_board_signals: ChessBoardSignals) -> impl Int
             <Coordinates white_view=white_view/>
             <For
                 each=stones_signals
-                key=move |stone_signal| { stone_signal().unique_key() }
+                key=move |(key, _)| key.to_string()
                 view=piece_view
             />
             <Trash

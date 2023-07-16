@@ -78,6 +78,19 @@ fn on_message_callback(chess_board_signals: ChessBoardSignals) -> Closure<dyn Fn
                         let fen = input.next().unwrap();
                         let trash = input.next().unwrap();
 
+                        log::info!("Syncing board: {}", fen);
+                        log::info!("Syncing trash: {}", trash);
+                        log::info!("Syncing room: {}", room_name);
+
+                        chess_board_signals
+                            .stones_signals()
+                            .update(|stones_signals| {
+                                stones_signals.clear_board_stones();
+                                stones_signals.clear_deleted_stones();
+                            });
+
+                        log::info!("Stones cleared");
+
                         chess_board_signals.room_status().update(|room_status| {
                             if let Some(room_status) = room_status {
                                 room_status.set_name(room_name);
@@ -86,6 +99,8 @@ fn on_message_callback(chess_board_signals: ChessBoardSignals) -> Closure<dyn Fn
                                     Some(RoomStatus::new(chess_board_signals.cx(), room_name));
                             }
                         });
+
+                        log::info!("Room status updated");
 
                         chess_board_signals.chess_board().update(|chessboard| {
                             let new_chessboard = ChessBoardBuilder::new()
@@ -98,12 +113,9 @@ fn on_message_callback(chess_board_signals: ChessBoardSignals) -> Closure<dyn Fn
 
                             *chessboard = new_chessboard;
                         });
-                        chess_board_signals
-                            .stones_signals()
-                            .update(|stones_signals| {
-                                stones_signals.clear_board_stones();
-                                stones_signals.clear_deleted_stones();
-                            });
+
+                        log::info!("Chessboard updated");
+
                         let positions_and_stones = chess_board_signals
                             .chess_board()
                             .with_untracked(|cb| cb.cloned_stones_and_positions());
@@ -111,6 +123,8 @@ fn on_message_callback(chess_board_signals: ChessBoardSignals) -> Closure<dyn Fn
                             .chess_board()
                             .with_untracked(|cb| cb.cloned_deleted_stones());
                         let cx = chess_board_signals.cx();
+
+                        log::info!("Stones and deleted stones cloned");
                         chess_board_signals
                             .stones_signals()
                             .update(|stones_signals| {
@@ -121,6 +135,8 @@ fn on_message_callback(chess_board_signals: ChessBoardSignals) -> Closure<dyn Fn
                                     stones_signals.add_deleted_stone(cx, stone);
                                 }
                             });
+
+                        log::info!("Stones added");
                     }
                     "/sync_users" => {
                         let mut input = input.split("|");

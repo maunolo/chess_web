@@ -11,6 +11,7 @@ use crate::entities::chess_board::{
 };
 use crate::entities::room::RoomStatus;
 use crate::handlers::{interaction_end, interaction_move};
+use crate::utils::set_touch_events;
 
 #[component]
 pub fn App(cx: Scope) -> impl IntoView {
@@ -56,11 +57,11 @@ fn Home(cx: Scope) -> impl IntoView {
         .build()
         .unwrap();
 
+    set_touch_events(chess_board_signals);
+
     view! { cx,
         <div
             class="flex overflow-hidden relative justify-center items-center px-4 w-screen h-screen sm:py-16 sm:px-16 md:py-16 md:px-0"
-            on:touchmove=move |e| interaction_move(chess_board_signals, e)
-            on:touchend=move |e| interaction_end(chess_board_signals, e)
             on:mousemove=move |e| interaction_move(chess_board_signals, e)
             on:mouseup=move |e| interaction_end(chess_board_signals, e)
         >

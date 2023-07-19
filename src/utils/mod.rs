@@ -70,15 +70,6 @@ cfg_if! {
         {
             wasm_bindgen::prelude::Closure::<dyn FnMut(JsValue)>::new(callback)
         }
-
-        pub fn closure_with_touch_event<F>(
-            callback: F,
-        ) -> wasm_bindgen::prelude::Closure<dyn FnMut(web_sys::TouchEvent)>
-        where
-        F: FnMut(web_sys::TouchEvent) + 'static,
-        {
-            wasm_bindgen::prelude::Closure::<dyn FnMut(web_sys::TouchEvent)>::new(callback)
-        }
     }
 }
 

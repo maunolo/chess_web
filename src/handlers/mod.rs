@@ -46,16 +46,16 @@ pub fn interaction_end<E>(chess_board_signals: ChessBoardSignals, event: E)
 where
     E: EventPositionExt,
 {
+    let dark_trash = query_selector("[data-trash=\"dark\"]").unwrap();
+    let light_trash = query_selector("[data-trash=\"light\"]").unwrap();
+    let chess_board = query_selector("#chessboard").unwrap();
+    dark_trash.class_list_remove("dragging-over");
+    light_trash.class_list_remove("dragging-over");
+    chess_board.class_list_remove("dragging-over");
+
     if let Some(piece) = elements::query_selector(".dragging") {
         elements::delete_deleted_piece_clone(&piece);
         elements::delete_restored_piece_clone(&piece);
-
-        let dark_trash = query_selector("[data-trash=\"dark\"]").unwrap();
-        let light_trash = query_selector("[data-trash=\"light\"]").unwrap();
-        let chess_board = query_selector("#chessboard").unwrap();
-        dark_trash.class_list_remove("dragging-over");
-        light_trash.class_list_remove("dragging-over");
-        chess_board.class_list_remove("dragging-over");
 
         let data_key = piece.get_attribute("data-key").unwrap();
         let data_deleted = piece
@@ -178,7 +178,7 @@ where
         };
 
         chess_board_signals.chess_board().update(|chessboard| {
-            chessboard.move_piece(&piece_data, old_pos, new_pos);
+            let _ = chessboard.move_piece(&piece_data, old_pos, new_pos);
         });
     }
 }

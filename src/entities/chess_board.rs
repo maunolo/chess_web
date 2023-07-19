@@ -166,6 +166,7 @@ pub struct ChessBoardBuilder {
     sync: Option<bool>,
 }
 
+#[allow(dead_code)]
 impl ChessBoardBuilder {
     pub fn new() -> Self {
         Self {
@@ -515,7 +516,7 @@ impl ChessBoard {
             let mut chess_board = self.clone();
             chess_board.validation = false;
             chess_board.sync = false;
-            chess_board.move_piece(
+            let _ = chess_board.move_piece(
                 &stone.image_class(),
                 Some(position.clone()),
                 Some(possible_move.clone()),
@@ -528,9 +529,14 @@ impl ChessBoard {
         moves
     }
 
-    pub fn move_piece(&mut self, piece: &str, from: Option<Position>, to: Option<Position>) {
+    pub fn move_piece(
+        &mut self,
+        piece: &str,
+        from: Option<Position>,
+        to: Option<Position>,
+    ) -> Result<(), ()> {
         if from == to {
-            return;
+            return Ok(());
         }
 
         if from.is_none() {
@@ -546,18 +552,34 @@ impl ChessBoard {
                 if let Some(old_piece) = old_piece {
                     self.deleted_stones.push(old_piece);
                 }
+            } else {
+                return Err(());
             };
         } else if to.is_none() {
             let from = from.unwrap();
             let stone = self.take_stone_at(from.x, from.y);
+            if stone
+                .clone()
+                .map(|s| s.image_class() != piece)
+                .unwrap_or(true)
+            {
+                return Err(());
+            }
             if let Some(stone) = stone {
                 self.deleted_stones.push(stone);
             }
         } else {
             let from = from.unwrap();
             let to = to.unwrap();
-            let old_piece = self.take_stone_at(to.x, to.y);
             let stone = self.take_stone_at(from.x, from.y);
+            if stone
+                .clone()
+                .map(|s| s.image_class() != piece)
+                .unwrap_or(true)
+            {
+                return Err(());
+            }
+            let old_piece = self.take_stone_at(to.x, to.y);
             self.stones[to.y as usize][to.x as usize] = stone;
             if let Some(old_piece) = old_piece {
                 self.deleted_stones.push(old_piece);
@@ -569,6 +591,8 @@ impl ChessBoard {
             self.sync_fen();
             self.sync_treat_map();
         }
+
+        Ok(())
     }
 
     pub fn sync_fen(&mut self) {
@@ -709,6 +733,7 @@ pub struct StonesSignals {
     deleted_stones: BTreeMap<usize, RwSignal<StoneSignal>>,
 }
 
+#[allow(dead_code)]
 impl StonesSignals {
     pub fn new() -> Self {
         Self {
@@ -785,6 +810,7 @@ pub struct StoneSignal {
     deleted: bool,
 }
 
+#[allow(dead_code)]
 impl StoneSignal {
     pub fn new(position: Option<Position>, stone: Stone) -> Self {
         Self {
@@ -830,10 +856,6 @@ impl StoneSignal {
 
     pub fn set_position(&mut self, position: Option<Position>) {
         self.position = position;
-    }
-
-    pub fn set_stone(&mut self, stone: Stone) {
-        self.stone = stone;
     }
 
     pub fn position(&self) -> Option<Position> {
@@ -924,7 +946,7 @@ impl ChessBoardSignals {
         }
 
         self.chess_board().update(|chessboard| {
-            chessboard.move_piece(&piece, old_pos_clone, new_pos_clone);
+            let _ = chessboard.move_piece(&piece, old_pos_clone, new_pos_clone);
         });
 
         if old_pos.is_none() {

@@ -8,10 +8,7 @@ pub mod style;
 use cfg_if::cfg_if;
 use serde::{Deserialize, Serialize};
 
-use crate::{
-    entities::chess_board::ChessBoardSignals,
-    handlers::{interaction_end, interaction_move},
-};
+use crate::entities::chess_board::ChessBoardSignals;
 
 #[derive(Serialize, Deserialize, Clone)]
 pub struct SessionPayload {
@@ -32,29 +29,6 @@ cfg_if! {
     } else {
         pub fn js_cast<T, C>(_to_cast: C) -> Option<T> {
             None
-        }
-    }
-}
-
-pub fn set_touch_events(chess_board_signals: ChessBoardSignals) {
-    cfg_if! {
-        if #[cfg(not(feature = "ssr"))] {
-            use wasm_bindgen::JsCast;
-            let touch_move =move |e: web_sys::TouchEvent| interaction_move(chess_board_signals, e);
-            let touch_end =move |e: web_sys::TouchEvent| interaction_end(chess_board_signals, e);
-
-            if let Some(window) = web_sys::window() {
-                if let Some(document) = window.document() {
-                    if let Some(body) = document.body() {
-                        let touch_move = closure_with_touch_event(touch_move);
-                        let touch_end = closure_with_touch_event(touch_end);
-                        let _ = body.add_event_listener_with_callback("touchmove", touch_move.as_ref().unchecked_ref());
-                        let _ = body.add_event_listener_with_callback("touchend", touch_end.as_ref().unchecked_ref());
-                        touch_move.forget();
-                        touch_end.forget();
-                    }
-                }
-            }
         }
     }
 }

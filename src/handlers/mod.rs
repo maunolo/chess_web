@@ -1,26 +1,21 @@
 use leptos::{RwSignal, SignalGetUntracked, SignalUpdate, SignalWithUntracked};
-use web_sys::Element;
 
 use crate::entities::chess_board::{ChessBoardSignals, StoneSignal};
 use crate::entities::position::Position;
-use crate::utils::elements::{self, mouse_position_in_bounding};
+use crate::utils::class_list::ClassListExt;
+use crate::utils::elements::{self, mouse_position_in_bounding, query_selector};
 use crate::utils::events::{EventPositionExt, EventTargetExt};
 use crate::utils::style::StyleExt;
 
-pub fn interaction_move<E>(chess_board_signals: ChessBoardSignals, event: E)
+pub fn interaction_move<E>(event: E)
 where
     E: EventPositionExt,
 {
     if let Some(piece) = elements::query_selector(".dragging") {
-        let data_key = piece.get_attribute("data-key").unwrap();
-        let data_deleted = piece.get_attribute("data-deleted").unwrap();
-
-        let stone_signal = get_stone_signal(chess_board_signals, data_key, data_deleted);
-
         let position = event.position();
         let client_position = (position.0 as f64, position.1 as f64);
 
-        elements::move_piece(chess_board_signals, stone_signal, &piece, client_position);
+        elements::move_piece(&piece, client_position);
     }
 }
 
@@ -34,9 +29,9 @@ where
     };
     // select_piece_square(&piece);
     let data_key = piece.get_attribute("data-key").unwrap();
-    let data_deleted = piece.get_attribute("data-deleted").unwrap();
+    let data_square = piece.get_attribute("data-square").unwrap();
 
-    let stone_signal = get_stone_signal(chess_board_signals, data_key, data_deleted);
+    let stone_signal = get_stone_signal(chess_board_signals, data_key, data_square);
 
     let position = event.position();
     // Move the piece to client cursor position
@@ -44,7 +39,7 @@ where
 
     stone_signal.update(|ss| ss.enable_dragging());
 
-    elements::move_piece(chess_board_signals, stone_signal, &piece, client_position);
+    elements::move_piece(&piece, client_position);
 }
 
 pub fn interaction_end<E>(chess_board_signals: ChessBoardSignals, event: E)
@@ -52,20 +47,61 @@ where
     E: EventPositionExt,
 {
     if let Some(piece) = elements::query_selector(".dragging") {
+        elements::delete_deleted_piece_clone(&piece);
+        elements::delete_restored_piece_clone(&piece);
+
+        let dark_trash = query_selector("[data-trash=\"dark\"]").unwrap();
+        let light_trash = query_selector("[data-trash=\"light\"]").unwrap();
+        let chess_board = query_selector("#chessboard").unwrap();
+        dark_trash.class_list_remove("dragging-over");
+        light_trash.class_list_remove("dragging-over");
+        chess_board.class_list_remove("dragging-over");
+
         let data_key = piece.get_attribute("data-key").unwrap();
-        let data_deleted = piece.get_attribute("data-deleted").unwrap();
+        let data_deleted = piece
+            .get_attribute("data-deleted")
+            .unwrap()
+            .parse::<bool>()
+            .unwrap();
         let piece_data = piece.get_attribute("data-piece").unwrap();
+        let data_square = piece.get_attribute("data-square").unwrap();
         let old_pos: String;
         let new_pos: String;
 
-        let stone_signal = get_stone_signal(chess_board_signals, data_key, data_deleted);
+        let stone_signal =
+            get_stone_signal(chess_board_signals, data_key.clone(), data_square.clone());
+
+        stone_signal.update(|ss| {
+            ss.disable_dragging();
+        });
+
+        if data_deleted && (data_square != "deleted") {
+            stone_signal.update(|stone| {
+                stone.delete();
+            });
+
+            chess_board_signals.stones_signals().update(|ss| {
+                if let Some(stone) = ss.remove_board_stone(data_key.clone()) {
+                    ss.add_deleted_stone_signal(stone);
+                };
+            });
+        } else if !data_deleted && (data_square == "deleted") {
+            stone_signal.update(|stone| {
+                stone.restore();
+            });
+
+            let new_key = stone_signal.with_untracked(|ss| ss.unique_key());
+
+            chess_board_signals.stones_signals().update(|ss| {
+                let key = data_key.parse::<usize>().expect("Not able to parse key");
+                if let Some(stone) = ss.remove_deleted_stone(key) {
+                    ss.add_board_stone_signal(new_key, stone);
+                };
+            });
+        }
 
         piece.remove_style("transition");
         piece.remove_style("transform");
-        stone_signal.update(|ss| {
-            ss.disable_dragging();
-            ss.set_transform(None);
-        });
 
         old_pos = stone_signal
             .with_untracked(|ss| ss.position())
@@ -80,7 +116,7 @@ where
             new_pos = "deleted".to_string();
         } else {
             let tmp_key = stone_signal.with_untracked(|ss| ss.unique_key());
-            let new_position = get_piece_position(chess_board_signals, &piece, event);
+            let new_position = get_piece_position(chess_board_signals, event);
             if stone_signal.with_untracked(|ss| ss.position()) != Some(new_position.clone()) {
                 stone_signal.update(|ss| ss.set_position(Some(new_position.clone())));
             }
@@ -119,8 +155,6 @@ where
             new_pos = new_position.to_string();
         }
 
-        log::debug!("old_pos: {}, new_pos: {}", old_pos, new_pos);
-
         if old_pos == new_pos {
             return;
         }
@@ -152,9 +186,9 @@ where
 pub fn get_stone_signal(
     chess_board_signals: ChessBoardSignals,
     key: String,
-    data_deleted: String,
+    data_square: String,
 ) -> RwSignal<StoneSignal> {
-    if data_deleted == "true" {
+    if data_square == "deleted" {
         let key = key.parse::<usize>().unwrap();
         chess_board_signals
             .stones_signals()
@@ -168,15 +202,11 @@ pub fn get_stone_signal(
     }
 }
 
-pub fn get_piece_position<E>(
-    chess_board_signals: ChessBoardSignals,
-    piece: &Element,
-    event: E,
-) -> Position
+pub fn get_piece_position<E>(chess_board_signals: ChessBoardSignals, event: E) -> Position
 where
     E: EventPositionExt,
 {
-    let chess_board = piece.parent_element().unwrap();
+    let chess_board = query_selector("#chessboard").unwrap();
     let bounding = chess_board.get_bounding_client_rect();
     let position = event.position();
 

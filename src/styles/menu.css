@@ -132,23 +132,39 @@
                     transition-duration: .2s;
                     transition-property: background-color;
                     transition-timing-function: ease-in-out;
+
+                    .circle-inner {
+                        @apply hidden font-black;
+                    }
                 }
 
                 &--is-active {
                     .circle {
                         @apply bg-red-500;
+
+                        .circle-inner {
+                            @apply hidden;
+                        }
                     }
                 }
 
                 &--is-online {
                     .circle {
                         @apply bg-green-400;
+
+                        .circle-inner {
+                            @apply flex;
+                        }
                     }
                 }
 
                 &--is-online--is-active {
                     .circle {
                         @apply bg-green-500;
+
+                        .circle-inner {
+                            @apply flex;
+                        }
                     }
                 }
             }

@@ -626,6 +626,7 @@ pub struct ChessBoardSignalsBuilder {
     room_status: Option<RwSignal<Option<RoomStatus>>>,
     chess_board_socket: Option<RwSignal<Option<WebSocket>>>,
     stones_signals: Option<RwSignal<StonesSignals>>,
+    should_render: Option<RwSignal<bool>>,
 }
 
 impl ChessBoardSignalsBuilder {
@@ -636,6 +637,7 @@ impl ChessBoardSignalsBuilder {
             room_status: None,
             chess_board_socket: None,
             stones_signals: None,
+            should_render: None,
         }
     }
 
@@ -664,6 +666,11 @@ impl ChessBoardSignalsBuilder {
         self
     }
 
+    pub fn should_render(mut self, should_render: RwSignal<bool>) -> Self {
+        self.should_render = Some(should_render);
+        self
+    }
+
     pub fn build(self) -> Result<ChessBoardSignals, ()> {
         let Some(cx) = self.cx else {
             return Err(());
@@ -680,6 +687,9 @@ impl ChessBoardSignalsBuilder {
         let Some(stones_signals) = self.stones_signals else {
             return Err(());
         };
+        let Some(should_render) = self.should_render else {
+            return Err(());
+        };
 
         Ok(ChessBoardSignals {
             cx,
@@ -687,6 +697,7 @@ impl ChessBoardSignalsBuilder {
             room_status,
             chess_board_socket,
             stones_signals,
+            should_render,
         })
     }
 }
@@ -770,33 +781,8 @@ impl StonesSignals {
 pub struct StoneSignal {
     position: Option<Position>,
     stone: Stone,
-    transform: Option<Transform>,
     dragging: bool,
     deleted: bool,
-}
-
-#[derive(Clone, Debug)]
-pub struct Transform {
-    x: f64,
-    y: f64,
-}
-
-impl Transform {
-    pub fn new(x: f64, y: f64) -> Self {
-        Self { x, y }
-    }
-
-    pub fn to_css(&self) -> String {
-        format!("translate({}%, {}%)", self.x, self.y)
-    }
-
-    pub fn x(&self) -> f64 {
-        self.x
-    }
-
-    pub fn y(&self) -> f64 {
-        self.y
-    }
 }
 
 impl StoneSignal {
@@ -804,7 +790,6 @@ impl StoneSignal {
         Self {
             position,
             stone,
-            transform: None,
             dragging: false,
             deleted: false,
         }
@@ -814,7 +799,6 @@ impl StoneSignal {
         Self {
             position: None,
             stone,
-            transform: None,
             dragging: false,
             deleted: true,
         }
@@ -842,14 +826,6 @@ impl StoneSignal {
 
     pub fn is_dragging(&self) -> bool {
         self.dragging
-    }
-
-    pub fn set_transform(&mut self, transform: Option<Transform>) {
-        self.transform = transform;
-    }
-
-    pub fn transform(&self) -> Option<&Transform> {
-        self.transform.as_ref()
     }
 
     pub fn set_position(&mut self, position: Option<Position>) {
@@ -888,6 +864,7 @@ pub struct ChessBoardSignals {
     room_status: RwSignal<Option<RoomStatus>>,
     chess_board_socket: RwSignal<Option<WebSocket>>,
     stones_signals: RwSignal<StonesSignals>,
+    should_render: RwSignal<bool>,
 }
 
 #[allow(dead_code)]
@@ -910,6 +887,10 @@ impl ChessBoardSignals {
 
     pub fn stones_signals(&self) -> RwSignal<StonesSignals> {
         self.stones_signals
+    }
+
+    pub fn should_render(&self) -> RwSignal<bool> {
+        self.should_render
     }
 
     pub fn move_piece(&self, piece: String, old_pos: String, new_pos: String) {
@@ -985,7 +966,6 @@ impl ChessBoardSignals {
             if let Some((key, stone_signal)) = stone_key.map(|sk| sk) {
                 stone_signal.update(|ss| {
                     ss.set_position(Some(new_pos.clone()));
-                    ss.set_transform(None);
                     ss.disable_dragging();
                     ss.restore();
                 });
@@ -1020,7 +1000,6 @@ impl ChessBoardSignals {
             if let Some(stone_signal) = stone_signal {
                 stone_signal.update(|ss| {
                     ss.set_position(None);
-                    ss.set_transform(None);
                     ss.delete();
                     ss.disable_dragging();
                 });
@@ -1060,16 +1039,16 @@ impl ChessBoardSignals {
                         ss.delete();
                     });
                 };
-            }
 
-            self.stones_signals().update(|stones| {
-                if let Some(stone_key) = new_pos_stone_signal_key {
-                    if let Some(stone) = stones.remove_board_stone(stone_key) {
+                self.stones_signals.update(|stones| {
+                    if let Some(stone) = stones.remove_board_stone(key) {
                         stones.add_deleted_stone_signal(stone);
                         deleted_stone_signal = Some(stone);
                     };
-                };
+                });
+            }
 
+            self.stones_signals().update(|stones| {
                 if let Some(stone) = stones.remove_board_stone(stone_signal_key) {
                     stones.add_board_stone_signal(new_key, stone);
                     stone_signal = Some(stone);
@@ -1079,7 +1058,6 @@ impl ChessBoardSignals {
             if let Some(deleted_stone_signal) = deleted_stone_signal {
                 deleted_stone_signal.update(|ss| {
                     ss.set_position(None);
-                    ss.set_transform(None);
                     ss.disable_dragging();
                 });
             }
@@ -1087,7 +1065,6 @@ impl ChessBoardSignals {
             if let Some(stone_signal) = stone_signal {
                 stone_signal.update(|ss| {
                     ss.set_position(Some(new_pos.clone()));
-                    ss.set_transform(None);
                     ss.disable_dragging();
                 });
             }

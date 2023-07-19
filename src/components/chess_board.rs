@@ -15,6 +15,7 @@ pub fn ChessBoard(cx: Scope, chess_board_signals: ChessBoardSignals) -> impl Int
             .get()
             .board_stones()
             .clone()
+            .into_iter()
     };
     let deleted_stones_signals = move || {
         chess_board_signals
@@ -44,13 +45,6 @@ pub fn ChessBoard(cx: Scope, chess_board_signals: ChessBoardSignals) -> impl Int
                 dragging_class()
             )
         };
-        let style = move || {
-            if let Some(transform) = stone_signal().transform() {
-                format!("transform: {}", transform.to_css())
-            } else {
-                "".to_string()
-            }
-        };
         view! { cx,
             <div
                 class=class
@@ -61,7 +55,6 @@ pub fn ChessBoard(cx: Scope, chess_board_signals: ChessBoardSignals) -> impl Int
                 data-piece=move || stone().image_class()
                 data-key=key
                 data-deleted=move || format!("{}", stone_signal().is_deleted())
-                style=style
             ></div>
         }
     };

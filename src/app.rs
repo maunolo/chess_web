@@ -1,17 +1,21 @@
+use std::collections::BTreeMap;
+
 use leptos::*;
 use leptos_meta::*;
 use leptos_router::*;
 
+use crate::components::board::BoardBackground;
 use crate::components::chess_board::ChessBoard;
 
+use crate::components::coordinates::Coordinates;
 use crate::components::overlay::Overlay;
 
+use crate::components::trash::{Trash, TrashType};
 use crate::entities::chess_board::{
     ChessBoard as ChessBoardEntity, ChessBoardSignalsBuilder, StonesSignals,
 };
 use crate::entities::room::RoomStatus;
 use crate::handlers::{interaction_end, interaction_move};
-use crate::utils::set_touch_events;
 
 #[component]
 pub fn App(cx: Scope) -> impl IntoView {
@@ -43,6 +47,7 @@ pub fn App(cx: Scope) -> impl IntoView {
 fn Home(cx: Scope) -> impl IntoView {
     let fen = "8/8/8/8/8/8/8/8 w - - 0 1";
     let chess_board_entity = ChessBoardEntity::new(fen).unwrap();
+    let should_render = create_rw_signal(cx, false);
     let chess_board = create_rw_signal::<ChessBoardEntity>(cx, chess_board_entity);
     let chess_board_socket = create_rw_signal::<Option<web_sys::WebSocket>>(cx, None);
     let room_status = create_rw_signal::<Option<RoomStatus>>(cx, None);
@@ -54,18 +59,33 @@ fn Home(cx: Scope) -> impl IntoView {
         .room_status(room_status)
         .chess_board_socket(chess_board_socket)
         .stones_signals(stones_signals)
+        .should_render(should_render)
         .build()
         .unwrap();
-
-    set_touch_events(chess_board_signals);
 
     view! { cx,
         <div
             class="flex overflow-hidden relative justify-center items-center px-4 w-screen h-screen sm:py-16 sm:px-16 md:py-16 md:px-0"
-            on:mousemove=move |e| interaction_move(chess_board_signals, e)
+            on:touchmove=move |e| interaction_move(e)
+            on:touchend=move |e| interaction_end(chess_board_signals, e)
+            on:mousemove=move |e| interaction_move(e)
             on:mouseup=move |e| interaction_end(chess_board_signals, e)
         >
-            <ChessBoard chess_board_signals=chess_board_signals/>
+            <Show
+                when=move || should_render()
+                fallback=move |cx| {
+                    view! { cx,
+                        <chess-board class="chessboard">
+                            <BoardBackground/>
+                            <Coordinates white_view=move || true/>
+                            <Trash id=TrashType::Dark chess_board_signals=chess_board_signals white_view=move || true trash=move || BTreeMap::new()/>
+                            <Trash id=TrashType::Light chess_board_signals=chess_board_signals white_view=move || true trash=move || BTreeMap::new()/>
+                        </chess-board>
+                    }
+                }
+            >
+                <ChessBoard chess_board_signals=chess_board_signals/>
+            </Show>
             <Overlay chess_board_signals=chess_board_signals/>
         </div>
     }

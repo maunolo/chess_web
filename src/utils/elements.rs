@@ -1,9 +1,8 @@
-use leptos::{RwSignal, SignalUpdate, SignalWithUntracked};
-use web_sys::{Document, DomRect, Element};
+use web_sys::{Document, DomRect, Element, Node};
 
-use crate::entities::chess_board::{ChessBoardSignals, StoneSignal};
+use super::class_list::ClassListExt;
 
-use super::style::StyleExt;
+use super::{js_cast, style::StyleExt};
 
 pub fn document() -> Document {
     web_sys::window().unwrap().document().unwrap()
@@ -13,120 +12,152 @@ pub fn query_selector(class: &str) -> Option<Element> {
     document().query_selector(class).unwrap()
 }
 
-pub fn move_piece(
-    chess_board_signals: ChessBoardSignals,
-    stone_signal: RwSignal<StoneSignal>,
-    piece: &Element,
-    client_position: (f64, f64),
-) {
+pub fn move_piece(piece: &Element, client_position: (f64, f64)) {
     let parent = piece.parent_element().unwrap();
-    let data_key = piece.get_attribute("data-key").unwrap();
+    let data_square = piece.get_attribute("data-square").unwrap();
+    let data_deleted = piece
+        .get_attribute("data-deleted")
+        .unwrap()
+        .parse::<bool>()
+        .unwrap();
+
     let dark_trash = query_selector("[data-trash=\"dark\"]").unwrap();
     let light_trash = query_selector("[data-trash=\"light\"]").unwrap();
+    let chess_board = query_selector("#chessboard").unwrap();
+    dark_trash.class_list_add("dragging-over");
+    light_trash.class_list_add("dragging-over");
+    chess_board.class_list_add("dragging-over");
     let in_dark_trash = mouse_in_bounding(client_position, &dark_trash.get_bounding_client_rect());
     let in_light_trash =
         mouse_in_bounding(client_position, &light_trash.get_bounding_client_rect());
 
-    if in_dark_trash || in_light_trash {
-        if !stone_signal.with_untracked(|ss| ss.is_deleted()) {
-            stone_signal.update(|stone| {
-                stone.set_transform(None);
-                stone.delete();
-            });
+    if data_square == "deleted" {
+        let restored_piece = if let Some(piece) = find_restored_piece_clone(piece) {
+            piece
+        } else {
+            let piece = create_restored_piece_clone(piece).unwrap();
+            chess_board.append_child(&piece).unwrap();
+            piece
+        };
 
-            chess_board_signals.stones_signals().update(|ss| {
-                if let Some(stone) = ss.remove_board_stone(data_key.clone()) {
-                    ss.add_deleted_stone_signal(stone);
-                };
-            });
+        if in_dark_trash || in_light_trash {
+            restored_piece.class_list_add("hidden");
+            piece.class_list_remove("hidden");
+            if !data_deleted {
+                piece.set_attribute("data-deleted", "true").unwrap();
+            }
+        } else {
+            restored_piece.class_list_remove("hidden");
+            piece.class_list_add("hidden");
+            if data_deleted {
+                piece.set_attribute("data-deleted", "false").unwrap();
+            }
+
+            restored_piece.set_style("transition", "none");
+            restored_piece.set_style("transform", &translate_value(client_position, &chess_board));
         }
     } else {
-        if stone_signal.with_untracked(|ss| ss.is_deleted()) {
-            stone_signal.update(|stone| {
-                stone.restore();
-            });
+        let deleted_piece = if let Some(piece) = find_deleted_piece_clone(piece) {
+            piece
+        } else {
+            let piece = create_deleted_piece_clone(piece).unwrap();
+            if is_piece_dark_variant(&piece) {
+                dark_trash.append_child(&piece).unwrap();
+            } else {
+                light_trash.append_child(&piece).unwrap();
+            }
+            piece
+        };
 
-            let new_key = stone_signal.with_untracked(|ss| ss.unique_key());
+        if in_dark_trash || in_light_trash {
+            piece.class_list_add("hidden");
+            deleted_piece.class_list_remove("hidden");
+            if !data_deleted {
+                piece.set_attribute("data-deleted", "true").unwrap();
+            }
+        } else {
+            piece.class_list_remove("hidden");
+            deleted_piece.class_list_add("hidden");
+            if data_deleted {
+                piece.set_attribute("data-deleted", "false").unwrap();
+            }
 
-            chess_board_signals.stones_signals().update(|ss| {
-                let key = data_key.parse::<usize>().expect("Not able to parse key");
-                if let Some(stone) = ss.remove_deleted_stone(key) {
-                    ss.add_board_stone_signal(new_key, stone);
-                };
-            });
+            piece.set_style("transition", "none");
+            piece.set_style("transform", &translate_value(client_position, &parent));
         }
-
-        piece.set_style("transition", "none");
-        piece.set_style("transform", &translate_value(client_position, &parent));
     }
 }
 
-// pub fn soft_delete_piece(piece: &Element) {
-//     let parent = piece.parent_element().unwrap();
-//     let trash = if is_piece_dark_variant(&piece) {
-//         query_selector("[data-trash=\"dark\"]").unwrap()
-//     } else {
-//         query_selector("[data-trash=\"light\"]").unwrap()
-//     };
-//
-//     let data_piece = piece.get_attribute("data-piece").unwrap();
-//     let trash_piece = trash
-//         .query_selector(&format!(".hidden[data-piece=\"{}\"]", data_piece))
-//         .expect("Not able to perform query selector");
-//     let trash_piece = trash_piece.unwrap_or_else(|| piece.clone());
-//     trash_piece.class_list_remove("hidden");
-//
-//     if !(parent.id() == trash.id()) {
-//         trash.append_child(&trash_piece).unwrap();
-//     }
-//
-//     piece.class_list_add("hidden");
-//     let data_square = piece.get_attribute("data-square").unwrap();
-//     trash_piece.class_list_remove(&format!("square-{}", data_square));
-//     trash_piece.class_list_add("deleted");
-//
-//     trash_piece.remove_style("transform");
-//     trash_piece.remove_style("transition");
-// }
-//
-// pub fn restore_piece(piece: &Element, client_position: (f64, f64)) {
-//     let mut parent = piece.parent_element().unwrap();
-//     let chess_board = piece.parent_element().unwrap().parent_element().unwrap();
-//     let board_piece = chess_board
-//         .query_selector(&format!(".hidden[data-piece=\"{}\"]", piece.id()))
-//         .expect("Not able to perform query selector");
-//     let board_piece = board_piece.unwrap_or_else(|| piece.clone());
-//     board_piece.class_list_remove("hidden");
-//
-//     if !(parent.id() == "chessboard") {
-//         chess_board.append_child(&board_piece).unwrap();
-//         board_piece.class_list_remove("deleted");
-//         parent = board_piece.parent_element().unwrap();
-//     };
-//     piece.class_list_add("hidden");
-//     let translate_value = translate_value(client_position, &parent);
-//     board_piece.set_style("transform", &translate_value);
-//     board_piece.set_style("transition", "none");
-// }
-//
-// fn is_piece_dark_variant(piece: &Element) -> bool {
-//     let data_piece = piece.get_attribute("data-piece").unwrap();
-//     let first_char = data_piece.chars().next().unwrap();
-//
-//     match first_char {
-//         'l' => false,
-//         'd' => true,
-//         _ => unreachable!("Invalid piece data attribute"),
-//     }
-// }
-//
-// fn transform_value(client_position: (f64, f64), elem: &Element) -> Transform {
-//     let bounding = elem.get_bounding_client_rect();
-//     let (x, y) = mouse_position_in_bounding(client_position, &bounding);
-//     let translate_x = x - 50.0;
-//     let translate_y = y - 50.0;
-//     Transform::new(translate_x, translate_y)
-// }
+pub fn find_restored_piece_clone(piece: &Element) -> Option<Element> {
+    let data_square = piece.get_attribute("data-square").unwrap();
+    if data_square != "deleted" {
+        return None;
+    }
+
+    let data_key = piece.get_attribute("data-key").unwrap();
+    query_selector(&format!(".restored[data-key=\"{}\"]", data_key))
+}
+
+pub fn create_restored_piece_clone(piece: &Element) -> Option<Element> {
+    if let Some(piece) = js_cast::<Element, Node>(piece.clone_node().unwrap()) {
+        piece.set_attribute("data-deleted", "false").unwrap();
+        piece.class_list_remove("deleted");
+        piece.class_list_add("restored");
+        piece.class_list_remove("dragging");
+
+        return Some(piece);
+    }
+
+    None
+}
+
+pub fn delete_restored_piece_clone(piece: &Element) {
+    if let Some(restored_piece) = find_restored_piece_clone(piece) {
+        restored_piece.remove();
+    };
+}
+
+pub fn find_deleted_piece_clone(piece: &Element) -> Option<Element> {
+    let data_square = piece.get_attribute("data-square").unwrap();
+    if data_square == "deleted" {
+        return None;
+    }
+
+    let data_key = piece.get_attribute("data-key").unwrap();
+    query_selector(&format!(".deleted[data-key=\"{}\"]", data_key))
+}
+
+pub fn create_deleted_piece_clone(piece: &Element) -> Option<Element> {
+    if let Some(piece) = js_cast::<Element, Node>(piece.clone_node().unwrap()) {
+        let data_square = piece.get_attribute("data-square").unwrap();
+        piece.set_attribute("data-deleted", "true").unwrap();
+        piece.class_list_add("deleted");
+        piece.class_list_remove("dragging");
+        piece.class_list_remove(&format!("square-{}", data_square));
+        piece.remove_style("transform");
+        piece.remove_style("transition");
+
+        return Some(piece);
+    };
+    None
+}
+
+pub fn delete_deleted_piece_clone(piece: &Element) {
+    if let Some(deleted_piece) = find_deleted_piece_clone(piece) {
+        deleted_piece.remove();
+    };
+}
+
+fn is_piece_dark_variant(piece: &Element) -> bool {
+    let data_piece = piece.get_attribute("data-piece").unwrap();
+    let first_char = data_piece.chars().next().unwrap();
+
+    match first_char {
+        'l' => false,
+        'd' => true,
+        _ => unreachable!("Invalid piece data attribute"),
+    }
+}
 
 fn translate_value(client_position: (f64, f64), elem: &Element) -> String {
     let bounding = elem.get_bounding_client_rect();

@@ -588,6 +588,13 @@ impl Handler<Reset> for ChessServer {
             let current_fen = current_room.current_fen.clone();
             let trash = current_room.trash.clone();
 
+            current_room.chess_board = ChessBoardBuilder::new()
+                .fen(&current_fen)
+                .deleted_stones(&trash)
+                .validation(false)
+                .build()
+                .unwrap();
+
             self.send_message(
                 &session.current_room,
                 &format!(

@@ -40,8 +40,12 @@ impl Position {
         format!("{}{}", std::str::from_utf8(&buffer).unwrap(), 8 - self.y)
     }
 
-    pub fn css_class(&self) -> String {
-        format!("square-{}", self.to_string())
+    pub fn x(&self) -> usize {
+        self.x
+    }
+
+    pub fn y(&self) -> usize {
+        self.y
     }
 
     // TODO: use this or remove it

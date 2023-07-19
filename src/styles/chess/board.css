@@ -69,6 +69,10 @@
         .piece {
             cursor: grabbing !important;
         }
+
+        .restored {
+            cursor: grabbing !important;
+        }
     }
 
     .element-pool {

@@ -1,4 +1,4 @@
-use leptos::{SignalGetUntracked, SignalSet, SignalUpdate};
+use leptos::{SignalGetUntracked, SignalSet, SignalUpdate, SignalWithUntracked};
 use wasm_bindgen::prelude::*;
 use web_sys::{CloseEvent, Element, ErrorEvent, MessageEvent, WebSocket};
 
@@ -7,10 +7,7 @@ use crate::{
         chess_board::{ChessBoardBuilder, ChessBoardSignals},
         room::{RoomStatus, User, UserStatus},
     },
-    utils::{
-        class_list::ClassListExt,
-        elements::{self, document},
-    },
+    utils::{class_list::ClassListExt, elements::document, WindowExt},
 };
 
 fn query_position(square: &str) -> Option<Element> {
@@ -21,7 +18,6 @@ fn query_position(square: &str) -> Option<Element> {
 
 fn on_message_callback(chess_board_signals: ChessBoardSignals) -> Closure<dyn FnMut(MessageEvent)> {
     Closure::<dyn FnMut(_)>::new(move |e: MessageEvent| {
-        // Handle difference Text/Binary,...
         if let Ok(txt) = e.data().dyn_into::<js_sys::JsString>() {
             let text: String = txt.as_string().unwrap();
             if text.starts_with('/') {
@@ -30,48 +26,32 @@ fn on_message_callback(chess_board_signals: ChessBoardSignals) -> Closure<dyn Fn
                 match cmd {
                     "/move" => {
                         let mut input = input.split(" ");
-                        let piece_data = input.next().unwrap();
+                        let piece_data = input.next().unwrap().to_string();
 
-                        let old_pos = input.next().unwrap();
-                        let new_pos = input.next().unwrap();
+                        let old_pos = input.next().unwrap().to_string();
+                        let new_pos = input.next().unwrap().to_string();
 
-                        if old_pos == new_pos {
-                            return;
-                        }
+                        let old_pos_clone = old_pos.clone();
+                        let new_pos_clone = new_pos.clone();
+                        let update_board = move || {
+                            chess_board_signals.move_piece(
+                                piece_data.to_string(),
+                                old_pos.to_string(),
+                                new_pos.to_string(),
+                            )
+                        };
 
-                        let query_old = query_position(old_pos);
-                        let query_new = query_position(new_pos);
-                        if old_pos == "deleted" {
-                            if let Some(element) = elements::query_selector(&format!(
-                                ".deleted[data-piece=\"{}\"]",
-                                piece_data
-                            )) {
-                                elements::restore_piece(&element);
-                                element.set_attribute("data-square", &new_pos).unwrap();
-                                element.class_list_add(&format!("square-{}", new_pos));
+                        if old_pos_clone != "deleted" && new_pos_clone != "deleted" {
+                            if let Some(piece) = query_position(&old_pos_clone) {
+                                piece.class_list_remove(&format!("square-{}", old_pos_clone));
+                                piece.class_list_add(&format!("square-{}", new_pos_clone));
 
-                                if let Some(element) = query_new {
-                                    elements::soft_delete_piece(&element);
-                                    element.set_attribute("data-square", "deleted").unwrap();
-                                }
-                            };
-                        } else if new_pos == "deleted" {
-                            if let Some(element) = query_old {
-                                elements::soft_delete_piece(&element);
-                                element.set_attribute("data-square", "deleted").unwrap();
+                                let window = web_sys::window().unwrap();
+                                window.set_timeout_callback(update_board, 100);
                             }
                         } else {
-                            if let Some(element) = query_old {
-                                element.set_attribute("data-square", &new_pos).unwrap();
-                                element.class_list_remove(&format!("square-{}", old_pos));
-                                element.class_list_add(&format!("square-{}", new_pos));
-
-                                if let Some(element) = query_new {
-                                    elements::soft_delete_piece(&element);
-                                    element.set_attribute("data-square", "deleted").unwrap();
-                                }
-                            }
-                        }
+                            update_board();
+                        };
                     }
                     "/sync_board" => {
                         chess_board_signals.should_render().set(false);
@@ -80,6 +60,13 @@ fn on_message_callback(chess_board_signals: ChessBoardSignals) -> Closure<dyn Fn
                         let room_name = input.next().unwrap();
                         let fen = input.next().unwrap();
                         let trash = input.next().unwrap();
+
+                        chess_board_signals
+                            .stones_signals()
+                            .update(|stones_signals| {
+                                stones_signals.clear_board_stones();
+                                stones_signals.clear_deleted_stones();
+                            });
 
                         chess_board_signals.room_status().update(|room_status| {
                             if let Some(room_status) = room_status {
@@ -101,6 +88,26 @@ fn on_message_callback(chess_board_signals: ChessBoardSignals) -> Closure<dyn Fn
 
                             *chessboard = new_chessboard;
                         });
+
+                        let positions_and_stones = chess_board_signals
+                            .chess_board()
+                            .with_untracked(|cb| cb.cloned_stones_and_positions());
+                        let deleted_stones = chess_board_signals
+                            .chess_board()
+                            .with_untracked(|cb| cb.cloned_deleted_stones());
+                        let cx = chess_board_signals.cx();
+
+                        chess_board_signals
+                            .stones_signals()
+                            .update(|stones_signals| {
+                                for (position, stone) in positions_and_stones {
+                                    stones_signals.add_board_stone(cx, position, stone);
+                                }
+                                for stone in deleted_stones {
+                                    stones_signals.add_deleted_stone(cx, stone);
+                                }
+                            });
+
                         chess_board_signals.should_render().set(true);
                     }
                     "/sync_users" => {
@@ -217,14 +224,13 @@ pub fn start_websocket(chess_board_signals: ChessBoardSignals) -> Result<WebSock
     ws.set_onerror(Some(onerror_callback.as_ref().unchecked_ref()));
     onerror_callback.forget();
 
-    let onopen_callback = Closure::<dyn FnMut()>::new(move || {
-        log::info!("socket opened");
-    });
-    ws.set_onopen(Some(onopen_callback.as_ref().unchecked_ref()));
-    onopen_callback.forget();
+    // let onopen_callback = Closure::<dyn FnMut()>::new(move || {
+    //     log::info!("socket opened");
+    // });
+    // ws.set_onopen(Some(onopen_callback.as_ref().unchecked_ref()));
+    // onopen_callback.forget();
 
     let onclose_callback = Closure::<dyn FnMut(_)>::new(move |_: CloseEvent| {
-        log::info!("socket closed");
         chess_board_signals.socket().set(None);
         let room_status = chess_board_signals.room_status().get_untracked();
         if let Some(room_status) = room_status {

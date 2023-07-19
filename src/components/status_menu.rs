@@ -138,7 +138,9 @@ pub fn StatusMenu(
                     class=status_menu_btn_css
                     on:click=toggle_status_menu
                 >
-                    <span class="circle"></span>
+                    <span class="circle">
+                        <span class="circle-inner">{move || users().len()}</span>
+                    </span>
                 </button>
                 <button
                     class=status_refresh_btn_css

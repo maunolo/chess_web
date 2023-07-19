@@ -44,6 +44,8 @@ web-sys = { version = "0.3.60", features = [
     "DomTokenList",
     "Request",
     "RequestInit",
+    "EventListener",
+    "EventTarget",
 ] }
 getrandom = { version = "0.2.10", features = ["js"] }
 js-sys = { version = "0.3.64", optional = true }

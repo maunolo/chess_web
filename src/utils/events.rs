@@ -35,12 +35,16 @@ impl EventPositionExt for web_sys::TouchEvent {
         let mut touches = self.touches();
         let mut index = 0;
 
+        log::debug!("Touches: {}", touches.length());
+
         if touches.length() == 0 {
             touches = self.changed_touches();
             if touches.length() > 0 {
                 index = touches.length() - 1;
             }
         }
+
+        log::debug!("Changed Touches: {}", touches.length());
 
         if let Some(touch) = touches.get(index) {
             (touch.client_x(), touch.client_y())

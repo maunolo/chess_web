@@ -559,7 +559,29 @@ impl Handler<Move> for ChessServer {
             let chessboard = &mut current_room.chess_board;
             let from_position: Option<Position> = from.parse().ok();
             let to_position: Option<Position> = to.parse().ok();
-            chessboard.move_piece(&piece, from_position, to_position);
+            let current_fen = chessboard.fen.clone();
+            let trash = chessboard.trash_string();
+            if chessboard
+                .move_piece(&piece, from_position, to_position)
+                .is_err()
+            {
+                log::warn!(
+                    "Room: {} -> failed attempt to move piece {} from {} to {}",
+                    session.current_room,
+                    piece,
+                    from,
+                    to
+                );
+                std::thread::sleep(Duration::from_millis(100));
+                self.send_message_to_session(
+                    &id,
+                    &format!(
+                        "/sync_board {}|{}|{}",
+                        session.current_room, current_fen, trash
+                    ),
+                );
+                return;
+            };
             current_room.current_fen = chessboard.fen.clone();
             current_room.trash = chessboard.trash_string();
 
@@ -587,6 +609,13 @@ impl Handler<Reset> for ChessServer {
 
             let current_fen = current_room.current_fen.clone();
             let trash = current_room.trash.clone();
+
+            current_room.chess_board = ChessBoardBuilder::new()
+                .fen(&current_fen)
+                .deleted_stones(&trash)
+                .validation(false)
+                .build()
+                .unwrap();
 
             self.send_message(
                 &session.current_room,

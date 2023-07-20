@@ -2,7 +2,7 @@ use std::collections::BTreeMap;
 
 use leptos::*;
 
-use crate::entities::chess_board::{ChessBoardSignals, StoneSignal};
+use crate::entities::chess_board::signals::{ChessBoardSignals, StoneSignal};
 use crate::handlers::interaction_start;
 
 #[derive(Clone, Copy, PartialEq)]

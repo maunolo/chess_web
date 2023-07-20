@@ -4,7 +4,7 @@ use web_sys::{CloseEvent, Element, ErrorEvent, MessageEvent, WebSocket};
 
 use crate::{
     entities::{
-        chess_board::{ChessBoardBuilder, ChessBoardSignals},
+        chess_board::{signals::ChessBoardSignals, ChessBoardBuilder},
         room::{RoomStatus, User, UserStatus},
     },
     utils::{class_list::ClassListExt, elements::document, WindowExt},

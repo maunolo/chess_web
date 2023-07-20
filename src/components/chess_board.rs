@@ -1,7 +1,7 @@
 use crate::components::board::BoardBackground;
 use crate::components::coordinates::Coordinates;
 use crate::components::trash::{Trash, TrashType};
-use crate::entities::chess_board::{ChessBoardSignals, StoneSignal};
+use crate::entities::chess_board::signals::{ChessBoardSignals, StoneSignal};
 use crate::handlers::interaction_start;
 use leptos::*;
 

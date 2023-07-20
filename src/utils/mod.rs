@@ -8,7 +8,7 @@ pub mod style;
 use cfg_if::cfg_if;
 use serde::{Deserialize, Serialize};
 
-use crate::entities::chess_board::ChessBoardSignals;
+use crate::entities::chess_board::signals::ChessBoardSignals;
 
 #[derive(Serialize, Deserialize, Clone)]
 pub struct SessionPayload {

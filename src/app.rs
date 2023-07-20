@@ -12,7 +12,8 @@ use crate::components::overlay::Overlay;
 
 use crate::components::trash::{Trash, TrashType};
 use crate::entities::chess_board::{
-    ChessBoard as ChessBoardEntity, ChessBoardSignalsBuilder, StonesSignals,
+    signals::{ChessBoardSignalsBuilder, StonesSignals},
+    ChessBoard as ChessBoardEntity,
 };
 use crate::entities::room::RoomStatus;
 use crate::handlers::{interaction_end, interaction_move};

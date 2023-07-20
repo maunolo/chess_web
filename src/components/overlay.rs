@@ -6,7 +6,7 @@ use crate::{
         menu::Menu,
         status_menu::StatusMenu,
     },
-    entities::chess_board::ChessBoardSignals,
+    entities::chess_board::signals::ChessBoardSignals,
     utils::{get_cookie_value, jwt::decode, SessionPayload, WindowExt},
 };
 

@@ -2,7 +2,7 @@ use leptos::*;
 
 use crate::{
     components::overlay::{clear_timeout, get_user_payload, toggle_sub_menu, Form},
-    entities::{chess_board::ChessBoardSignals, room::User},
+    entities::{chess_board::signals::ChessBoardSignals, room::User},
 };
 
 #[component]

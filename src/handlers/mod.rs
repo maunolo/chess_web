@@ -1,6 +1,6 @@
 use leptos::{RwSignal, SignalGetUntracked, SignalUpdate, SignalWithUntracked};
 
-use crate::entities::chess_board::{ChessBoardSignals, StoneSignal};
+use crate::entities::chess_board::signals::{ChessBoardSignals, StoneSignal};
 use crate::entities::position::Position;
 use crate::utils::class_list::ClassListExt;
 use crate::utils::elements::{self, mouse_position_in_bounding, query_selector};

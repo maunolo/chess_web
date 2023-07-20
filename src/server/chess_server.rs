@@ -15,7 +15,7 @@ use std::{
 use actix::prelude::*;
 
 use crate::entities::{
-    chess_board::{ChessBoard, ChessBoardBuilder},
+    chess_board::{self, enums::CastlePosition, turns::Turn, ChessBoard, ChessBoardBuilder},
     position::Position,
 };
 
@@ -53,13 +53,6 @@ pub struct ClientMessage {
     /// Peer message
     pub msg: String,
 }
-
-/// List of available rooms
-// pub struct ListMatches;
-//
-// impl actix::Message for ListMatches {
-//     type Result = Vec<String>;
-// }
 
 /// Join room, if room does not exists create new one.
 #[derive(Message)]
@@ -166,8 +159,10 @@ impl Room {
         let chess_board = ChessBoardBuilder::new()
             .fen(&fen)
             .deleted_stones(&trash)
-            .validation(false)
-            .build()?;
+            .validation(true)
+            .sync(true)
+            .build()
+            .map_err(|_| ())?;
 
         Ok(Self {
             original_fen: fen.clone(),
@@ -556,40 +551,83 @@ impl Handler<Move> for ChessServer {
         };
 
         if let Some(current_room) = self.rooms.get_mut(&session.current_room) {
-            let chessboard = &mut current_room.chess_board;
+            let chess_board = &mut current_room.chess_board;
             let from_position: Option<Position> = from.parse().ok();
             let to_position: Option<Position> = to.parse().ok();
-            let current_fen = chessboard.fen.clone();
-            let trash = chessboard.trash_string();
-            if chessboard
-                .move_piece(&piece, from_position, to_position)
-                .is_err()
-            {
-                log::warn!(
-                    "Room: {} -> failed attempt to move piece {} from {} to {}",
-                    session.current_room,
-                    piece,
-                    from,
-                    to
-                );
-                std::thread::sleep(Duration::from_millis(100));
-                self.send_message_to_session(
-                    &id,
-                    &format!(
-                        "/sync_board {}|{}|{}",
-                        session.current_room, current_fen, trash
-                    ),
-                );
-                return;
-            };
-            current_room.current_fen = chessboard.fen.clone();
-            current_room.trash = chessboard.trash_string();
+            let current_fen = chess_board.fen.clone();
+            let trash = chess_board.trash_string();
+            let mut reactive_move_message = None;
+            match chess_board.move_piece(&piece, from_position, to_position.clone()) {
+                Ok(move_result) => match move_result {
+                    chess_board::enums::Move::Passant => {
+                        let to = to_position.unwrap();
+                        let (piece, passant_pos) = match chess_board.turn {
+                            Turn::White => ("lp", Position::new(to.x, to.y - 1)),
+                            Turn::Black => ("dp", Position::new(to.x, to.y + 1)),
+                        };
+                        reactive_move_message = Some(format!(
+                            "/move {} {} deleted",
+                            piece,
+                            passant_pos.to_string()
+                        ));
+                    }
+                    chess_board::enums::Move::Castle(castle_side) => {
+                        let (old_rook_x, new_rook_x) = match castle_side {
+                            CastlePosition::KingSide => (7, 5),
+                            CastlePosition::QueenSide => (0, 3),
+                        };
+                        let (piece, rook_pos) = match chess_board.turn {
+                            Turn::White => ("dr", Position::new(old_rook_x, 0)),
+                            Turn::Black => ("lr", Position::new(old_rook_x, 7)),
+                        };
+                        reactive_move_message = Some(format!(
+                            "/move {} {} {}",
+                            piece,
+                            rook_pos.to_string(),
+                            Position::new(new_rook_x, rook_pos.y).to_string()
+                        ));
+                    }
+                    chess_board::enums::Move::Promotion(_) => {
+                        reactive_move_message = Some(format!(
+                            "/sync_board {}|{}|{}",
+                            session.current_room,
+                            chess_board.fen.clone(),
+                            chess_board.trash_string()
+                        ));
+                    }
+                    _ => {}
+                },
+                Err(e) => {
+                    log::warn!(
+                        "Room: {} -> failed attempt to move piece {} from {} to {} -> {:?}",
+                        session.current_room,
+                        piece,
+                        from,
+                        to,
+                        e
+                    );
+                    std::thread::sleep(Duration::from_millis(100));
+                    self.send_message_to_session(
+                        &id,
+                        &format!(
+                            "/sync_board {}|{}|{}",
+                            session.current_room, current_fen, trash
+                        ),
+                    );
+                    return;
+                }
+            }
+            current_room.current_fen = chess_board.fen.clone();
+            current_room.trash = chess_board.trash_string();
 
             let move_msg = format!("/move {} {} {}", piece, from, to);
 
             current_room.moves.push(move_msg.clone());
 
             self.send_message(&session.current_room, &move_msg, Some(&id));
+            if let Some(reactive_move_message) = reactive_move_message {
+                self.send_message(&session.current_room, &reactive_move_message, None);
+            }
         };
     }
 }
@@ -613,7 +651,8 @@ impl Handler<Reset> for ChessServer {
             current_room.chess_board = ChessBoardBuilder::new()
                 .fen(&current_fen)
                 .deleted_stones(&trash)
-                .validation(false)
+                .validation(true)
+                .sync(true)
                 .build()
                 .unwrap();
 

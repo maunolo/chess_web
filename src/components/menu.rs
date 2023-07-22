@@ -48,8 +48,30 @@ pub fn Menu(
         }
     };
 
+    let undo = move |_| {
+        if let Some(socket) = chess_board_signals.socket().get().as_ref() {
+            match socket.send_with_str("/undo") {
+                Ok(_) => {}
+                Err(err) => log::error!("Error sending message: {:?}", err),
+            }
+        }
+    };
+
+    let redo = move |_| {
+        if let Some(socket) = chess_board_signals.socket().get().as_ref() {
+            match socket.send_with_str("/redo") {
+                Ok(_) => {}
+                Err(err) => log::error!("Error sending message: {:?}", err),
+            }
+        }
+    };
+
     let join = move |_| {
         show_form.set(Form::Join);
+    };
+
+    let options = move |_| {
+        show_form.set(Form::Options);
     };
 
     view! { cx,
@@ -84,6 +106,27 @@ pub fn Menu(
                 >
                     "Join"
                 </button>
+                <button
+                    class="sub-menu-item"
+                    on:click=options
+                >
+                    "Options"
+                </button>
+                <div class="split-button"
+                >
+                    <button
+                        class="split-button-item"
+                        on:click=undo
+                    >
+                        "Undo"
+                    </button>
+                    <button
+                        class="split-button-item"
+                        on:click=redo
+                    >
+                        "Redo"
+                    </button>
+                </div>
             </div>
         </div>
     }

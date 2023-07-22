@@ -6,7 +6,24 @@ use leptos::{create_rw_signal, RwSignal, Scope};
 pub struct RoomStatus {
     name: String,
     users: BTreeMap<String, RwSignal<User>>,
+    options: ChessBoardOptions,
     cx: Scope,
+}
+
+#[derive(Clone)]
+pub struct ChessBoardOptions {
+    validation: bool,
+    sync: bool,
+}
+
+impl ChessBoardOptions {
+    pub fn validation(&self) -> bool {
+        self.validation
+    }
+
+    pub fn sync(&self) -> bool {
+        self.sync
+    }
 }
 
 #[derive(Clone)]
@@ -104,7 +121,72 @@ impl RoomStatus {
             cx,
             name: name.to_string(),
             users: BTreeMap::new(),
+            options: ChessBoardOptions {
+                validation: false,
+                sync: true,
+            },
         }
+    }
+
+    pub fn options(&self) -> &ChessBoardOptions {
+        &self.options
+    }
+
+    pub fn options_string(&self) -> String {
+        let mut options = String::new();
+
+        if self.options.validation {
+            options.push_str(" validation");
+        }
+
+        if self.options.sync {
+            options.push_str(" sync");
+        }
+
+        options.trim().to_string()
+    }
+
+    pub fn set_options_from_str(&mut self, options: &str) {
+        let mut options = options.split_whitespace();
+
+        let mut validation = false;
+        let mut sync = false;
+
+        while let Some(option) = options.next() {
+            match option {
+                "validation" => validation = true,
+                "sync" => sync = true,
+                _ => (),
+            }
+        }
+
+        if validation {
+            self.enable_validation();
+        } else {
+            self.disable_validation();
+        }
+
+        if sync {
+            self.enable_sync();
+        } else {
+            self.disable_sync();
+        }
+    }
+
+    pub fn enable_validation(&mut self) {
+        self.options.validation = true;
+    }
+
+    pub fn disable_validation(&mut self) {
+        self.options.validation = false;
+    }
+
+    pub fn enable_sync(&mut self) {
+        self.options.sync = true;
+    }
+
+    pub fn disable_sync(&mut self) {
+        self.options.sync = false;
     }
 
     pub fn users_count(&self) -> usize {

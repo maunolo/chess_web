@@ -139,6 +139,13 @@ fn on_message_callback(chess_board_signals: ChessBoardSignals) -> Closure<dyn Fn
                             chess_board_signals.room_status().set(Some(new_room_status));
                         }
                     }
+                    "/sync_options" => {
+                        chess_board_signals.room_status().update(|room_status| {
+                            if let Some(room_status) = room_status {
+                                room_status.set_options_from_str(input);
+                            }
+                        });
+                    }
                     "/add_user" => {
                         let room_status = chess_board_signals.room_status().get_untracked();
 

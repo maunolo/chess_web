@@ -460,129 +460,12 @@ impl ChessBoard {
             self.stones[to.y as usize][to.x as usize] = Some(stone.clone());
             if let Some(old_piece) = old_piece {
                 self.deleted_stones.push(old_piece);
-            }
-            let stone_str = stone.image_class();
+            } 
 
-            log::debug!("Move {} from {:?} to {:?}", stone_str, from, to);
-
-            if self.validation {
-                if self.passant == Some(to.clone()) {
-                    let passant_pos = to.clone();
-                    let passant_stone = match stone.color() {
-                        Color::Light => {
-                            self.take_stone_at(passant_pos.x, passant_pos.y + 1)
-                        }
-                        Color::Dark => {
-                             self.take_stone_at(passant_pos.x, passant_pos.y - 1)
-                        }
-                    };
-                    self.deleted_stones.push(passant_stone.unwrap());
-                    self.passant = None;
-                    result = Move::Passant;
-                } else if stone_str == "lp" && from.y == 6 && to.y == 4 {
-                    self.passant = Some(Position::new(to.x, 5));
-                    result = Move::Normal;
-                } else if stone_str == "dp" && from.y == 1 && to.y == 3 {
-                    self.passant = Some(Position::new(to.x, 2));
-                    result = Move::Normal;
-                } else if stone_str == "lp" && to.y == 0 {
-                    self.passant = None;
-                    let new_stone: Stone = match (PromotionKind::Queen, stone.color()) {
-                        (PromotionKind::Queen, Color::Light) => 'Q'.try_into().unwrap(),
-                        (PromotionKind::Queen, Color::Dark) => 'q'.try_into().unwrap(),
-                        (PromotionKind::Rook, Color::Light) => 'R'.try_into().unwrap(),
-                        (PromotionKind::Rook, Color::Dark) => 'r'.try_into().unwrap(),
-                        (PromotionKind::Bishop, Color::Light) => 'B'.try_into().unwrap(),
-                        (PromotionKind::Bishop, Color::Dark) => 'b'.try_into().unwrap(),
-                        (PromotionKind::Knight, Color::Light) => 'N'.try_into().unwrap(),
-                        (PromotionKind::Knight, Color::Dark) => 'n'.try_into().unwrap(),
-                    };
-                    self.stones[to.y as usize][to.x as usize] = Some(new_stone);
-                    result = Move::Promotion(PromotionKind::Queen);
-                } else if stone_str == "dp" && to.y == 7 {
-                    self.passant = None;
-                    let new_stone: Stone = match (PromotionKind::Queen, stone.color()) {
-                        (PromotionKind::Queen, Color::Light) => 'Q'.try_into().unwrap(),
-                        (PromotionKind::Queen, Color::Dark) => 'q'.try_into().unwrap(),
-                        (PromotionKind::Rook, Color::Light) => 'R'.try_into().unwrap(),
-                        (PromotionKind::Rook, Color::Dark) => 'r'.try_into().unwrap(),
-                        (PromotionKind::Bishop, Color::Light) => 'B'.try_into().unwrap(),
-                        (PromotionKind::Bishop, Color::Dark) => 'b'.try_into().unwrap(),
-                        (PromotionKind::Knight, Color::Light) => 'N'.try_into().unwrap(),
-                        (PromotionKind::Knight, Color::Dark) => 'n'.try_into().unwrap(),
-                    };
-                    self.stones[to.y as usize][to.x as usize] = Some(new_stone);
-                    result = Move::Promotion(PromotionKind::Queen);
-                } else if stone_str == "lk" && from.x == 4 && from.y == 7 && to.x == 6 && to.y == 7 {
-                    let rook = self.take_stone_at(7, 7);
-                    self.stones[7][5] = rook;
-                    self.passant = None;
-                    self.castle_rules.white = CastleOptions::None;
-                    result = Move::Castle(CastlePosition::KingSide);
-                } else if stone_str == "lk" && from.x == 4 && from.y == 7 && to.x == 2 && to.y == 7 {
-                    let rook = self.take_stone_at(0, 7);
-                    self.stones[7][3] = rook;
-                    self.passant = None;
-                    self.castle_rules.white = CastleOptions::None;
-                    result = Move::Castle(CastlePosition::QueenSide);
-                } else if stone_str == "dk" && from.x == 4 && from.y == 0 && to.x == 6 && to.y == 0 {
-                    let rook = self.take_stone_at(7, 0);
-                    self.stones[0][5] = rook;
-                    self.passant = None;
-                    self.castle_rules.black = CastleOptions::None;
-                    result = Move::Castle(CastlePosition::KingSide);
-                } else if stone_str == "dk" && from.x == 4 && from.y == 0 && to.x == 2 && to.y == 0 {
-                    let rook = self.take_stone_at(0, 0);
-                    self.stones[0][3] = rook;
-                    self.passant = None;
-                    self.castle_rules.black = CastleOptions::None;
-                    result = Move::Castle(CastlePosition::QueenSide);
-                } else if stone_str == "lk" {
-                    self.passant = None;
-                    self.castle_rules.white = CastleOptions::None;
-                    result = Move::Normal;
-                } else if stone_str == "dk" {
-                    self.passant = None;
-                    self.castle_rules.black = CastleOptions::None;
-                    result = Move::Normal;
-                } else if stone_str == "lr" && from.x == 0 && from.y == 7 {
-                    self.passant = None;
-                    match self.castle_rules.white {
-                        CastleOptions::BothSides => self.castle_rules.white = CastleOptions::KingSide,
-                        CastleOptions::QueenSide => self.castle_rules.white = CastleOptions::None,
-                        _ => {} 
-                    }
-                    result = Move::Normal;
-                } else if stone_str == "lr" && from.x == 7 && from.y == 7 {
-                    self.passant = None;
-                    match self.castle_rules.white {
-                        CastleOptions::BothSides => self.castle_rules.white = CastleOptions::QueenSide,
-                        CastleOptions::KingSide => self.castle_rules.white = CastleOptions::None,
-                        _ => {} 
-                    }
-                    result = Move::Normal;
-                } else if stone_str == "dr" && from.x == 0 && from.y == 0 {
-                    self.passant = None;
-                    match self.castle_rules.black {
-                        CastleOptions::BothSides => self.castle_rules.black = CastleOptions::KingSide,
-                        CastleOptions::QueenSide => self.castle_rules.black = CastleOptions::None,
-                        _ => {} 
-                    }
-                    result = Move::Normal;
-                } else if stone_str == "dr" && from.x == 7 && from.y == 0 {
-                    self.passant = None;
-                    match self.castle_rules.black {
-                        CastleOptions::BothSides => self.castle_rules.black = CastleOptions::QueenSide,
-                        CastleOptions::KingSide => self.castle_rules.black = CastleOptions::None,
-                        _ => {} 
-                    }
-                    result = Move::Normal;
-                } else {
-                    self.passant = None;
-                    result = Move::Normal; 
-                }
+            result = if self.validation {
+                self.apply_move_validation_and_effects((&stone, &from, &to))
             } else {
-                result = Move::Normal;
+                Move::Normal
             }
         }
 
@@ -593,6 +476,133 @@ impl ChessBoard {
         }
 
         Ok(result)
+    }
+
+    pub fn apply_move_validation_and_effects(&mut self, stone_move: (&Stone, &Position, &Position)) -> Move {
+        match stone_move {
+            (stone, _, to) if Some(to.clone()) == self.passant => {
+                let passant_pos = to.clone();
+                let passant_stone = match stone.color() {
+                    Color::Light => {
+                        self.take_stone_at(passant_pos.x, passant_pos.y + 1)
+                    }
+                    Color::Dark => {
+                        self.take_stone_at(passant_pos.x, passant_pos.y - 1)
+                    }
+                };
+                self.deleted_stones.push(passant_stone.unwrap());
+                self.passant = None;
+                Move::Passant
+            }
+            (stone, from, to) if stone.as_str() == "lp" && from.y == 6 && to.y == 4 => {
+                self.passant = Some(Position::new(to.x, 5));
+                Move::Normal
+            }
+            (stone, from, to) if stone.as_str() == "dp" && from.y == 1 && to.y == 3 => {
+                self.passant = Some(Position::new(to.x, 2));
+                Move::Normal
+            }
+            (stone, _, to) if stone.as_str() == "lp" && to.y == 0 => {
+                self.passant = None;
+                let new_stone: Stone = match PromotionKind::Queen {
+                    PromotionKind::Queen => 'Q'.try_into().unwrap(),
+                    PromotionKind::Rook => 'R'.try_into().unwrap(),
+                    PromotionKind::Bishop => 'B'.try_into().unwrap(),
+                    PromotionKind::Knight => 'N'.try_into().unwrap(),
+                };
+                self.stones[to.y as usize][to.x as usize] = Some(new_stone);
+                Move::Promotion(PromotionKind::Queen)
+            }
+            (stone, _, to) if stone.as_str() == "dp" && to.y == 7 => {
+                self.passant = None;
+                let new_stone: Stone = match PromotionKind::Queen {
+                    PromotionKind::Queen => 'q'.try_into().unwrap(),
+                    PromotionKind::Rook => 'r'.try_into().unwrap(),
+                    PromotionKind::Bishop => 'b'.try_into().unwrap(),
+                    PromotionKind::Knight => 'n'.try_into().unwrap(),
+                };
+                self.stones[to.y as usize][to.x as usize] = Some(new_stone);
+                Move::Promotion(PromotionKind::Queen)
+            }
+            (stone, from, to) if stone.as_str() == "lk" && from.x == 4 && from.y == 7 && to.x == 6 && to.y == 7 => {
+                let rook = self.take_stone_at(7, 7);
+                self.stones[7][5] = rook;
+                self.passant = None;
+                self.castle_rules.white = CastleOptions::None;
+                Move::Castle(CastlePosition::KingSide)
+            }
+            (stone, from, to) if stone.as_str() == "lk" && from.x == 4 && from.y == 7 && to.x == 2 && to.y == 7 => {
+                let rook = self.take_stone_at(0, 7);
+                self.stones[7][3] = rook;
+                self.passant = None;
+                self.castle_rules.white = CastleOptions::None;
+                Move::Castle(CastlePosition::QueenSide)
+            }
+            (stone, from, to) if stone.as_str() == "dk" && from.x == 4 && from.y == 0 && to.x == 6 && to.y == 0 => {
+                let rook = self.take_stone_at(7, 0);
+                self.stones[0][5] = rook;
+                self.passant = None;
+                self.castle_rules.black = CastleOptions::None;
+                Move::Castle(CastlePosition::KingSide)              
+            }
+            (stone, from, to) if stone.as_str() == "dk" && from.x == 4 && from.y == 0 && to.x == 2 && to.y == 0 => {
+                let rook = self.take_stone_at(0, 0);
+                self.stones[0][3] = rook;
+                self.passant = None;
+                self.castle_rules.black = CastleOptions::None;
+                Move::Castle(CastlePosition::QueenSide)      
+            }
+            (stone, _, _) if stone.as_str() == "lk" => {
+                self.passant = None;
+                self.castle_rules.white = CastleOptions::None;
+                Move::Normal
+            }
+            (stone, _, _) if stone.as_str() == "dk" => {
+                self.passant = None;
+                self.castle_rules.white = CastleOptions::None;
+                Move::Normal
+            }
+            (stone, from, _) if stone.as_str() == "lr" && from.x == 0 && from.y == 7 => {
+                self.passant = None;
+                match self.castle_rules.white {
+                    CastleOptions::BothSides => self.castle_rules.white = CastleOptions::KingSide,
+                    CastleOptions::QueenSide => self.castle_rules.white = CastleOptions::None,
+                    _ => {} 
+                }
+                Move::Normal
+            }
+            (stone, from, _) if stone.as_str() == "lr" && from.x == 7 && from.y == 7 => {
+                self.passant = None;
+                match self.castle_rules.white {
+                    CastleOptions::BothSides => self.castle_rules.white = CastleOptions::QueenSide,
+                    CastleOptions::KingSide => self.castle_rules.white = CastleOptions::None,
+                    _ => {} 
+                }
+                Move::Normal
+            }
+            (stone, from, _) if stone.as_str() == "dr" && from.x == 0 && from.y == 0 => {
+                self.passant = None;
+                match self.castle_rules.black {
+                    CastleOptions::BothSides => self.castle_rules.black = CastleOptions::KingSide,
+                    CastleOptions::QueenSide => self.castle_rules.black = CastleOptions::None,
+                    _ => {} 
+                }
+                Move::Normal
+            }
+            (stone, from, _) if stone.as_str() == "dr" && from.x == 7 && from.y == 0 => {
+                self.passant = None;
+                match self.castle_rules.black {
+                    CastleOptions::BothSides => self.castle_rules.black = CastleOptions::QueenSide,
+                    CastleOptions::KingSide => self.castle_rules.black = CastleOptions::None,
+                    _ => {} 
+                }
+                Move::Normal
+            }
+            _ => {
+                self.passant = None;
+                Move::Normal
+            }
+        }
     }
 
     pub fn sync_fen(&mut self) {

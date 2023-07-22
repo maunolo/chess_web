@@ -2,7 +2,7 @@ use leptos::*;
 
 use crate::{
     components::{
-        forms::{join::Join, username::Username},
+        forms::{join::Join, options::Options, username::Username},
         menu::Menu,
         status_menu::StatusMenu,
     },
@@ -16,6 +16,7 @@ pub enum Form {
     None,
     Join,
     Username,
+    Options,
 }
 
 pub fn toggle_sub_menu(
@@ -117,6 +118,56 @@ pub fn Overlay(cx: Scope, chess_board_signals: ChessBoardSignals) -> impl IntoVi
         show_form.set(Form::None);
     };
 
+    let options_submit = move |e: web_sys::SubmitEvent| {
+        e.prevent_default();
+        let target = e.target().unwrap();
+        let form = crate::utils::js_cast::<web_sys::HtmlFormElement, _>(target);
+
+        if let Some(form) = form {
+            let data = web_sys::FormData::new_with_form(&form).unwrap();
+            let validation = data
+                .get("validation")
+                .as_string()
+                .map(|s| s == "on")
+                .unwrap_or(false);
+            let sync = data
+                .get("sync")
+                .as_string()
+                .map(|s| s == "on")
+                .unwrap_or(false);
+            log::debug!("validation: {:?}, sync: {:?}", validation, sync);
+            chess_board_signals.room_status().update(|status| {
+                if let Some(status) = status.as_mut() {
+                    if validation {
+                        status.enable_validation();
+                    } else {
+                        status.disable_validation();
+                    }
+
+                    if sync {
+                        status.enable_sync();
+                    } else {
+                        status.disable_sync();
+                    }
+                };
+            });
+
+            let options_msg = chess_board_signals.room_status().with_untracked(|rs| {
+                rs.as_ref()
+                    .map(|rs| rs.options_string())
+                    .unwrap_or_default()
+            });
+
+            if let Some(socket) = chess_board_signals.socket().get().as_ref() {
+                match socket.send_with_str(&format!("/options {}", options_msg)) {
+                    Ok(_) => {}
+                    Err(err) => log::error!("error sending message: {:?}", err),
+                }
+            }
+            show_form.set(Form::None);
+        }
+    };
+
     let form_view = move || {
         if !matches!(show_form.get(), Form::None) {
             view! { cx,
@@ -134,6 +185,13 @@ pub fn Overlay(cx: Scope, chess_board_signals: ChessBoardSignals) -> impl IntoVi
                                 view! { cx,
                                     <>
                                         <Username submit=username_submit/>
+                                    </>
+                                }
+                            }
+                            Form::Options => {
+                                view! { cx,
+                                    <>
+                                        <Options chess_board_signals=chess_board_signals submit=options_submit/>
                                     </>
                                 }
                             }

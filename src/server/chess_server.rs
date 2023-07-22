@@ -17,6 +17,7 @@ use actix::prelude::*;
 use crate::entities::{
     chess_board::{self, enums::CastlePosition, turns::Turn, ChessBoard, ChessBoardBuilder},
     position::Position,
+    stone::Stone,
 };
 
 use super::websockets::session::WsChessSession;
@@ -88,9 +89,29 @@ pub struct Reset {
 
 #[derive(Message, Clone)]
 #[rtype(result = "()")]
+pub struct Undo {
+    pub id: String,
+}
+
+#[derive(Message, Clone)]
+#[rtype(result = "()")]
+pub struct Redo {
+    pub id: String,
+}
+
+#[derive(Message, Clone)]
+#[rtype(result = "()")]
 pub struct UserSync {
     pub id: String,
     pub name: String,
+}
+
+#[derive(Message, Clone)]
+#[rtype(result = "()")]
+pub struct Options {
+    pub id: String,
+    pub validation: bool,
+    pub sync: bool,
 }
 
 /// `ChessServer` manages chat rooms and responsible for coordinating chat session.
@@ -139,16 +160,30 @@ impl User {
     }
 }
 
+#[derive(Clone, Debug)]
+pub struct MoveResult {
+    pub from: Option<Position>,
+    pub to: Option<Position>,
+    pub stone: Stone,
+    pub chess_board_move: chess_board::enums::Move,
+    pub msg: String,
+    pub previous_fen: String,
+    pub previous_trash: String,
+    pub current_fen: String,
+    pub current_trash: String,
+}
+
 #[derive(Debug)]
 pub struct Room {
     original_fen: String,
     current_fen: String,
     chess_board: ChessBoard,
-    moves: Vec<String>,
+    moves: Vec<MoveResult>,
     sessions: HashMap<String, User>,
     original_trash: String,
     trash: String,
     empty_at: Option<Instant>,
+    current_move_index: Option<usize>,
 }
 
 impl Room {
@@ -159,7 +194,7 @@ impl Room {
         let chess_board = ChessBoardBuilder::new()
             .fen(&fen)
             .deleted_stones(&trash)
-            .validation(true)
+            .validation(false)
             .sync(true)
             .build()
             .map_err(|_| ())?;
@@ -173,6 +208,7 @@ impl Room {
             trash: trash.clone(),
             original_trash: trash,
             empty_at: Some(Instant::now()),
+            current_move_index: None,
         })
     }
 
@@ -206,6 +242,80 @@ impl Room {
             .values()
             .map(|user| user.to_string())
             .collect()
+    }
+
+    pub fn options_string(&self) -> String {
+        let validation = self.chess_board.validation;
+        let sync = self.chess_board.sync;
+        let mut str = String::new();
+
+        if validation {
+            str.push_str(" validation");
+        }
+
+        if sync {
+            str.push_str(" sync");
+        }
+
+        str.trim().to_string()
+    }
+
+    pub fn push_move(&mut self, result: MoveResult) {
+        self.moves.push(result);
+        match self.current_move_index {
+            Some(_) => {
+                self.current_move_index = Some(self.moves.len() - 1);
+            }
+            None => {
+                self.current_move_index = Some(0);
+            }
+        }
+    }
+
+    pub fn get_move(&self, idx: &usize) -> Option<MoveResult> {
+        self.moves.get(idx.clone()).cloned()
+    }
+
+    pub fn undo_move(&mut self) -> Result<MoveResult, ()> {
+        if let Some(i) = self.current_move_index {
+            let result = self.get_move(&i);
+
+            if i > 0 {
+                self.current_move_index = Some(i - 1);
+            } else {
+                self.current_move_index = None;
+            }
+
+            result.ok_or(())
+        } else {
+            Err(())
+        }
+    }
+
+    pub fn redo_move(&mut self) -> Result<MoveResult, ()> {
+        if self.current_move_index.map(|i| i as isize).unwrap_or(-1) < self.moves.len() as isize - 1
+        {
+            match self.current_move_index {
+                Some(i) => {
+                    self.current_move_index = Some(i + 1);
+                }
+                None => {
+                    self.current_move_index = Some(0);
+                }
+            }
+
+            self.get_move(&self.current_move_index.unwrap()).ok_or(())
+        } else {
+            Err(())
+        }
+    }
+
+    pub fn truncate_moves_on_current_move(&mut self) {
+        if let Some(i) = self.current_move_index {
+            self.moves.truncate(i + 1);
+        } else {
+            self.moves.truncate(0);
+        }
     }
 }
 
@@ -378,6 +488,7 @@ impl Handler<Connect> for ChessServer {
                 let current_fen = current_room.current_fen.clone();
                 let trash = current_room.trash.clone();
                 let users = current_room.usernames().join(",");
+                let options_str = current_room.options_string();
 
                 // send message to all users in the room
                 self.send_message(
@@ -393,6 +504,8 @@ impl Handler<Connect> for ChessServer {
                 );
                 // sync users
                 self.send_message_to_session(&id, &format!("/sync_users {}|{}", room_name, users));
+                // sync options
+                self.send_message_to_session(&id, &format!("/sync_options {}", options_str));
             }
         } else {
             let room_name = "main".to_string();
@@ -411,6 +524,7 @@ impl Handler<Connect> for ChessServer {
             let current_fen = current_room.current_fen.clone();
             let trash = current_room.trash.clone();
             let users = current_room.usernames().join(",");
+            let options_str = current_room.options_string();
 
             let count = self.visitor_count.fetch_add(1, Ordering::SeqCst);
             self.send_message(&room_name, &format!("Total visitors {count}"), None);
@@ -425,6 +539,8 @@ impl Handler<Connect> for ChessServer {
             );
             // sync users
             self.send_message_to_session(&id, &format!("/sync_users {}|{}", room_name, users));
+            // sync options
+            self.send_message_to_session(&id, &format!("/sync_options {}", options_str));
         }
     }
 }
@@ -516,6 +632,7 @@ impl Handler<Join> for ChessServer {
         let current_fen = current_room.current_fen.clone();
         let trash = current_room.trash.clone();
         let users = current_room.usernames().join(",");
+        let options_str = current_room.options_string();
 
         // send message to all users in all rooms
         for (room_name, message) in rooms {
@@ -528,6 +645,8 @@ impl Handler<Join> for ChessServer {
         );
         // sync users
         self.send_message_to_session(&id, &format!("/sync_users {}|{}", name, users));
+        // sync options
+        self.send_message_to_session(&id, &format!("/sync_options {}", options_str));
 
         // notify all users in room
         self.send_message(&name, &format!("/add_user {}", user_string), Some(&id));
@@ -556,47 +675,60 @@ impl Handler<Move> for ChessServer {
             let to_position: Option<Position> = to.parse().ok();
             let current_fen = chess_board.fen.clone();
             let trash = chess_board.trash_string();
-            let mut reactive_move_message = None;
-            match chess_board.move_piece(&piece, from_position, to_position.clone()) {
-                Ok(move_result) => match move_result {
-                    chess_board::enums::Move::Passant => {
-                        let to = to_position.unwrap();
-                        let (piece, passant_pos) = match chess_board.turn {
-                            Turn::White => ("lp", Position::new(to.x, to.y - 1)),
-                            Turn::Black => ("dp", Position::new(to.x, to.y + 1)),
-                        };
-                        reactive_move_message = Some(format!(
-                            "/move {} {} deleted",
-                            piece,
-                            passant_pos.to_string()
-                        ));
+            let mut reactive_move_message = (0, None);
+            let chess_board_move_result;
+            match chess_board.move_piece(&piece, from_position.clone(), to_position.clone()) {
+                Ok(move_result) => {
+                    chess_board_move_result = Some(move_result.clone());
+                    match move_result {
+                        chess_board::enums::Move::Passant => {
+                            let to = to_position.clone().unwrap();
+                            let (piece, passant_pos) = match chess_board.turn {
+                                Turn::White => ("lp", Position::new(to.x, to.y - 1)),
+                                Turn::Black => ("dp", Position::new(to.x, to.y + 1)),
+                            };
+                            reactive_move_message = (
+                                0,
+                                Some(format!(
+                                    "/move {} {} deleted",
+                                    piece,
+                                    passant_pos.to_string()
+                                )),
+                            );
+                        }
+                        chess_board::enums::Move::Castle(castle_side) => {
+                            let (old_rook_x, new_rook_x) = match castle_side {
+                                CastlePosition::KingSide => (7, 5),
+                                CastlePosition::QueenSide => (0, 3),
+                            };
+                            let (piece, rook_pos) = match chess_board.turn {
+                                Turn::White => ("dr", Position::new(old_rook_x, 0)),
+                                Turn::Black => ("lr", Position::new(old_rook_x, 7)),
+                            };
+                            reactive_move_message = (
+                                0,
+                                Some(format!(
+                                    "/move {} {} {}",
+                                    piece,
+                                    rook_pos.to_string(),
+                                    Position::new(new_rook_x, rook_pos.y).to_string()
+                                )),
+                            );
+                        }
+                        chess_board::enums::Move::Promotion(_) => {
+                            reactive_move_message = (
+                                200,
+                                Some(format!(
+                                    "/sync_board {}|{}|{}",
+                                    session.current_room,
+                                    chess_board.fen.clone(),
+                                    chess_board.trash_string()
+                                )),
+                            );
+                        }
+                        _ => {}
                     }
-                    chess_board::enums::Move::Castle(castle_side) => {
-                        let (old_rook_x, new_rook_x) = match castle_side {
-                            CastlePosition::KingSide => (7, 5),
-                            CastlePosition::QueenSide => (0, 3),
-                        };
-                        let (piece, rook_pos) = match chess_board.turn {
-                            Turn::White => ("dr", Position::new(old_rook_x, 0)),
-                            Turn::Black => ("lr", Position::new(old_rook_x, 7)),
-                        };
-                        reactive_move_message = Some(format!(
-                            "/move {} {} {}",
-                            piece,
-                            rook_pos.to_string(),
-                            Position::new(new_rook_x, rook_pos.y).to_string()
-                        ));
-                    }
-                    chess_board::enums::Move::Promotion(_) => {
-                        reactive_move_message = Some(format!(
-                            "/sync_board {}|{}|{}",
-                            session.current_room,
-                            chess_board.fen.clone(),
-                            chess_board.trash_string()
-                        ));
-                    }
-                    _ => {}
-                },
+                }
                 Err(e) => {
                     log::warn!(
                         "Room: {} -> failed attempt to move piece {} from {} to {} -> {:?}",
@@ -621,11 +753,23 @@ impl Handler<Move> for ChessServer {
             current_room.trash = chess_board.trash_string();
 
             let move_msg = format!("/move {} {} {}", piece, from, to);
-
-            current_room.moves.push(move_msg.clone());
+            let move_result = MoveResult {
+                stone: piece.parse().unwrap(),
+                from: from_position,
+                to: to_position,
+                chess_board_move: chess_board_move_result.unwrap(),
+                msg: move_msg.clone(),
+                previous_fen: current_fen,
+                previous_trash: trash,
+                current_fen: current_room.current_fen.clone(),
+                current_trash: current_room.trash.clone(),
+            };
+            current_room.truncate_moves_on_current_move();
+            current_room.push_move(move_result);
 
             self.send_message(&session.current_room, &move_msg, Some(&id));
-            if let Some(reactive_move_message) = reactive_move_message {
+            if let (timeout, Some(reactive_move_message)) = reactive_move_message {
+                std::thread::sleep(Duration::from_millis(timeout));
                 self.send_message(&session.current_room, &reactive_move_message, None);
             }
         };
@@ -668,6 +812,104 @@ impl Handler<Reset> for ChessServer {
     }
 }
 
+impl Handler<Undo> for ChessServer {
+    type Result = ();
+
+    fn handle(&mut self, msg: Undo, _: &mut Self::Context) -> Self::Result {
+        let Undo { id } = msg.clone();
+
+        let Some(session) = self.sessions.get(&id) else {
+            log::error!("No user found for id {}", id);
+            return;
+        };
+
+        if let Some(current_room) = self.rooms.get_mut(&session.current_room) {
+            let msg;
+
+            match current_room.undo_move() {
+                Ok(move_result) => {
+                    msg = format!(
+                        "/sync_board {}|{}|{}",
+                        session.current_room, move_result.previous_fen, move_result.previous_trash
+                    );
+                    current_room.current_fen = move_result.previous_fen;
+                    current_room.trash = move_result.previous_trash;
+                    current_room.chess_board = ChessBoardBuilder::new()
+                        .fen(&current_room.current_fen)
+                        .deleted_stones(&current_room.trash)
+                        .validation(current_room.chess_board.validation)
+                        .sync(current_room.chess_board.sync)
+                        .build()
+                        .unwrap();
+                }
+                Err(_) => {
+                    log::warn!(
+                        "Room: {} -> failed attempt to undo move",
+                        session.current_room
+                    );
+                    msg = format!(
+                        "/sync_board {}|{}|{}",
+                        session.current_room, current_room.current_fen, current_room.trash
+                    );
+                }
+            };
+
+            self.send_message(&session.current_room, &msg, None);
+        } else {
+            log::error!("No room found with name {}", session.current_room);
+        }
+    }
+}
+
+impl Handler<Redo> for ChessServer {
+    type Result = ();
+
+    fn handle(&mut self, msg: Redo, _: &mut Self::Context) -> Self::Result {
+        let Redo { id } = msg.clone();
+
+        let Some(session) = self.sessions.get(&id) else {
+            log::error!("No user found for id {}", id);
+            return;
+        };
+
+        if let Some(current_room) = self.rooms.get_mut(&session.current_room) {
+            let msg;
+
+            match current_room.redo_move() {
+                Ok(move_result) => {
+                    msg = format!(
+                        "/sync_board {}|{}|{}",
+                        session.current_room, move_result.current_fen, move_result.current_trash
+                    );
+                    current_room.current_fen = move_result.current_fen;
+                    current_room.trash = move_result.current_trash;
+                    current_room.chess_board = ChessBoardBuilder::new()
+                        .fen(&current_room.current_fen)
+                        .deleted_stones(&current_room.trash)
+                        .validation(current_room.chess_board.validation)
+                        .sync(current_room.chess_board.sync)
+                        .build()
+                        .unwrap();
+                }
+                Err(_) => {
+                    log::warn!(
+                        "Room: {} -> failed attempt to redo move",
+                        session.current_room
+                    );
+                    msg = format!(
+                        "/sync_board {}|{}|{}",
+                        session.current_room, current_room.current_fen, current_room.trash
+                    );
+                }
+            };
+
+            self.send_message(&session.current_room, &msg, None);
+        } else {
+            log::error!("No room found with name {}", session.current_room);
+        }
+    }
+}
+
 impl Handler<UserSync> for ChessServer {
     type Result = ();
 
@@ -703,5 +945,45 @@ impl Handler<UserSync> for ChessServer {
             );
         };
         addr.do_send(msg);
+    }
+}
+
+impl Handler<Options> for ChessServer {
+    type Result = ();
+
+    fn handle(&mut self, msg: Options, _: &mut Self::Context) -> Self::Result {
+        let Some(session) = self.sessions.get(&msg.id) else {
+            log::error!("No user found for id {}", msg.id);
+            return;
+        };
+
+        let Some(current_room) = self.rooms.get_mut(&session.current_room) else {
+            log::error!("No room found with name {}", session.current_room);
+            return;
+        };
+
+        let new_chess_board = ChessBoardBuilder::new()
+            .fen(&current_room.current_fen)
+            .deleted_stones(&current_room.trash)
+            .validation(msg.validation)
+            .sync(msg.sync)
+            .build();
+
+        let result_msg;
+
+        if let Ok(chess_board) = new_chess_board {
+            current_room.chess_board = chess_board;
+
+            result_msg = current_room.options_string();
+        } else {
+            log::warn!("Invalid options for room {}", session.current_room);
+            return;
+        }
+
+        self.send_message(
+            &session.current_room,
+            &format!("/sync_options {}", result_msg),
+            None,
+        );
     }
 }

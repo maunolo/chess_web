@@ -170,6 +170,10 @@ impl Stone {
         self.kind
     }
 
+    pub fn as_str(&self) -> &str {
+        &self.image_class
+    }
+
     pub fn image_class(&self) -> String {
         self.image_class.clone()
     }

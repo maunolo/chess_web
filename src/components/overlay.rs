@@ -135,7 +135,6 @@ pub fn Overlay(cx: Scope, chess_board_signals: ChessBoardSignals) -> impl IntoVi
                 .as_string()
                 .map(|s| s == "on")
                 .unwrap_or(false);
-            log::debug!("validation: {:?}, sync: {:?}", validation, sync);
             chess_board_signals.room_status().update(|status| {
                 if let Some(status) = status.as_mut() {
                     if validation {

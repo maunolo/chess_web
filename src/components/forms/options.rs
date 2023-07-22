@@ -61,7 +61,7 @@ where
                 </label>
                 <label>"Sync"</label>
             </div>
-            <button class="border border-gray-400 rounded py-2 px-4 m-2" type="submit">
+            <button class="border border-gray-400 rounded py-2 px-4 m-2 mt-6" type="submit">
                 "Apply"
             </button>
         </form>

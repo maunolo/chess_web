@@ -786,19 +786,22 @@ impl Handler<Reset> for ChessServer {
         };
 
         if let Some(current_room) = self.rooms.get_mut(&session.current_room) {
+            let Ok(chess_board) = ChessBoardBuilder::new()
+                .fen(&current_room.original_fen)
+                .deleted_stones(&current_room.original_trash)
+                .validation(current_room.chess_board.validation)
+                .sync(current_room.chess_board.sync)
+                .build() else {
+                    log::error!("Failed to reset board for room {}", session.current_room);
+                    return;
+                };
             current_room.current_fen = current_room.original_fen.clone();
             current_room.trash = current_room.original_trash.to_owned();
+            current_room.current_move_index = None;
+            current_room.chess_board = chess_board;
 
             let current_fen = current_room.current_fen.clone();
             let trash = current_room.trash.clone();
-
-            current_room.chess_board = ChessBoardBuilder::new()
-                .fen(&current_fen)
-                .deleted_stones(&trash)
-                .validation(true)
-                .sync(true)
-                .build()
-                .unwrap();
 
             self.send_message(
                 &session.current_room,
@@ -832,15 +835,18 @@ impl Handler<Undo> for ChessServer {
                         "/sync_board {}|{}|{}",
                         session.current_room, move_result.previous_fen, move_result.previous_trash
                     );
-                    current_room.current_fen = move_result.previous_fen;
-                    current_room.trash = move_result.previous_trash;
-                    current_room.chess_board = ChessBoardBuilder::new()
-                        .fen(&current_room.current_fen)
-                        .deleted_stones(&current_room.trash)
+                    let Ok(chess_board) = ChessBoardBuilder::new()
+                        .fen(&move_result.previous_fen)
+                        .deleted_stones(&move_result.previous_trash)
                         .validation(current_room.chess_board.validation)
                         .sync(current_room.chess_board.sync)
-                        .build()
-                        .unwrap();
+                        .build() else {
+                            log::error!("Failed to undo board for room {}", session.current_room);
+                            return;
+                        };
+                    current_room.current_fen = move_result.previous_fen;
+                    current_room.trash = move_result.previous_trash;
+                    current_room.chess_board = chess_board;
                 }
                 Err(_) => {
                     log::warn!(
@@ -881,15 +887,19 @@ impl Handler<Redo> for ChessServer {
                         "/sync_board {}|{}|{}",
                         session.current_room, move_result.current_fen, move_result.current_trash
                     );
-                    current_room.current_fen = move_result.current_fen;
-                    current_room.trash = move_result.current_trash;
-                    current_room.chess_board = ChessBoardBuilder::new()
-                        .fen(&current_room.current_fen)
-                        .deleted_stones(&current_room.trash)
+                    let Ok(chess_board) = ChessBoardBuilder::new()
+                        .fen(&move_result.current_fen)
+                        .deleted_stones(&move_result.current_trash)
                         .validation(current_room.chess_board.validation)
                         .sync(current_room.chess_board.sync)
-                        .build()
-                        .unwrap();
+                        .build() else {
+                            log::error!("Failed to redo board for room {}", session.current_room);
+                            return;
+                        };
+
+                    current_room.current_fen = move_result.current_fen;
+                    current_room.trash = move_result.current_trash;
+                    current_room.chess_board = chess_board;
                 }
                 Err(_) => {
                     log::warn!(
@@ -977,7 +987,8 @@ impl Handler<Options> for ChessServer {
             result_msg = current_room.options_string();
         } else {
             log::warn!("Invalid options for room {}", session.current_room);
-            return;
+
+            result_msg = current_room.options_string();
         }
 
         self.send_message(

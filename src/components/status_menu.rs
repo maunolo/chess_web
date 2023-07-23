@@ -137,6 +137,7 @@ pub fn StatusMenu(
                 <button
                     class=status_menu_btn_css
                     on:click=toggle_status_menu
+                    aria-label="Status Menu"
                 >
                     <span class="circle">
                         <span class="circle-inner">{move || users().len()}</span>
@@ -145,6 +146,7 @@ pub fn StatusMenu(
                 <button
                     class=status_refresh_btn_css
                     on:click=start_websocket
+                    aria-label="Refresh Status"
                 >
                     <svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" version="1.1" id="Capa_1" x="0px" y="0px" viewBox="0 0 513.806 513.806" style="enable-background:new 0 0 513.806 513.806;" xml:space="preserve" width="512" height="512">
                         <g>

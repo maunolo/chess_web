@@ -80,6 +80,7 @@ pub fn Menu(
                 <button
                     class=menu_btn_css
                     on:click=toggle_menu
+                    aria-label="Menu"
                 >
                     <span class="line"></span>
                 </button>

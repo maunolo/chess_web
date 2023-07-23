@@ -25,6 +25,7 @@ pub fn App(cx: Scope) -> impl IntoView {
     let app_title = env!("APP_TITLE");
 
     view! { cx,
+        <Html lang="en"/>
         <Stylesheet id="leptos" href="/style.css"/>
         <Title text=app_title/>
         <Link rel="shortcut icon" type_="image/ico" href="/favicon.ico"/>

@@ -4,6 +4,7 @@ use crate::{
     components::{
         forms::{join::Join, options::Options, username::Username},
         menu::Menu,
+        notifications::Notifications,
         status_menu::StatusMenu,
     },
     entities::chess_board::signals::ChessBoardSignals,
@@ -212,6 +213,7 @@ pub fn Overlay(cx: Scope, chess_board_signals: ChessBoardSignals) -> impl IntoVi
 
     view! { cx,
         <>
+            <Notifications chess_board_signals=chess_board_signals />
             <Menu show_form=show_form chess_board_signals=chess_board_signals />
             <StatusMenu show_form=show_form chess_board_signals=chess_board_signals />
             {form_view}

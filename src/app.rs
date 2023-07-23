@@ -15,6 +15,7 @@ use crate::entities::chess_board::{
     signals::{ChessBoardSignalsBuilder, StonesSignals},
     ChessBoard as ChessBoardEntity,
 };
+use crate::entities::notification::{Notification, NotifyType};
 use crate::entities::room::RoomStatus;
 use crate::handlers::{interaction_end, interaction_move};
 
@@ -54,6 +55,7 @@ fn Home(cx: Scope) -> impl IntoView {
     let chess_board_socket = create_rw_signal::<Option<web_sys::WebSocket>>(cx, None);
     let room_status = create_rw_signal::<Option<RoomStatus>>(cx, None);
     let stones_signals = create_rw_signal::<StonesSignals>(cx, StonesSignals::new());
+    let notification = create_rw_signal(cx, Notification::new("".to_string(), NotifyType::Success));
 
     let chess_board_signals = ChessBoardSignalsBuilder::new()
         .cx(cx)
@@ -62,6 +64,7 @@ fn Home(cx: Scope) -> impl IntoView {
         .chess_board_socket(chess_board_socket)
         .stones_signals(stones_signals)
         .should_render(should_render)
+        .notification(notification)
         .build()
         .unwrap();
 

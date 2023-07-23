@@ -621,7 +621,7 @@ impl Handler<Join> for ChessServer {
             current_room.unwrap()
         } else {
             let Ok(room) = Room::new(fen.clone(), trash.clone()) else {
-                log::warn!("Failed to create room {}|{}", fen.unwrap_or("".to_owned()), trash.unwrap_or("".to_owned()));
+                self.send_message_to_session(&id, "/notify error Failed to create room");
                 return;
             };
             self.rooms.entry(name.clone()).or_insert_with(|| room)
@@ -647,6 +647,8 @@ impl Handler<Join> for ChessServer {
         self.send_message_to_session(&id, &format!("/sync_users {}|{}", name, users));
         // sync options
         self.send_message_to_session(&id, &format!("/sync_options {}", options_str));
+        // notify user
+        self.send_message_to_session(&id, &format!("/notify success Joined room {}", name));
 
         // notify all users in room
         self.send_message(&name, &format!("/add_user {}", user_string), Some(&id));
@@ -792,7 +794,7 @@ impl Handler<Reset> for ChessServer {
                 .validation(current_room.chess_board.validation)
                 .sync(current_room.chess_board.sync)
                 .build() else {
-                    log::error!("Failed to reset board for room {}", session.current_room);
+                    self.send_message_to_session(&msg.id, "/notify error Failed to reset board");
                     return;
                 };
             current_room.current_fen = current_room.original_fen.clone();
@@ -841,7 +843,7 @@ impl Handler<Undo> for ChessServer {
                         .validation(current_room.chess_board.validation)
                         .sync(current_room.chess_board.sync)
                         .build() else {
-                            log::error!("Failed to undo board for room {}", session.current_room);
+                            self.send_message_to_session(&id, "/notify error Failed to undo move");
                             return;
                         };
                     current_room.current_fen = move_result.previous_fen;
@@ -849,14 +851,10 @@ impl Handler<Undo> for ChessServer {
                     current_room.chess_board = chess_board;
                 }
                 Err(_) => {
-                    log::warn!(
-                        "Room: {} -> failed attempt to undo move",
-                        session.current_room
-                    );
-                    msg = format!(
-                        "/sync_board {}|{}|{}",
-                        session.current_room, current_room.current_fen, current_room.trash
-                    );
+                    let fen = current_room.current_fen.clone();
+                    let trash = current_room.trash.clone();
+                    self.send_message_to_session(&id, "/notify warning No more moves to undo");
+                    msg = format!("/sync_board {}|{}|{}", session.current_room, fen, trash);
                 }
             };
 
@@ -893,7 +891,7 @@ impl Handler<Redo> for ChessServer {
                         .validation(current_room.chess_board.validation)
                         .sync(current_room.chess_board.sync)
                         .build() else {
-                            log::error!("Failed to redo board for room {}", session.current_room);
+                            self.send_message_to_session(&id, "/notify error Failed to redo move");
                             return;
                         };
 
@@ -902,14 +900,10 @@ impl Handler<Redo> for ChessServer {
                     current_room.chess_board = chess_board;
                 }
                 Err(_) => {
-                    log::warn!(
-                        "Room: {} -> failed attempt to redo move",
-                        session.current_room
-                    );
-                    msg = format!(
-                        "/sync_board {}|{}|{}",
-                        session.current_room, current_room.current_fen, current_room.trash
-                    );
+                    let fen = current_room.current_fen.clone();
+                    let trash = current_room.trash.clone();
+                    self.send_message_to_session(&id, "/notify warning No more moves to redo");
+                    msg = format!("/sync_board {}|{}|{}", session.current_room, fen, trash);
                 }
             };
 
@@ -985,10 +979,10 @@ impl Handler<Options> for ChessServer {
             current_room.chess_board = chess_board;
 
             result_msg = current_room.options_string();
+            self.send_message_to_session(&msg.id, "/notify success Options applied");
         } else {
-            log::warn!("Invalid options for room {}", session.current_room);
-
             result_msg = current_room.options_string();
+            self.send_message_to_session(&msg.id, "/notify error Failed to apply options");
         }
 
         self.send_message(

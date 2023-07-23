@@ -8,7 +8,9 @@ use web_sys::WebSocket;
 
 use super::ChessBoard;
 
-use crate::entities::{position::Position, room::RoomStatus, stone::Stone};
+use crate::entities::{
+    notification::Notification, position::Position, room::RoomStatus, stone::Stone,
+};
 
 pub struct ChessBoardSignalsBuilder {
     cx: Option<Scope>,
@@ -17,6 +19,7 @@ pub struct ChessBoardSignalsBuilder {
     chess_board_socket: Option<RwSignal<Option<WebSocket>>>,
     stones_signals: Option<RwSignal<StonesSignals>>,
     should_render: Option<RwSignal<bool>>,
+    notification: Option<RwSignal<Notification>>,
 }
 
 impl ChessBoardSignalsBuilder {
@@ -28,6 +31,7 @@ impl ChessBoardSignalsBuilder {
             chess_board_socket: None,
             stones_signals: None,
             should_render: None,
+            notification: None,
         }
     }
 
@@ -61,6 +65,11 @@ impl ChessBoardSignalsBuilder {
         self
     }
 
+    pub fn notification(mut self, notification: RwSignal<Notification>) -> Self {
+        self.notification = Some(notification);
+        self
+    }
+
     pub fn build(self) -> Result<ChessBoardSignals, ()> {
         let Some(cx) = self.cx else {
             return Err(());
@@ -80,6 +89,9 @@ impl ChessBoardSignalsBuilder {
         let Some(should_render) = self.should_render else {
             return Err(());
         };
+        let Some(notification) = self.notification else {
+            return Err(());
+        };
 
         Ok(ChessBoardSignals {
             cx,
@@ -88,6 +100,7 @@ impl ChessBoardSignalsBuilder {
             chess_board_socket,
             stones_signals,
             should_render,
+            notification,
         })
     }
 }
@@ -253,6 +266,7 @@ pub struct ChessBoardSignals {
     chess_board_socket: RwSignal<Option<WebSocket>>,
     stones_signals: RwSignal<StonesSignals>,
     should_render: RwSignal<bool>,
+    notification: RwSignal<Notification>,
 }
 
 #[allow(dead_code)]
@@ -279,6 +293,10 @@ impl ChessBoardSignals {
 
     pub fn should_render(&self) -> RwSignal<bool> {
         self.should_render
+    }
+
+    pub fn notification(&self) -> RwSignal<Notification> {
+        self.notification
     }
 
     pub fn move_piece(&self, piece: String, old_pos: String, new_pos: String) {

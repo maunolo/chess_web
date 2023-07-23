@@ -5,6 +5,7 @@ use web_sys::{CloseEvent, Element, ErrorEvent, MessageEvent, WebSocket};
 use crate::{
     entities::{
         chess_board::{signals::ChessBoardSignals, ChessBoardBuilder},
+        notification::NotifyType,
         room::{RoomStatus, User, UserStatus},
     },
     utils::{class_list::ClassListExt, elements::document, WindowExt},
@@ -193,6 +194,25 @@ fn on_message_callback(chess_board_signals: ChessBoardSignals) -> Closure<dyn Fn
                         if let Some(user) = user {
                             user.update(|u| u.connect());
                         }
+                    }
+                    "/notify" => {
+                        let (notify_type, msg) = input.split_once(" ").unwrap_or((input, ""));
+                        let notify_type = match notify_type {
+                            "error" => NotifyType::Error,
+                            "warning" => NotifyType::Warning,
+                            "success" => NotifyType::Success,
+                            _ => return,
+                        };
+
+                        chess_board_signals.notification().update(|notification| {
+                            notification.notify_type = notify_type;
+                            notification.message = msg.to_string();
+                            notification.disable();
+                        });
+
+                        chess_board_signals.notification().update(|notification| {
+                            notification.enable();
+                        });
                     }
                     _ => {}
                 }

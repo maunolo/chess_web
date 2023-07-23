@@ -18,7 +18,6 @@ module.exports = {
                 '90%': { transform: 'translateY(0)' },
                 '100%': { transform: 'translateY(-100%)' },
             },
-
             'pulse-brightness': {
                 '0%, 100%': { filter: 'brightness(0.9)' },
                 '50%': { filter: 'brightness(1)' },

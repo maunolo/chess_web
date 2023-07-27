@@ -843,6 +843,7 @@ impl Handler<Undo> for ChessServer {
                         .validation(current_room.chess_board.validation)
                         .sync(current_room.chess_board.sync)
                         .build() else {
+                            let _ = current_room.redo_move();
                             self.send_message_to_session(&id, "/notify error Failed to undo move");
                             return;
                         };
@@ -891,6 +892,7 @@ impl Handler<Redo> for ChessServer {
                         .validation(current_room.chess_board.validation)
                         .sync(current_room.chess_board.sync)
                         .build() else {
+                            let _ = current_room.undo_move();
                             self.send_message_to_session(&id, "/notify error Failed to redo move");
                             return;
                         };

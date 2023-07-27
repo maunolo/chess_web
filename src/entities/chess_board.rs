@@ -586,7 +586,7 @@ impl ChessBoard {
             }
             (stone, _, _) if stone.as_str() == "dk" => {
                 self.passant = None;
-                self.castle_rules.white = CastleOptions::None;
+                self.castle_rules.black = CastleOptions::None;
                 Move::Normal
             }
             (stone, from, _) if stone.as_str() == "lr" && from.x == 0 && from.y == 7 => {

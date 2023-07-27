@@ -1,9 +1,9 @@
 use std::collections::HashSet;
 
-use crate::entities::chess_board::enums::{PromotionKind, CastlePosition};
+use crate::entities::chess_board::enums::{CastlePosition, PromotionKind};
 
-use self::castle_rules::{fen_to_castle_rules, CastleRules, CastleOptions};
-use self::enums::{FenError, ChessBoardError, Move, MoveError};
+use self::castle_rules::{fen_to_castle_rules, CastleOptions, CastleRules};
+use self::enums::{ChessBoardError, FenError, Move, MoveError};
 use self::passants::fen_to_passant;
 use self::stones::fen_to_stones;
 use self::turns::{fen_to_turn, Turn};
@@ -13,10 +13,10 @@ use super::stone::{Color, Kind, Stone};
 
 pub mod castle_rules;
 pub mod enums;
-pub mod stones;
-pub mod turns;
 pub mod passants;
 pub mod signals;
+pub mod stones;
+pub mod turns;
 
 pub struct ChessBoardBuilder {
     fen: Option<String>,
@@ -90,18 +90,24 @@ impl ChessBoardBuilder {
         }
         let mut deleted_stones = Vec::new();
         for c in deleted_stones_str.chars() {
-            deleted_stones.push(Stone::try_from(c).map_err(|_| ChessBoardError::InvalidDeletedStones)?);
+            deleted_stones
+                .push(Stone::try_from(c).map_err(|_| ChessBoardError::InvalidDeletedStones)?);
         }
 
         let mut chess_board = ChessBoard {
             fen: fen.to_string(),
             stones: fen_to_stones(fen_fields[0]).map_err(|e| ChessBoardError::InvalidFen(e))?,
-            treat_map: [[false; 8]; 8],
+            threat_map: [[false; 8]; 8],
             turn: fen_to_turn(fen_fields[1]).map_err(|e| ChessBoardError::InvalidFen(e))?,
-            castle_rules: fen_to_castle_rules(fen_fields[2]).map_err(|e| ChessBoardError::InvalidFen(e))?,
+            castle_rules: fen_to_castle_rules(fen_fields[2])
+                .map_err(|e| ChessBoardError::InvalidFen(e))?,
             passant: fen_to_passant(fen_fields[3]).map_err(|e| ChessBoardError::InvalidFen(e))?,
-            half_move_clock: fen_fields[4].parse::<i32>().map_err(|_| ChessBoardError::InvalidFen(FenError::InvalidHalfMoveClock))?,
-            full_move_clock: fen_fields[5].parse::<i32>().map_err(|_| ChessBoardError::InvalidFen(FenError::InvalidFullMoveClock))?,
+            half_move_clock: fen_fields[4]
+                .parse::<i32>()
+                .map_err(|_| ChessBoardError::InvalidFen(FenError::InvalidHalfMoveClock))?,
+            full_move_clock: fen_fields[5]
+                .parse::<i32>()
+                .map_err(|_| ChessBoardError::InvalidFen(FenError::InvalidFullMoveClock))?,
             deleted_stones,
             is_white_view,
             validation,
@@ -109,7 +115,7 @@ impl ChessBoardBuilder {
         };
 
         if chess_board.sync {
-            chess_board.sync_treat_map();
+            chess_board.sync_threat_map();
         }
 
         if chess_board.validation && !chess_board.valid_castle_rules() {
@@ -124,7 +130,7 @@ impl ChessBoardBuilder {
 pub struct ChessBoard {
     pub fen: String,
     pub stones: [[Option<Stone>; 8]; 8],
-    pub treat_map: [[bool; 8]; 8],
+    pub threat_map: [[bool; 8]; 8],
     pub turn: Turn,
     pub castle_rules: CastleRules,
     pub passant: Option<Position>,
@@ -143,19 +149,24 @@ impl ChessBoard {
         let mut chess_board = Self {
             fen: fen.to_string(),
             stones: fen_to_stones(fen_fields[0]).map_err(|e| ChessBoardError::InvalidFen(e))?,
-            treat_map: [[false; 8]; 8],
+            threat_map: [[false; 8]; 8],
             turn: fen_to_turn(fen_fields[1]).map_err(|e| ChessBoardError::InvalidFen(e))?,
-            castle_rules: fen_to_castle_rules(fen_fields[2]).map_err(|e| ChessBoardError::InvalidFen(e))?,
+            castle_rules: fen_to_castle_rules(fen_fields[2])
+                .map_err(|e| ChessBoardError::InvalidFen(e))?,
             passant: fen_to_passant(fen_fields[3]).map_err(|e| ChessBoardError::InvalidFen(e))?,
-            half_move_clock: fen_fields[4].parse::<i32>().map_err(|_| ChessBoardError::InvalidFen(FenError::InvalidHalfMoveClock))?,
-            full_move_clock: fen_fields[5].parse::<i32>().map_err(|_| ChessBoardError::InvalidFen(FenError::InvalidFullMoveClock))?,
+            half_move_clock: fen_fields[4]
+                .parse::<i32>()
+                .map_err(|_| ChessBoardError::InvalidFen(FenError::InvalidHalfMoveClock))?,
+            full_move_clock: fen_fields[5]
+                .parse::<i32>()
+                .map_err(|_| ChessBoardError::InvalidFen(FenError::InvalidFullMoveClock))?,
             deleted_stones: Vec::new(),
             is_white_view: true,
             validation: false,
             sync: true,
         };
         if chess_board.sync {
-            chess_board.sync_treat_map();
+            chess_board.sync_threat_map();
         }
         if chess_board.validation && !chess_board.valid_castle_rules() {
             return Err(ChessBoardError::InvalidFen(FenError::InvalidCastleRules));
@@ -174,7 +185,7 @@ impl ChessBoard {
             return false;
         };
 
-        self.treat_at(position.x, position.y)
+        self.threat_at(position.x, position.y)
     }
 
     pub fn valid_castle_rules(&self) -> bool {
@@ -325,48 +336,39 @@ impl ChessBoard {
         }
     }
 
-    pub fn set_treat(&mut self, x: usize, y: usize) {
-        self.treat_map[y][x] = true;
+    pub fn set_threat(&mut self, x: usize, y: usize) {
+        self.threat_map[y][x] = true;
     }
 
-    pub fn treat_at(&self, x: usize, y: usize) -> bool {
-        self.treat_map[y][x]
+    pub fn threat_at(&self, x: usize, y: usize) -> bool {
+        self.threat_map[y][x]
     }
 
     pub fn free_at(&self, x: usize, y: usize) -> bool {
-        self.stone_at(x, y).is_none() && !self.treat_at(x, y)
+        self.stone_at(x, y).is_none() && !self.threat_at(x, y)
     }
 
-    pub fn sync_treat_map(&mut self) {
-        self.treat_map = [[false; 8]; 8];
+    pub fn sync_threat_map(&mut self) {
+        self.threat_map = [[false; 8]; 8];
 
-        let mut treat_moves = HashSet::new();
+        let mut threat_moves = HashSet::new();
 
-        match self.turn {
-            Turn::White => {
-                for (position, stone) in self
-                    .stones_and_positions_iter()
-                    .filter(|(_, stone)| matches!(stone.color(), Color::Dark))
-                {
-                    for move_pos in stone.possible_moves(&position, &self) {
-                        treat_moves.insert(move_pos);
-                    }
-                }
-            }
-            Turn::Black => {
-                for (position, stone) in self
-                    .stones_and_positions_iter()
-                    .filter(|(_, stone)| matches!(stone.color(), Color::Light))
-                {
-                    for move_pos in stone.possible_moves(&position, &self) {
-                        treat_moves.insert(move_pos);
-                    }
-                }
+        let threatening_color = match self.turn {
+            Turn::White => Color::Dark,
+            Turn::Black => Color::Light,
+        };
+
+        for (position, stone) in self
+            .stones_and_positions_iter()
+            .filter(|(_, stone)| stone.color() == threatening_color)
+        {
+            for threat_pos in stone.threats(&position, &self) {
+                threat_moves.insert(threat_pos);
             }
         }
 
-        for position in treat_moves {
-            self.set_treat(position.x, position.y);
+        for position in threat_moves {
+            self.set_threat(position.x, position.y);
         }
     }
 
@@ -384,7 +386,7 @@ impl ChessBoard {
                 Some(position.clone()),
                 Some(possible_move.clone()),
             );
-            chess_board.sync_treat_map();
+            chess_board.sync_threat_map();
             if !chess_board.is_in_check() {
                 moves.insert(possible_move);
             }
@@ -403,7 +405,9 @@ impl ChessBoard {
         }
 
         if self.validation {
-            let stone = piece.parse::<Stone>().map_err(|_| ChessBoardError::InvalidMove(MoveError::NoStoneFound))?;
+            let stone = piece
+                .parse::<Stone>()
+                .map_err(|_| ChessBoardError::InvalidMove(MoveError::NoStoneFound))?;
 
             match (stone.color(), self.turn) {
                 (Color::Light, Turn::White) | (Color::Dark, Turn::Black) => {}
@@ -434,7 +438,7 @@ impl ChessBoard {
                         return Err(ChessBoardError::InvalidMove(MoveError::NoStoneFound));
                     }
             }
-            Some(from) => self.take_stone_at(from.x, from.y) 
+            Some(from) => self.take_stone_at(from.x, from.y)
         }) else {
             return Err(ChessBoardError::InvalidMove(MoveError::NoStoneFound));
         };
@@ -454,13 +458,13 @@ impl ChessBoard {
             result = Move::Normal;
         } else {
             let from = from.unwrap();
-            let to = to.unwrap(); 
+            let to = to.unwrap();
 
             let old_piece = self.take_stone_at(to.x, to.y);
             self.stones[to.y as usize][to.x as usize] = Some(stone.clone());
             if let Some(old_piece) = old_piece {
                 self.deleted_stones.push(old_piece);
-            } 
+            }
 
             result = if self.validation {
                 self.apply_move_validation_and_effects((&stone, &from, &to))
@@ -472,23 +476,22 @@ impl ChessBoard {
         if self.sync {
             self.turn = !self.turn;
             self.sync_fen();
-            self.sync_treat_map();
+            self.sync_threat_map();
         }
 
         Ok(result)
     }
 
-    pub fn apply_move_validation_and_effects(&mut self, stone_move: (&Stone, &Position, &Position)) -> Move {
+    pub fn apply_move_validation_and_effects(
+        &mut self,
+        stone_move: (&Stone, &Position, &Position),
+    ) -> Move {
         match stone_move {
             (stone, _, to) if Some(to.clone()) == self.passant => {
                 let passant_pos = to.clone();
                 let passant_stone = match stone.color() {
-                    Color::Light => {
-                        self.take_stone_at(passant_pos.x, passant_pos.y + 1)
-                    }
-                    Color::Dark => {
-                        self.take_stone_at(passant_pos.x, passant_pos.y - 1)
-                    }
+                    Color::Light => self.take_stone_at(passant_pos.x, passant_pos.y + 1),
+                    Color::Dark => self.take_stone_at(passant_pos.x, passant_pos.y - 1),
                 };
                 self.deleted_stones.push(passant_stone.unwrap());
                 self.passant = None;
@@ -524,33 +527,57 @@ impl ChessBoard {
                 self.stones[to.y as usize][to.x as usize] = Some(new_stone);
                 Move::Promotion(PromotionKind::Queen)
             }
-            (stone, from, to) if stone.as_str() == "lk" && from.x == 4 && from.y == 7 && to.x == 6 && to.y == 7 => {
+            (stone, from, to)
+                if stone.as_str() == "lk"
+                    && from.x == 4
+                    && from.y == 7
+                    && to.x == 6
+                    && to.y == 7 =>
+            {
                 let rook = self.take_stone_at(7, 7);
                 self.stones[7][5] = rook;
                 self.passant = None;
                 self.castle_rules.white = CastleOptions::None;
                 Move::Castle(CastlePosition::KingSide)
             }
-            (stone, from, to) if stone.as_str() == "lk" && from.x == 4 && from.y == 7 && to.x == 2 && to.y == 7 => {
+            (stone, from, to)
+                if stone.as_str() == "lk"
+                    && from.x == 4
+                    && from.y == 7
+                    && to.x == 2
+                    && to.y == 7 =>
+            {
                 let rook = self.take_stone_at(0, 7);
                 self.stones[7][3] = rook;
                 self.passant = None;
                 self.castle_rules.white = CastleOptions::None;
                 Move::Castle(CastlePosition::QueenSide)
             }
-            (stone, from, to) if stone.as_str() == "dk" && from.x == 4 && from.y == 0 && to.x == 6 && to.y == 0 => {
+            (stone, from, to)
+                if stone.as_str() == "dk"
+                    && from.x == 4
+                    && from.y == 0
+                    && to.x == 6
+                    && to.y == 0 =>
+            {
                 let rook = self.take_stone_at(7, 0);
                 self.stones[0][5] = rook;
                 self.passant = None;
                 self.castle_rules.black = CastleOptions::None;
-                Move::Castle(CastlePosition::KingSide)              
+                Move::Castle(CastlePosition::KingSide)
             }
-            (stone, from, to) if stone.as_str() == "dk" && from.x == 4 && from.y == 0 && to.x == 2 && to.y == 0 => {
+            (stone, from, to)
+                if stone.as_str() == "dk"
+                    && from.x == 4
+                    && from.y == 0
+                    && to.x == 2
+                    && to.y == 0 =>
+            {
                 let rook = self.take_stone_at(0, 0);
                 self.stones[0][3] = rook;
                 self.passant = None;
                 self.castle_rules.black = CastleOptions::None;
-                Move::Castle(CastlePosition::QueenSide)      
+                Move::Castle(CastlePosition::QueenSide)
             }
             (stone, _, _) if stone.as_str() == "lk" => {
                 self.passant = None;
@@ -567,7 +594,7 @@ impl ChessBoard {
                 match self.castle_rules.white {
                     CastleOptions::BothSides => self.castle_rules.white = CastleOptions::KingSide,
                     CastleOptions::QueenSide => self.castle_rules.white = CastleOptions::None,
-                    _ => {} 
+                    _ => {}
                 }
                 Move::Normal
             }
@@ -576,7 +603,7 @@ impl ChessBoard {
                 match self.castle_rules.white {
                     CastleOptions::BothSides => self.castle_rules.white = CastleOptions::QueenSide,
                     CastleOptions::KingSide => self.castle_rules.white = CastleOptions::None,
-                    _ => {} 
+                    _ => {}
                 }
                 Move::Normal
             }
@@ -585,7 +612,7 @@ impl ChessBoard {
                 match self.castle_rules.black {
                     CastleOptions::BothSides => self.castle_rules.black = CastleOptions::KingSide,
                     CastleOptions::QueenSide => self.castle_rules.black = CastleOptions::None,
-                    _ => {} 
+                    _ => {}
                 }
                 Move::Normal
             }
@@ -594,7 +621,7 @@ impl ChessBoard {
                 match self.castle_rules.black {
                     CastleOptions::BothSides => self.castle_rules.black = CastleOptions::QueenSide,
                     CastleOptions::KingSide => self.castle_rules.black = CastleOptions::None,
-                    _ => {} 
+                    _ => {}
                 }
                 Move::Normal
             }
@@ -636,7 +663,11 @@ impl ChessBoard {
         let mut fen_split = fen_clone.split(" ").skip(4);
         let fen_castle_rules = self.castle_rules.to_string();
         new_fen.push_str(&format!(" {}", fen_castle_rules));
-        let fen_passant = self.passant.as_ref().map(|pos| pos.to_string()).unwrap_or("-".to_string());
+        let fen_passant = self
+            .passant
+            .as_ref()
+            .map(|pos| pos.to_string())
+            .unwrap_or("-".to_string());
         new_fen.push_str(&format!(" {}", fen_passant));
         let fen_half_moves = fen_split.next().unwrap();
         new_fen.push_str(&format!(" {}", fen_half_moves));
@@ -666,8 +697,13 @@ mod tests {
 
     #[test]
     fn test_chess_board() {
-        let fen = "rnb1kbnr/ppp1p1pp/8/4Pp2/8/3P1N2/PP1P1PPP/RNBQK2R w KQkq f6 0 1"; 
-        let chess_board = ChessBoardBuilder::new().fen(fen).validation(true).sync(true).build().unwrap();
+        let fen = "rnb1kbnr/ppp1p1pp/8/4Pp2/8/3P1N2/PP1P1PPP/RNBQK2R w KQkq f6 0 1";
+        let chess_board = ChessBoardBuilder::new()
+            .fen(fen)
+            .validation(true)
+            .sync(true)
+            .build()
+            .unwrap();
 
         assert_eq!(
             HashSet::<Position>::new(),

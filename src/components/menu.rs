@@ -1,7 +1,10 @@
 use leptos::*;
 
 use crate::{
-    components::overlay::{clear_timeout, toggle_sub_menu, Form},
+    components::{
+        forms::Form,
+        overlay::{clear_timeout, toggle_sub_menu},
+    },
     entities::chess_board::signals::ChessBoardSignals,
 };
 

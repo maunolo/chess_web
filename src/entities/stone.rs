@@ -178,6 +178,20 @@ impl Stone {
         self.image_class.clone()
     }
 
+    pub fn threats(&self, position: &Position, chess_board: &ChessBoard) -> HashSet<Position> {
+        match self.kind {
+            Kind::Pawn => {
+                let eat_pattern = self.kind.pawn_eat_pattern(self.color);
+
+                eat_pattern
+                    .moves_for(position, chess_board)
+                    .into_iter()
+                    .collect()
+            }
+            _ => self.possible_moves(position, chess_board),
+        }
+    }
+
     pub fn possible_moves(
         &self,
         position: &Position,
@@ -189,8 +203,15 @@ impl Stone {
         for move_pos in move_pattern.moves_for(position, chess_board) {
             moves.insert(move_pos);
         }
+
         match self.kind {
             Kind::Pawn => {
+                let move_pos = moves.iter().next().unwrap().clone();
+
+                if chess_board.stone_at(move_pos.x, move_pos.y).is_some() {
+                    moves.remove(&move_pos);
+                }
+
                 let eat_pattern = self.kind.pawn_eat_pattern(self.color);
 
                 for (move_x, move_y) in &eat_pattern.patterns {
@@ -240,7 +261,7 @@ impl Stone {
             }
             Kind::King => {
                 for move_pos in moves.clone() {
-                    if chess_board.treat_at(move_pos.x, move_pos.y) {
+                    if chess_board.threat_at(move_pos.x, move_pos.y) {
                         moves.remove(&move_pos);
                     }
                 }

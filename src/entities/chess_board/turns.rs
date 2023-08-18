@@ -12,7 +12,7 @@ pub fn fen_to_turn(field: &str) -> Result<Turn, FenError> {
     }
 }
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Turn {
     White,
     Black,

@@ -12,8 +12,8 @@ pub struct MovePattern {
 }
 
 impl MovePattern {
-    pub fn moves_for(&self, position: &Position, chess_board: &ChessBoard) -> Vec<Position> {
-        let mut moves = Vec::new();
+    pub fn moves_for(&self, position: &Position, chess_board: &ChessBoard) -> HashSet<Position> {
+        let mut moves = HashSet::new();
 
         for (move_x, move_y) in &self.patterns {
             let mut x = position.x as i32 + move_x;
@@ -21,7 +21,7 @@ impl MovePattern {
             let mut multiply = 1;
 
             while x >= 0 && x <= 7 && y >= 0 && y <= 7 {
-                moves.push(Position::new(x as usize, y as usize));
+                moves.insert(Position::new(x as usize, y as usize));
 
                 if !self.sliding {
                     break;
@@ -197,16 +197,33 @@ impl Stone {
         position: &Position,
         chess_board: &ChessBoard,
     ) -> HashSet<Position> {
-        let mut moves = HashSet::<Position>::new();
         let move_pattern = self.kind.move_pattern(self.color);
+        let mut moves = move_pattern.moves_for(position, chess_board);
 
-        for move_pos in move_pattern.moves_for(position, chess_board) {
-            moves.insert(move_pos);
-        }
+        self.calculate_special_rules(position, chess_board, &mut moves);
 
+        moves
+            .into_iter()
+            .filter(|pos| {
+                chess_board
+                    .stone_at(pos.x, pos.y)
+                    .map(|s| s.color != self.color)
+                    .unwrap_or(true)
+            })
+            .collect()
+    }
+
+    fn calculate_special_rules(
+        &self,
+        position: &Position,
+        chess_board: &ChessBoard,
+        moves: &mut HashSet<Position>,
+    ) {
         match self.kind {
             Kind::Pawn => {
-                let move_pos = moves.iter().next().unwrap().clone();
+                let Some(move_pos) = moves.iter().next().cloned() else {
+                    return;
+                };
 
                 if chess_board.stone_at(move_pos.x, move_pos.y).is_some() {
                     moves.remove(&move_pos);
@@ -232,121 +249,103 @@ impl Stone {
                     }
                 }
 
-                match self.color {
-                    Color::Light => {
-                        if position.y == 6 {
-                            let x = position.x as i32;
-                            let y = position.y as i32 - 2;
+                match (self.color, position.x, position.y) {
+                    (Color::Light, x, y) if y == 6 => {
+                        let y = position.y - 2;
 
-                            if chess_board.stone_at(x as usize, y as usize).is_none()
-                                && chess_board.stone_at(x as usize, y as usize + 1).is_none()
-                            {
-                                moves.insert(Position::new(x as usize, y as usize));
-                            }
+                        if chess_board.stone_at(x, y).is_none()
+                            && chess_board.stone_at(x, y + 1).is_none()
+                        {
+                            moves.insert(Position::new(x, y));
                         }
                     }
-                    Color::Dark => {
-                        if position.y == 1 {
-                            let x = position.x as i32;
-                            let y = position.y as i32 + 2;
+                    (Color::Dark, x, y) if y == 1 => {
+                        let y = position.y + 2;
 
-                            if chess_board.stone_at(x as usize, y as usize).is_none()
-                                && chess_board.stone_at(x as usize, y as usize - 1).is_none()
-                            {
-                                moves.insert(Position::new(x as usize, y as usize));
-                            }
+                        if chess_board.stone_at(x, y).is_none()
+                            && chess_board.stone_at(x, y - 1).is_none()
+                        {
+                            moves.insert(Position::new(x, y));
                         }
                     }
+                    _ => {}
                 }
             }
             Kind::King => {
-                for move_pos in moves.clone() {
-                    if chess_board.threat_at(move_pos.x, move_pos.y) {
-                        moves.remove(&move_pos);
+                for pos in moves.clone() {
+                    if chess_board.threat_at(pos.x, pos.y) {
+                        moves.remove(&pos);
                     }
                 }
 
-                match self.color {
-                    Color::Light => {
-                        if !(matches!(chess_board.turn, Turn::White) && chess_board.is_in_check()) {
-                            match chess_board.castle_rules().white() {
-                                CastleOptions::BothSides => {
-                                    // King side
-                                    if chess_board.free_at(5, 7) && chess_board.free_at(6, 7) {
-                                        moves.insert(Position::new(6, 7));
-                                    }
-                                    // Queen side
-                                    if chess_board.free_at(1, 7)
-                                        && chess_board.free_at(2, 7)
-                                        && chess_board.free_at(3, 7)
-                                    {
-                                        moves.insert(Position::new(2, 7));
-                                    }
+                match (self.color, chess_board.turn, chess_board.is_in_check()) {
+                    (Color::Light, turn, in_check) if !(turn == Turn::White && in_check) => {
+                        match chess_board.castle_rules().white() {
+                            CastleOptions::BothSides => {
+                                // King side
+                                if chess_board.free_at(5, 7) && chess_board.free_at(6, 7) {
+                                    moves.insert(Position::new(6, 7));
                                 }
-                                CastleOptions::KingSide => {
-                                    if chess_board.free_at(5, 7) && chess_board.free_at(6, 7) {
-                                        moves.insert(Position::new(6, 7));
-                                    }
+                                // Queen side
+                                if chess_board.free_at(1, 7)
+                                    && chess_board.free_at(2, 7)
+                                    && chess_board.free_at(3, 7)
+                                {
+                                    moves.insert(Position::new(2, 7));
                                 }
-                                CastleOptions::QueenSide => {
-                                    if chess_board.free_at(1, 7)
-                                        && chess_board.free_at(2, 7)
-                                        && chess_board.free_at(3, 7)
-                                    {
-                                        moves.insert(Position::new(2, 7));
-                                    }
-                                }
-                                _ => {}
                             }
+                            CastleOptions::KingSide => {
+                                if chess_board.free_at(5, 7) && chess_board.free_at(6, 7) {
+                                    moves.insert(Position::new(6, 7));
+                                }
+                            }
+                            CastleOptions::QueenSide => {
+                                if chess_board.free_at(1, 7)
+                                    && chess_board.free_at(2, 7)
+                                    && chess_board.free_at(3, 7)
+                                {
+                                    moves.insert(Position::new(2, 7));
+                                }
+                            }
+                            _ => {}
                         }
                     }
-                    Color::Dark => {
-                        if !(matches!(chess_board.turn, Turn::Black) && chess_board.is_in_check()) {
-                            match chess_board.castle_rules().black() {
-                                CastleOptions::BothSides => {
-                                    // King side
-                                    if chess_board.free_at(5, 0) && chess_board.free_at(6, 0) {
-                                        moves.insert(Position::new(6, 0));
-                                    }
-                                    // Queen side
-                                    if chess_board.free_at(1, 0)
-                                        && chess_board.free_at(2, 0)
-                                        && chess_board.free_at(3, 0)
-                                    {
-                                        moves.insert(Position::new(2, 0));
-                                    }
+                    (Color::Dark, turn, in_check) if !(turn == Turn::Black && in_check) => {
+                        match chess_board.castle_rules().black() {
+                            CastleOptions::BothSides => {
+                                // King side
+                                if chess_board.free_at(5, 0) && chess_board.free_at(6, 0) {
+                                    moves.insert(Position::new(6, 0));
                                 }
-                                CastleOptions::KingSide => {
-                                    if chess_board.free_at(5, 0) && chess_board.free_at(6, 0) {
-                                        moves.insert(Position::new(6, 0));
-                                    }
+                                // Queen side
+                                if chess_board.free_at(1, 0)
+                                    && chess_board.free_at(2, 0)
+                                    && chess_board.free_at(3, 0)
+                                {
+                                    moves.insert(Position::new(2, 0));
                                 }
-                                CastleOptions::QueenSide => {
-                                    if chess_board.free_at(1, 0)
-                                        && chess_board.free_at(2, 0)
-                                        && chess_board.free_at(3, 0)
-                                    {
-                                        moves.insert(Position::new(2, 0));
-                                    }
-                                }
-                                _ => {}
                             }
+                            CastleOptions::KingSide => {
+                                if chess_board.free_at(5, 0) && chess_board.free_at(6, 0) {
+                                    moves.insert(Position::new(6, 0));
+                                }
+                            }
+                            CastleOptions::QueenSide => {
+                                if chess_board.free_at(1, 0)
+                                    && chess_board.free_at(2, 0)
+                                    && chess_board.free_at(3, 0)
+                                {
+                                    moves.insert(Position::new(2, 0));
+                                }
+                            }
+                            _ => {}
                         }
                     }
+                    _ => {}
                 }
             }
             _ => {}
         }
-
-        for move_pos in moves.clone() {
-            if let Some(stone) = chess_board.stone_at(move_pos.x, move_pos.y) {
-                if stone.color == self.color {
-                    moves.remove(&move_pos);
-                }
-            }
-        }
-
-        moves
     }
 }
 

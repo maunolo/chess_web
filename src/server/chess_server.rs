@@ -485,6 +485,7 @@ impl Handler<Connect> for ChessServer {
             let room_name = user.current_room.clone();
 
             if let Some(current_room) = self.rooms.get(&user.current_room) {
+                let is_checkmate = current_room.chess_board.is_checkmate();
                 let current_fen = current_room.current_fen.clone();
                 let trash = current_room.trash.clone();
                 let users = current_room.usernames().join(",");
@@ -506,6 +507,10 @@ impl Handler<Connect> for ChessServer {
                 self.send_message_to_session(&id, &format!("/sync_users {}|{}", room_name, users));
                 // sync options
                 self.send_message_to_session(&id, &format!("/sync_options {}", options_str));
+                // notify user if checkmate
+                if is_checkmate {
+                    self.send_message_to_session(&id, "/checkmate");
+                }
             }
         } else {
             let room_name = "main".to_string();
@@ -884,6 +889,7 @@ impl Handler<Redo> for ChessServer {
 
         if let Some(current_room) = self.rooms.get_mut(&session.current_room) {
             let msg;
+            let mut is_checkmate = false;
 
             match current_room.redo_move() {
                 Ok(move_result) => {
@@ -903,6 +909,7 @@ impl Handler<Redo> for ChessServer {
                         return;
                     };
 
+                    is_checkmate = chess_board.is_checkmate();
                     current_room.current_fen = move_result.current_fen;
                     current_room.trash = move_result.current_trash;
                     current_room.chess_board = chess_board;
@@ -916,6 +923,9 @@ impl Handler<Redo> for ChessServer {
             };
 
             self.send_message(&session.current_room, &msg, None);
+            if is_checkmate {
+                self.send_message(&session.current_room, "/checkmate", None)
+            }
         } else {
             log::error!("No room found with name {}", session.current_room);
         }

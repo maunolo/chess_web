@@ -1,13 +1,12 @@
 use std::{collections::BTreeMap, str::FromStr};
 
-use leptos::{create_rw_signal, RwSignal, Scope};
+use leptos::{create_rw_signal, RwSignal};
 
 #[derive(Clone)]
 pub struct RoomStatus {
     name: String,
     users: BTreeMap<String, RwSignal<User>>,
     options: ChessBoardOptions,
-    cx: Scope,
 }
 
 #[derive(Clone)]
@@ -116,9 +115,8 @@ impl FromStr for User {
 
 #[allow(dead_code)]
 impl RoomStatus {
-    pub fn new(cx: Scope, name: &str) -> Self {
+    pub fn new(name: &str) -> Self {
         Self {
-            cx,
             name: name.to_string(),
             users: BTreeMap::new(),
             options: ChessBoardOptions {
@@ -219,7 +217,7 @@ impl RoomStatus {
                 if let Some(old_user) = self.users.remove(&user.id()) {
                     (user.id(), old_user)
                 } else {
-                    (user.id(), create_rw_signal(self.cx, user))
+                    (user.id(), create_rw_signal(user))
                 }
             })
             .collect();
@@ -230,8 +228,7 @@ impl RoomStatus {
     }
 
     pub fn add_user(&mut self, user: User) {
-        self.users
-            .insert(user.id(), create_rw_signal(self.cx, user));
+        self.users.insert(user.id(), create_rw_signal(user));
     }
 
     pub fn remove_user(&mut self, username: &str) {

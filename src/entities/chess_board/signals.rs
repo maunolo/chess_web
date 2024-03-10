@@ -1,7 +1,6 @@
 use cfg_if::cfg_if;
 use leptos::{
-    create_rw_signal, RwSignal, Scope, SignalGetUntracked, SignalSet, SignalUpdate,
-    SignalWithUntracked,
+    create_rw_signal, RwSignal, SignalGetUntracked, SignalSet, SignalUpdate, SignalWithUntracked,
 };
 use std::collections::BTreeMap;
 use web_sys::WebSocket;
@@ -13,7 +12,6 @@ use crate::entities::{
 };
 
 pub struct ChessBoardSignalsBuilder {
-    cx: Option<Scope>,
     chess_board: Option<RwSignal<ChessBoard>>,
     room_status: Option<RwSignal<Option<RoomStatus>>>,
     chess_board_socket: Option<RwSignal<Option<WebSocket>>>,
@@ -25,7 +23,6 @@ pub struct ChessBoardSignalsBuilder {
 impl ChessBoardSignalsBuilder {
     pub fn new() -> Self {
         Self {
-            cx: None,
             chess_board: None,
             room_status: None,
             chess_board_socket: None,
@@ -33,11 +30,6 @@ impl ChessBoardSignalsBuilder {
             should_render: None,
             notification: None,
         }
-    }
-
-    pub fn cx(mut self, cx: Scope) -> Self {
-        self.cx = Some(cx);
-        self
     }
 
     pub fn chess_board(mut self, chess_board: RwSignal<ChessBoard>) -> Self {
@@ -71,9 +63,6 @@ impl ChessBoardSignalsBuilder {
     }
 
     pub fn build(self) -> Result<ChessBoardSignals, ()> {
-        let Some(cx) = self.cx else {
-            return Err(());
-        };
         let Some(chess_board) = self.chess_board else {
             return Err(());
         };
@@ -94,7 +83,6 @@ impl ChessBoardSignalsBuilder {
         };
 
         Ok(ChessBoardSignals {
-            cx,
             chess_board,
             room_status,
             chess_board_socket,
@@ -138,10 +126,10 @@ impl StonesSignals {
         &self.deleted_stones
     }
 
-    pub fn add_board_stone(&mut self, cx: Scope, position: Position, stone: Stone) {
+    pub fn add_board_stone(&mut self, position: Position, stone: Stone) {
         let stone_signal = StoneSignal::new(Some(position.clone()), stone);
         let key = stone_signal.unique_key();
-        let stone_signal = create_rw_signal(cx, stone_signal);
+        let stone_signal = create_rw_signal(stone_signal);
 
         self.board_stones.insert(key, stone_signal);
     }
@@ -154,9 +142,9 @@ impl StonesSignals {
         self.board_stones.remove(&key)
     }
 
-    pub fn add_deleted_stone(&mut self, cx: Scope, stone: Stone) {
+    pub fn add_deleted_stone(&mut self, stone: Stone) {
         let stone_signal = StoneSignal::new_deleted(stone);
-        let stone_signal = create_rw_signal(cx, stone_signal);
+        let stone_signal = create_rw_signal(stone_signal);
         self.deleted_stones
             .insert(self.deleted_stones_idx, stone_signal);
         self.deleted_stones_idx += 1;
@@ -260,7 +248,6 @@ impl StoneSignal {
 #[allow(dead_code)]
 #[derive(Copy, Clone)]
 pub struct ChessBoardSignals {
-    cx: Scope,
     chess_board: RwSignal<ChessBoard>,
     room_status: RwSignal<Option<RoomStatus>>,
     chess_board_socket: RwSignal<Option<WebSocket>>,
@@ -271,10 +258,6 @@ pub struct ChessBoardSignals {
 
 #[allow(dead_code)]
 impl ChessBoardSignals {
-    pub fn cx(&self) -> Scope {
-        self.cx.clone()
-    }
-
     pub fn socket(&self) -> RwSignal<Option<WebSocket>> {
         self.chess_board_socket
     }

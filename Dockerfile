@@ -15,7 +15,7 @@ RUN curl -sL https://deb.nodesource.com/setup_20.x | bash - \
 
 # Leptos dependencies
 RUN rustup target add wasm32-unknown-unknown \
-    && cargo install --git https://github.com/leptos-rs/cargo-leptos --locked cargo-leptos 
+    && cargo install --git https://github.com/leptos-rs/cargo-leptos --locked cargo-leptos
 
 # Create app directory
 WORKDIR /usr/src/app
@@ -41,4 +41,4 @@ ENV LEPTOS_LIB_DIR=.
 ENV LEPTOS_BIN_DIR=.
 
 # Start
-CMD ["./target/server/release/chess_web"]
+CMD ["./target/release/chess_web"]

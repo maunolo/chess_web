@@ -10,7 +10,7 @@ fn col_str(x: isize) -> String {
 }
 
 #[component]
-pub fn Coordinates<F>(cx: Scope, white_view: F) -> impl IntoView
+pub fn Coordinates<F>(white_view: F) -> impl IntoView
 where
     F: Fn() -> bool + 'static,
 {
@@ -22,13 +22,13 @@ where
         }
     };
 
-    view! { cx,
+    view! {
         <div class="coordinates">
             <For
                 each=positions
                 key=|i| i.clone()
-                view=move |cx, pos: isize| {
-                    view! { cx,
+                children=move |pos: isize| {
+                    view! {
                         <span class=format!("pointer-events-none absolute leading-3 opacity-60 text-xs coord-row-{}", pos)>
                             {row_str(pos)}
                         </span>

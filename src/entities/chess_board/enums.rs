@@ -32,6 +32,7 @@ pub enum Move {
 }
 
 #[derive(Clone, Debug)]
+#[allow(dead_code)]
 pub enum PromotionKind {
     Queen,
     Rook,

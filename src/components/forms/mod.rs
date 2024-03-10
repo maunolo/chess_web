@@ -23,11 +23,7 @@ fn set_username(username: &str, chess_board_signals: ChessBoardSignals) {
 }
 
 #[component]
-pub fn Forms(
-    cx: Scope,
-    chess_board_signals: ChessBoardSignals,
-    show_form: RwSignal<Form>,
-) -> impl IntoView {
+pub fn Forms(chess_board_signals: ChessBoardSignals, show_form: RwSignal<Form>) -> impl IntoView {
     let join_submit = move |e: web_sys::SubmitEvent| {
         e.prevent_default();
         if let Some(socket) = chess_board_signals.socket().get().as_ref() {
@@ -111,28 +107,28 @@ pub fn Forms(
 
     let view = move || match show_form.get() {
         Form::Join => {
-            view! { cx,
+            view! {
                 <div class="z-40 flex absolute w-full h-full justify-center items-center bg-neutral-900/30">
                     <Join submit=join_submit/>
                 </div>
             }
         }
         Form::Username => {
-            view! { cx,
+            view! {
                 <div class="z-40 flex absolute w-full h-full justify-center items-center bg-neutral-900/30">
                     <Username submit=username_submit/>
                 </div>
             }
         }
         Form::Options => {
-            view! { cx,
+            view! {
                 <div class="z-40 flex absolute w-full h-full justify-center items-center bg-neutral-900/30">
                     <Options chess_board_signals=chess_board_signals submit=options_submit/>
                 </div>
             }
         }
         _ => {
-            view! { cx,
+            view! {
                 <div class="hidden"></div>
             }
         }

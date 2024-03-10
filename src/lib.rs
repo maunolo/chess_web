@@ -19,8 +19,8 @@ cfg_if! {
             _ = console_log::init_with_level(log::Level::Debug);
             console_error_panic_hook::set_once();
 
-            leptos::mount_to_body(|cx| {
-                view! { cx,  <App/> }
+            leptos::mount_to_body(|| {
+                view! { <App/> }
             });
         }
     }
@@ -36,8 +36,8 @@ cfg_if! {
             _ = console_log::init_with_level(log::Level::Debug);
             console_error_panic_hook::set_once();
 
-            mount_to_body(|cx| {
-                view! { cx, <App /> }
+            mount_to_body(|| {
+                view! { <App /> }
             });
         }
     }

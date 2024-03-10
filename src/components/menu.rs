@@ -9,13 +9,9 @@ use crate::{
 };
 
 #[component]
-pub fn Menu(
-    cx: Scope,
-    show_form: RwSignal<Form>,
-    chess_board_signals: ChessBoardSignals,
-) -> impl IntoView {
-    let show_menu = create_rw_signal(cx, false);
-    let menu_timeout_id = create_rw_signal::<Option<i32>>(cx, None);
+pub fn Menu(show_form: RwSignal<Form>, chess_board_signals: ChessBoardSignals) -> impl IntoView {
+    let show_menu = create_rw_signal(false);
+    let menu_timeout_id = create_rw_signal::<Option<i32>>(None);
 
     let menu_css = move || {
         if show_menu.get() {
@@ -77,7 +73,7 @@ pub fn Menu(
         show_form.set(Form::Options);
     };
 
-    view! { cx,
+    view! {
         <div class=menu_css>
             <div class="menu-header">
                 <button

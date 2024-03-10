@@ -6,7 +6,7 @@ use crate::handlers::interaction_start;
 use leptos::*;
 
 #[component]
-pub fn ChessBoard(cx: Scope, chess_board_signals: ChessBoardSignals) -> impl IntoView {
+pub fn ChessBoard(chess_board_signals: ChessBoardSignals) -> impl IntoView {
     let css_class = move || chess_board_signals.chess_board().with(|c| c.css_class());
     let white_view = move || chess_board_signals.chess_board().with(|c| c.white_view());
     let stones_signals = move || {
@@ -25,11 +25,11 @@ pub fn ChessBoard(cx: Scope, chess_board_signals: ChessBoardSignals) -> impl Int
             .clone()
     };
 
-    let piece_view = move |cx, (key, stone_signal): (String, RwSignal<StoneSignal>)| {
-        let position = move || stone_signal().position().map(|p| p.to_string());
-        let stone = move || stone_signal().stone();
+    let piece_view = move |(key, stone_signal): (String, RwSignal<StoneSignal>)| {
+        let position = move || stone_signal.get().position().map(|p| p.to_string());
+        let stone = move || stone_signal.get().stone();
         let dragging_class = move || {
-            if stone_signal().is_dragging() {
+            if stone_signal.get().is_dragging() {
                 "dragging".to_string()
             } else {
                 "".to_string()
@@ -45,7 +45,7 @@ pub fn ChessBoard(cx: Scope, chess_board_signals: ChessBoardSignals) -> impl Int
                 dragging_class()
             )
         };
-        view! { cx,
+        view! {
             <div
                 class=class
                 on:mousedown=move |e| interaction_start(chess_board_signals, e)
@@ -54,19 +54,19 @@ pub fn ChessBoard(cx: Scope, chess_board_signals: ChessBoardSignals) -> impl Int
                 data-square=move || position().unwrap_or("deleted".to_string())
                 data-piece=move || stone().image_class()
                 data-key=key
-                data-deleted=move || format!("{}", stone_signal().is_deleted())
+                data-deleted=move || format!("{}", stone_signal.get().is_deleted())
             ></div>
         }
     };
 
-    view! { cx,
+    view! {
         <chess-board class=css_class id="chessboard">
             <BoardBackground/>
             <Coordinates white_view=white_view/>
             <For
                 each=stones_signals
                 key=move |(key, _)| key.to_string()
-                view=piece_view
+                children=piece_view
             />
             <Trash
                 chess_board_signals=chess_board_signals

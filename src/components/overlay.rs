@@ -59,10 +59,10 @@ pub fn get_user_payload() -> Option<SessionPayload> {
 }
 
 #[component]
-pub fn Overlay(cx: Scope, chess_board_signals: ChessBoardSignals) -> impl IntoView {
-    let show_form = create_rw_signal(cx, Form::None);
+pub fn Overlay(chess_board_signals: ChessBoardSignals) -> impl IntoView {
+    let show_form = create_rw_signal(Form::None);
 
-    create_effect(cx, move |_| {
+    create_effect(move |_| {
         use crate::utils::WindowExt;
 
         if let Some(_) = get_user_payload().map(|payload| payload.name) {
@@ -73,7 +73,7 @@ pub fn Overlay(cx: Scope, chess_board_signals: ChessBoardSignals) -> impl IntoVi
         };
     });
 
-    view! { cx,
+    view! {
         <>
             <Notifications chess_board_signals=chess_board_signals />
             <Menu show_form=show_form chess_board_signals=chess_board_signals />

@@ -1,4 +1,5 @@
 #[derive(Clone)]
+#[allow(dead_code)]
 pub enum NotifyType {
     Error,
     Success,
@@ -12,6 +13,7 @@ pub struct Notification {
     pub notify_type: NotifyType,
 }
 
+#[allow(dead_code)]
 impl Notification {
     pub fn new(message: String, notify_type: NotifyType) -> Self {
         Self {

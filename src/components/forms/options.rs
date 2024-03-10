@@ -3,7 +3,7 @@ use leptos::*;
 use crate::entities::chess_board::signals::ChessBoardSignals;
 
 #[component]
-pub fn Options<F>(cx: Scope, chess_board_signals: ChessBoardSignals, submit: F) -> impl IntoView
+pub fn Options<F>(chess_board_signals: ChessBoardSignals, submit: F) -> impl IntoView
 where
     F: Fn(web_sys::SubmitEvent) -> () + 'static,
 {
@@ -15,11 +15,11 @@ where
             .unwrap_or(false);
 
         if validation {
-            view! { cx,
+            view! {
                 <input type="checkbox" name="validation" checked/>
             }
         } else {
-            view! { cx,
+            view! {
                 <input type="checkbox" name="validation"/>
             }
         }
@@ -32,16 +32,16 @@ where
             .map(|rs| rs.options().sync())
             .unwrap_or(false);
         if sync {
-            view! { cx,
+            view! {
                 <input type="checkbox" name="sync" checked/>
             }
         } else {
-            view! { cx,
+            view! {
                 <input type="checkbox" name="sync"/>
             }
         }
     };
-    view! { cx,
+    view! {
         <form
             class="flex h-fit flex-col justify-center items-center bg-white rounded p-4"
             on:submit=submit

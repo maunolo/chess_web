@@ -10,12 +10,11 @@ use crate::{
 
 #[component]
 pub fn StatusMenu(
-    cx: Scope,
     show_form: RwSignal<Form>,
     chess_board_signals: ChessBoardSignals,
 ) -> impl IntoView {
-    let show_status_menu = create_rw_signal(cx, false);
-    let status_menu_timeout_id = create_rw_signal::<Option<i32>>(cx, None);
+    let show_status_menu = create_rw_signal(false);
+    let status_menu_timeout_id = create_rw_signal::<Option<i32>>(None);
 
     let username = move |_| {
         show_form.set(Form::Username);
@@ -103,11 +102,10 @@ pub fn StatusMenu(
             .with(|status| status.as_ref().map(|s| s.users()).unwrap_or(vec![]))
     };
 
-    let user_view = move |cx, user: RwSignal<User>| {
+    let user_view = move |user: RwSignal<User>| {
         let status_class = move || format!("status status--{}", user.with(|u| u.status_str()));
         if user.with(|u| u.id()) == get_user_payload().map(|p| p.sub).unwrap_or_default() {
             view! {
-                cx,
                 <li class="current-user">
                     <span>
                         {move || user.with(|u| u.username())}
@@ -122,7 +120,6 @@ pub fn StatusMenu(
             }
         } else {
             view! {
-                cx,
                 <li>
                     <span>
                         {move || user.with(|u| u.username())}
@@ -134,7 +131,7 @@ pub fn StatusMenu(
         }
     };
 
-    view! { cx,
+    view! {
         <div class=status_menu_css style=status_menu_style>
             <div class="status-menu-header">
                 <button
@@ -164,7 +161,7 @@ pub fn StatusMenu(
                     <For
                         each=users
                         key=|user| user.with(|u| u.id())
-                        view=user_view
+                        children=user_view
                     />
                 </ul>
             </div>

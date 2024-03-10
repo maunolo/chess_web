@@ -174,6 +174,21 @@ impl ChessBoard {
         Ok(chess_board)
     }
 
+    pub fn is_checkmate(&self) -> bool {
+        for (position, stone) in self.stones_and_positions_iter() {
+            match (self.turn, stone.color()) {
+                (Turn::White, Color::Light) | (Turn::Black, Color::Dark) => {
+                    let possible_moves = self.possible_moves(&position);
+                    if !possible_moves.is_empty() {
+                        return false;
+                    }
+                }
+                _ => {}
+            }
+        }
+        return true;
+    }
+
     pub fn is_in_check(&self) -> bool {
         let Some((position, _)) = self.stones_and_positions_iter().find(|(_, stone)| {
             matches!(stone.kind(), Kind::King)
@@ -432,13 +447,13 @@ impl ChessBoard {
                     .deleted_stones
                     .iter()
                     .position(|s| s.image_class() == piece)
-                    {
-                        Some(self.deleted_stones.remove(idx))
-                    } else {
-                        return Err(ChessBoardError::InvalidMove(MoveError::NoStoneFound));
-                    }
+                {
+                    Some(self.deleted_stones.remove(idx))
+                } else {
+                    return Err(ChessBoardError::InvalidMove(MoveError::NoStoneFound));
+                }
             }
-            Some(from) => self.take_stone_at(from.x, from.y)
+            Some(from) => self.take_stone_at(from.x, from.y),
         }) else {
             return Err(ChessBoardError::InvalidMove(MoveError::NoStoneFound));
         };

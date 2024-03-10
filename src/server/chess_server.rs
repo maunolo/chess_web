@@ -740,7 +740,6 @@ impl Handler<Move> for ChessServer {
                         to,
                         e
                     );
-                    std::thread::sleep(Duration::from_millis(100));
                     self.send_message_to_session(
                         &id,
                         &format!(
@@ -751,6 +750,7 @@ impl Handler<Move> for ChessServer {
                     return;
                 }
             }
+            let is_checkmate = chess_board.is_checkmate();
             current_room.current_fen = chess_board.fen.clone();
             current_room.trash = chess_board.trash_string();
 
@@ -774,6 +774,9 @@ impl Handler<Move> for ChessServer {
                 std::thread::sleep(Duration::from_millis(timeout));
                 self.send_message(&session.current_room, &reactive_move_message, None);
             }
+            if is_checkmate {
+                self.send_message(&session.current_room, "/checkmate", None)
+            }
         };
     }
 }
@@ -793,10 +796,11 @@ impl Handler<Reset> for ChessServer {
                 .deleted_stones(&current_room.original_trash)
                 .validation(current_room.chess_board.validation)
                 .sync(current_room.chess_board.sync)
-                .build() else {
-                    self.send_message_to_session(&msg.id, "/notify error Failed to reset board");
-                    return;
-                };
+                .build()
+            else {
+                self.send_message_to_session(&msg.id, "/notify error Failed to reset board");
+                return;
+            };
             current_room.current_fen = current_room.original_fen.clone();
             current_room.trash = current_room.original_trash.to_owned();
             current_room.current_move_index = None;
@@ -842,11 +846,12 @@ impl Handler<Undo> for ChessServer {
                         .deleted_stones(&move_result.previous_trash)
                         .validation(current_room.chess_board.validation)
                         .sync(current_room.chess_board.sync)
-                        .build() else {
-                            let _ = current_room.redo_move();
-                            self.send_message_to_session(&id, "/notify error Failed to undo move");
-                            return;
-                        };
+                        .build()
+                    else {
+                        let _ = current_room.redo_move();
+                        self.send_message_to_session(&id, "/notify error Failed to undo move");
+                        return;
+                    };
                     current_room.current_fen = move_result.previous_fen;
                     current_room.trash = move_result.previous_trash;
                     current_room.chess_board = chess_board;
@@ -891,11 +896,12 @@ impl Handler<Redo> for ChessServer {
                         .deleted_stones(&move_result.current_trash)
                         .validation(current_room.chess_board.validation)
                         .sync(current_room.chess_board.sync)
-                        .build() else {
-                            let _ = current_room.undo_move();
-                            self.send_message_to_session(&id, "/notify error Failed to redo move");
-                            return;
-                        };
+                        .build()
+                    else {
+                        let _ = current_room.undo_move();
+                        self.send_message_to_session(&id, "/notify error Failed to redo move");
+                        return;
+                    };
 
                     current_room.current_fen = move_result.current_fen;
                     current_room.trash = move_result.current_trash;

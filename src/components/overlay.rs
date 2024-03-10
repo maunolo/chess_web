@@ -2,6 +2,7 @@ use leptos::*;
 
 use crate::{
     components::{
+        check_mate::CheckMate,
         forms::{Form, Forms},
         menu::Menu,
         notifications::Notifications,
@@ -79,6 +80,7 @@ pub fn Overlay(chess_board_signals: ChessBoardSignals) -> impl IntoView {
             <Menu show_form=show_form chess_board_signals=chess_board_signals />
             <StatusMenu show_form=show_form chess_board_signals=chess_board_signals />
             <Forms show_form=show_form chess_board_signals=chess_board_signals />
+            <CheckMate chess_board_signals=chess_board_signals />
         </>
     }
 }

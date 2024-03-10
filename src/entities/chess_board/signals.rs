@@ -1,6 +1,7 @@
 use cfg_if::cfg_if;
 use leptos::{
-    create_rw_signal, RwSignal, SignalGetUntracked, SignalSet, SignalUpdate, SignalWithUntracked,
+    create_rw_signal, RwSignal, SignalGet, SignalGetUntracked, SignalSet, SignalUpdate,
+    SignalWithUntracked,
 };
 use std::collections::BTreeMap;
 use web_sys::WebSocket;
@@ -280,6 +281,13 @@ impl ChessBoardSignals {
 
     pub fn notification(&self) -> RwSignal<Notification> {
         self.notification
+    }
+
+    pub fn is_checkmate(&self) -> bool {
+        self.room_status()
+            .get()
+            .map(|room_status| room_status.checkmate() && room_status.options().validation())
+            .unwrap_or(false)
     }
 
     pub fn move_piece(&self, piece: String, old_pos: String, new_pos: String) {

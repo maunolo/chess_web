@@ -7,6 +7,7 @@ pub struct RoomStatus {
     name: String,
     users: BTreeMap<String, RwSignal<User>>,
     options: ChessBoardOptions,
+    checkmate: bool,
 }
 
 #[derive(Clone)]
@@ -123,6 +124,7 @@ impl RoomStatus {
                 validation: false,
                 sync: true,
             },
+            checkmate: false,
         }
     }
 
@@ -235,5 +237,13 @@ impl RoomStatus {
         if let Ok(user) = username.parse::<User>() {
             self.users.remove(&user.id());
         };
+    }
+
+    pub fn checkmate(&self) -> bool {
+        self.checkmate
+    }
+
+    pub fn set_checkmate(&mut self, checkmate: bool) {
+        self.checkmate = checkmate;
     }
 }

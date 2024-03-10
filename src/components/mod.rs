@@ -1,4 +1,5 @@
 pub mod board;
+pub mod check_mate;
 pub mod chess_board;
 pub mod coordinates;
 pub mod forms;

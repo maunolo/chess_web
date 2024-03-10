@@ -72,6 +72,7 @@ fn on_message_callback(chess_board_signals: ChessBoardSignals) -> Closure<dyn Fn
                         chess_board_signals.room_status().update(|room_status| {
                             if let Some(room_status) = room_status {
                                 room_status.set_name(room_name);
+                                room_status.set_checkmate(false);
                             } else {
                                 *room_status = Some(RoomStatus::new(room_name));
                             }
@@ -209,6 +210,13 @@ fn on_message_callback(chess_board_signals: ChessBoardSignals) -> Closure<dyn Fn
 
                         chess_board_signals.notification().update(|notification| {
                             notification.enable();
+                        });
+                    }
+                    "/checkmate" => {
+                        chess_board_signals.room_status().update(|room_status| {
+                            if let Some(room_status) = room_status {
+                                room_status.set_checkmate(true);
+                            }
                         });
                     }
                     _ => {}

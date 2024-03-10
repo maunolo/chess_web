@@ -18,7 +18,7 @@ where
                     name="username"
                     placeholder="Ex: John Doe"
                 />
-                <button class="border border-gray-400 rounded py-2 px-4 m-2" type="submit">
+                <button class="border border-gray-400 hover:border-blue-500 hover:text-blue-500 rounded py-2 px-4 m-2" type="submit">
                     ">"
                 </button>
             </div>

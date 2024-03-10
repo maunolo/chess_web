@@ -18,7 +18,7 @@ where
                     name="room"
                     placeholder="Ex: Chess fen|trash"
                 />
-                <button class="border border-gray-400 rounded py-2 px-4 m-2" type="submit">
+                <button class="border border-gray-400 hover:border-blue-500 hover:text-blue-500 rounded py-2 px-4 m-2" type="submit">
                     ">"
                 </button>
             </div>

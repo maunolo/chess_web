@@ -66,6 +66,9 @@ module.exports = {
             '73': '18.25rem',
             '74': '18.5rem',
             '88': '22rem',
+        },
+        padding: {
+            '2px': '2px',
         }
     },
   },

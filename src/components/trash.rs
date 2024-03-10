@@ -3,6 +3,7 @@ use std::collections::BTreeMap;
 use leptos::*;
 
 use crate::entities::chess_board::signals::{ChessBoardSignals, StoneSignal};
+use crate::entities::chess_board::turns::Turn;
 use crate::handlers::interaction_start;
 
 #[derive(Clone, Copy, PartialEq)]
@@ -49,8 +50,13 @@ where
             })
             .collect::<Vec<(usize, RwSignal<StoneSignal>)>>()
     };
+    let active = move || match (chess_board_signals.chess_board().get().turn, id) {
+        (Turn::Black, TrashType::Light) => "border-2 border-neutral-200".to_string(),
+        (Turn::White, TrashType::Dark) => "border-2 border-neutral-200".to_string(),
+        _ => "p-[2px]".to_string(),
+    };
 
-    let trash_class = move || format!("trash {}", position_css());
+    let trash_class = move || format!("trash {} {}", position_css(), active());
 
     let trash_id = move || format!("{}-trash", String::from(id));
 

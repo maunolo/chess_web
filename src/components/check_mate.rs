@@ -41,7 +41,7 @@ pub fn CheckMate(chess_board_signals: ChessBoardSignals) -> impl IntoView {
             view! {
                 <div class="z-40 flex absolute w-full h-full justify-center items-center bg-neutral-900/30">
                     <div class="flex h-fit flex-col justify-center items-center bg-white rounded p-4">
-                        <h1 class="text-2xl font-bold mb-4">"Checkmate!"</h1>
+                        <h1 class="text-2xl font-bold mb-2">"Checkmate!"</h1>
                         <span class="text-md font-light">"The winner is " {winner}</span>
                         <button
                             class="border w-full border-gray-400 hover:border-blue-500 hover:text-blue-500 rounded py-2 px-4 my-2"

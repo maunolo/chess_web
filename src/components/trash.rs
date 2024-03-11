@@ -2,7 +2,8 @@ use std::collections::BTreeMap;
 
 use leptos::*;
 
-use crate::entities::chess_board::{ChessBoardSignals, StoneSignal};
+use crate::entities::chess_board::signals::{ChessBoardSignals, StoneSignal};
+use crate::entities::chess_board::turns::Turn;
 use crate::handlers::interaction_start;
 
 #[derive(Clone, Copy, PartialEq)]
@@ -22,7 +23,6 @@ impl From<TrashType> for String {
 
 #[component]
 pub fn Trash<W, T>(
-    cx: Scope,
     chess_board_signals: ChessBoardSignals,
     id: TrashType,
     white_view: W,
@@ -50,12 +50,17 @@ where
             })
             .collect::<Vec<(usize, RwSignal<StoneSignal>)>>()
     };
+    let active = move || match (chess_board_signals.chess_board().get().turn, id) {
+        (Turn::Black, TrashType::Light) => "border-2 border-neutral-200".to_string(),
+        (Turn::White, TrashType::Dark) => "border-2 border-neutral-200".to_string(),
+        _ => "p-[2px]".to_string(),
+    };
 
-    let trash_class = move || format!("trash {}", position_css());
+    let trash_class = move || format!("trash {} {}", position_css(), active());
 
     let trash_id = move || format!("{}-trash", String::from(id));
 
-    let piece_view = move |cx, (idx, stone_signal): (usize, RwSignal<StoneSignal>)| {
+    let piece_view = move |(idx, stone_signal): (usize, RwSignal<StoneSignal>)| {
         let stone = move || stone_signal.get().stone();
         let dragging_class = move || {
             if stone_signal.get().is_dragging() {
@@ -65,7 +70,7 @@ where
             }
         };
 
-        view! { cx,
+        view! {
             <div
                 class=move || format!("piece {} deleted {}", stone().image_class(), dragging_class())
                 on:mousedown=move |e| interaction_start(chess_board_signals, e)
@@ -74,17 +79,17 @@ where
                 data-square="deleted"
                 data-piece=stone().image_class()
                 data-key=move || idx.to_string()
-                data-deleted=move || format!("{}", stone_signal().is_deleted())
+                data-deleted=move || format!("{}", stone_signal.get().is_deleted())
             ></div>
         }
     };
 
-    view! { cx,
+    view! {
         <div class=trash_class data-trash=move || String::from(id) id=trash_id>
             <For
                 each=trash_signals
                 key=move |(key, _)| key.to_string()
-                view=piece_view
+                children=piece_view
             />
         </div>
     }

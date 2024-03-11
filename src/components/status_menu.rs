@@ -1,18 +1,20 @@
 use leptos::*;
 
 use crate::{
-    components::overlay::{clear_timeout, get_user_payload, toggle_sub_menu, Form},
-    entities::{chess_board::ChessBoardSignals, room::User},
+    components::{
+        forms::Form,
+        overlay::{clear_timeout, get_user_payload, toggle_sub_menu},
+    },
+    entities::{chess_board::signals::ChessBoardSignals, room::User},
 };
 
 #[component]
 pub fn StatusMenu(
-    cx: Scope,
     show_form: RwSignal<Form>,
     chess_board_signals: ChessBoardSignals,
 ) -> impl IntoView {
-    let show_status_menu = create_rw_signal(cx, false);
-    let status_menu_timeout_id = create_rw_signal::<Option<i32>>(cx, None);
+    let show_status_menu = create_rw_signal(false);
+    let status_menu_timeout_id = create_rw_signal::<Option<i32>>(None);
 
     let username = move |_| {
         show_form.set(Form::Username);
@@ -100,11 +102,10 @@ pub fn StatusMenu(
             .with(|status| status.as_ref().map(|s| s.users()).unwrap_or(vec![]))
     };
 
-    let user_view = move |cx, user: RwSignal<User>| {
+    let user_view = move |user: RwSignal<User>| {
         let status_class = move || format!("status status--{}", user.with(|u| u.status_str()));
         if user.with(|u| u.id()) == get_user_payload().map(|p| p.sub).unwrap_or_default() {
             view! {
-                cx,
                 <li class="current-user">
                     <span>
                         {move || user.with(|u| u.username())}
@@ -119,7 +120,6 @@ pub fn StatusMenu(
             }
         } else {
             view! {
-                cx,
                 <li>
                     <span>
                         {move || user.with(|u| u.username())}
@@ -131,12 +131,13 @@ pub fn StatusMenu(
         }
     };
 
-    view! { cx,
+    view! {
         <div class=status_menu_css style=status_menu_style>
             <div class="status-menu-header">
                 <button
                     class=status_menu_btn_css
                     on:click=toggle_status_menu
+                    aria-label="Status Menu"
                 >
                     <span class="circle">
                         <span class="circle-inner">{move || users().len()}</span>
@@ -145,6 +146,7 @@ pub fn StatusMenu(
                 <button
                     class=status_refresh_btn_css
                     on:click=start_websocket
+                    aria-label="Refresh Status"
                 >
                     <svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" version="1.1" id="Capa_1" x="0px" y="0px" viewBox="0 0 513.806 513.806" style="enable-background:new 0 0 513.806 513.806;" xml:space="preserve" width="512" height="512">
                         <g>
@@ -159,7 +161,7 @@ pub fn StatusMenu(
                     <For
                         each=users
                         key=|user| user.with(|u| u.id())
-                        view=user_view
+                        children=user_view
                     />
                 </ul>
             </div>

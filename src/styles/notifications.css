@@ -1,0 +1,73 @@
+@layer components {
+    .notify {
+        @apply fixed top-0 z-50 min-h-15 h-fit max-w-md hidden items-center justify-center rounded-b-lg bg-neutral-200 drop-shadow px-12;
+        transform: translateY(-100%);
+
+        &--is-active {
+            @apply flex animate-notify-show;
+        }
+
+        .notify-icon {
+            @apply absolute left-3 w-6 h-6;
+
+            svg {
+                @apply w-full h-full;
+            }
+        }
+
+        .success {
+            svg {
+                @apply fill-green-700 stroke-green-700;
+            }
+        }
+
+        .warning {
+            svg {
+                @apply fill-yellow-700 stroke-yellow-700;
+            }
+        }
+
+        .error {
+            svg {
+                @apply fill-red-700 stroke-red-700;
+            }
+        }
+
+        p {
+            @apply break-words font-medium w-full;
+        }
+
+        .notify-close {
+            @apply absolute right-4 w-4 h-4 cursor-pointer;
+
+            .notify-close-icon,
+            .notify-close-icon::before,
+            .notify-close-icon::after {
+                @apply pointer-events-none bg-neutral-700 rounded;
+                display: block;
+                height: 0.1rem;
+                width: 1rem;
+            }
+
+            .notify-close-icon {
+                background-color: transparent;
+                position: relative;
+
+                &::before,
+                &::after {
+                    content: '';
+                    position: absolute;
+                }
+
+                &::before {
+                    transform: rotate(45deg);
+                }
+
+                &::after {
+                    transform: rotate(-45deg);
+                }
+            }
+        }
+    }
+}
+

@@ -218,6 +218,23 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for WsChessSession {
                                 id: self.id.clone(),
                             });
                         }
+                        "/undo" => {
+                            self.addr.do_send(chess_server::Undo {
+                                id: self.id.clone(),
+                            });
+                        }
+                        "/redo" => {
+                            self.addr.do_send(chess_server::Redo {
+                                id: self.id.clone(),
+                            });
+                        }
+                        "/options" => {
+                            self.addr.do_send(chess_server::Options {
+                                id: self.id.clone(),
+                                validation: input.contains("validation"),
+                                sync: input.contains("sync"),
+                            });
+                        }
                         _ => ctx.text(format!("!!! unknown command: {m:?}")),
                     }
                 } else {

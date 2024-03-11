@@ -1,11 +1,11 @@
 use leptos::*;
 
 #[component]
-pub fn Username<F>(cx: Scope, submit: F) -> impl IntoView
+pub fn Username<F>(submit: F) -> impl IntoView
 where
     F: Fn(web_sys::SubmitEvent) -> () + 'static,
 {
-    view! { cx,
+    view! {
         <form
             class="flex h-fit flex-col justify-center items-center bg-white rounded p-4"
             on:submit=submit
@@ -18,7 +18,7 @@ where
                     name="username"
                     placeholder="Ex: John Doe"
                 />
-                <button class="border border-gray-400 rounded py-2 px-4 m-2" type="submit">
+                <button class="border border-gray-400 hover:border-blue-500 hover:text-blue-500 rounded py-2 px-4 m-2" type="submit">
                     ">"
                 </button>
             </div>

@@ -4,7 +4,8 @@ use web_sys::{CloseEvent, Element, ErrorEvent, MessageEvent, WebSocket};
 
 use crate::{
     entities::{
-        chess_board::{ChessBoardBuilder, ChessBoardSignals},
+        chess_board::{signals::ChessBoardSignals, ChessBoardBuilder},
+        notification::NotifyType,
         room::{RoomStatus, User, UserStatus},
     },
     utils::{class_list::ClassListExt, elements::document, WindowExt},
@@ -71,9 +72,9 @@ fn on_message_callback(chess_board_signals: ChessBoardSignals) -> Closure<dyn Fn
                         chess_board_signals.room_status().update(|room_status| {
                             if let Some(room_status) = room_status {
                                 room_status.set_name(room_name);
+                                room_status.set_checkmate(false);
                             } else {
-                                *room_status =
-                                    Some(RoomStatus::new(chess_board_signals.cx(), room_name));
+                                *room_status = Some(RoomStatus::new(room_name));
                             }
                         });
 
@@ -95,16 +96,15 @@ fn on_message_callback(chess_board_signals: ChessBoardSignals) -> Closure<dyn Fn
                         let deleted_stones = chess_board_signals
                             .chess_board()
                             .with_untracked(|cb| cb.cloned_deleted_stones());
-                        let cx = chess_board_signals.cx();
 
                         chess_board_signals
                             .stones_signals()
                             .update(|stones_signals| {
                                 for (position, stone) in positions_and_stones {
-                                    stones_signals.add_board_stone(cx, position, stone);
+                                    stones_signals.add_board_stone(position, stone);
                                 }
                                 for stone in deleted_stones {
-                                    stones_signals.add_deleted_stone(cx, stone);
+                                    stones_signals.add_deleted_stone(stone);
                                 }
                             });
 
@@ -133,11 +133,17 @@ fn on_message_callback(chess_board_signals: ChessBoardSignals) -> Closure<dyn Fn
 
                             chess_board_signals.room_status().set(Some(room_status));
                         } else {
-                            let mut new_room_status =
-                                RoomStatus::new(chess_board_signals.cx(), room_name);
+                            let mut new_room_status = RoomStatus::new(room_name);
                             new_room_status.sync_users(users);
                             chess_board_signals.room_status().set(Some(new_room_status));
                         }
+                    }
+                    "/sync_options" => {
+                        chess_board_signals.room_status().update(|room_status| {
+                            if let Some(room_status) = room_status {
+                                room_status.set_options_from_str(input);
+                            }
+                        });
                     }
                     "/add_user" => {
                         let room_status = chess_board_signals.room_status().get_untracked();
@@ -187,6 +193,32 @@ fn on_message_callback(chess_board_signals: ChessBoardSignals) -> Closure<dyn Fn
                             user.update(|u| u.connect());
                         }
                     }
+                    "/notify" => {
+                        let (notify_type, msg) = input.split_once(" ").unwrap_or((input, ""));
+                        let notify_type = match notify_type {
+                            "error" => NotifyType::Error,
+                            "warning" => NotifyType::Warning,
+                            "success" => NotifyType::Success,
+                            _ => return,
+                        };
+
+                        chess_board_signals.notification().update(|notification| {
+                            notification.notify_type = notify_type;
+                            notification.message = msg.to_string();
+                            notification.disable();
+                        });
+
+                        chess_board_signals.notification().update(|notification| {
+                            notification.enable();
+                        });
+                    }
+                    "/checkmate" => {
+                        chess_board_signals.room_status().update(|room_status| {
+                            if let Some(room_status) = room_status {
+                                room_status.set_checkmate(true);
+                            }
+                        });
+                    }
                     _ => {}
                 }
             }
@@ -194,6 +226,7 @@ fn on_message_callback(chess_board_signals: ChessBoardSignals) -> Closure<dyn Fn
     })
 }
 
+#[allow(dead_code)]
 pub fn start_websocket(chess_board_signals: ChessBoardSignals) -> Result<WebSocket, JsValue> {
     let location = web_sys::window().unwrap().location();
 

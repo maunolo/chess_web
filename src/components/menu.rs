@@ -1,18 +1,17 @@
 use leptos::*;
 
 use crate::{
-    components::overlay::{clear_timeout, toggle_sub_menu, Form},
-    entities::chess_board::ChessBoardSignals,
+    components::{
+        forms::Form,
+        overlay::{clear_timeout, toggle_sub_menu},
+    },
+    entities::chess_board::signals::ChessBoardSignals,
 };
 
 #[component]
-pub fn Menu(
-    cx: Scope,
-    show_form: RwSignal<Form>,
-    chess_board_signals: ChessBoardSignals,
-) -> impl IntoView {
-    let show_menu = create_rw_signal(cx, false);
-    let menu_timeout_id = create_rw_signal::<Option<i32>>(cx, None);
+pub fn Menu(show_form: RwSignal<Form>, chess_board_signals: ChessBoardSignals) -> impl IntoView {
+    let show_menu = create_rw_signal(false);
+    let menu_timeout_id = create_rw_signal::<Option<i32>>(None);
 
     let menu_css = move || {
         if show_menu.get() {
@@ -48,16 +47,39 @@ pub fn Menu(
         }
     };
 
+    let undo = move |_| {
+        if let Some(socket) = chess_board_signals.socket().get().as_ref() {
+            match socket.send_with_str("/undo") {
+                Ok(_) => {}
+                Err(err) => log::error!("Error sending message: {:?}", err),
+            }
+        }
+    };
+
+    let redo = move |_| {
+        if let Some(socket) = chess_board_signals.socket().get().as_ref() {
+            match socket.send_with_str("/redo") {
+                Ok(_) => {}
+                Err(err) => log::error!("Error sending message: {:?}", err),
+            }
+        }
+    };
+
     let join = move |_| {
         show_form.set(Form::Join);
     };
 
-    view! { cx,
+    let options = move |_| {
+        show_form.set(Form::Options);
+    };
+
+    view! {
         <div class=menu_css>
             <div class="menu-header">
                 <button
                     class=menu_btn_css
                     on:click=toggle_menu
+                    aria-label="Menu"
                 >
                     <span class="line"></span>
                 </button>
@@ -84,6 +106,27 @@ pub fn Menu(
                 >
                     "Join"
                 </button>
+                <button
+                    class="sub-menu-item"
+                    on:click=options
+                >
+                    "Options"
+                </button>
+                <div class="split-button"
+                >
+                    <button
+                        class="split-button-item"
+                        on:click=undo
+                    >
+                        "Undo"
+                    </button>
+                    <button
+                        class="split-button-item"
+                        on:click=redo
+                    >
+                        "Redo"
+                    </button>
+                </div>
             </div>
         </div>
     }

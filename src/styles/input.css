@@ -3,6 +3,8 @@
 
 @import "tailwindcss/components";
 @import "./menu.css";
+@import "./slider.css";
+@import "./notifications.css";
 @import "./chess/board.css";
 @import "./chess/pieces.css";
 @import "./chess/squares.css";

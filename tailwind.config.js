@@ -1,6 +1,6 @@
 /** @type {import('tailwindcss').Config} */
 module.exports = {
-  content: { 
+  content: {
     files: ["*.html", "./src/**/*.rs"],
   },
   theme: {
@@ -12,12 +12,19 @@ module.exports = {
             '90': '90%',
         },
         keyframes: {
+            'notify-show': {
+                '0%': { transform: 'translateY(-100%)' },
+                '10%': { transform: 'translateY(0)' },
+                '90%': { transform: 'translateY(0)' },
+                '100%': { transform: 'translateY(-100%)' },
+            },
             'pulse-brightness': {
                 '0%, 100%': { filter: 'brightness(0.9)' },
                 '50%': { filter: 'brightness(1)' },
             },
         },
         animation: {
+            'notify-show': 'notify-show 5s ease-in-out',
             'pulse-brightness': 'pulse-brightness 2s ease-in-out infinite',
         },
         maxWidth: {
@@ -27,6 +34,9 @@ module.exports = {
             '41': '10.25rem',
             '44': '11rem',
             '48': '12rem',
+        },
+        minHeight: {
+            '15': '3.75rem',
         },
         maxHeight: {
             '90': '22.5rem',
@@ -45,7 +55,20 @@ module.exports = {
             '45': '11.25rem',
             '49': '12.25rem',
             '51': '12.75rem',
+            '51.25': '12.8125rem',
+            '54.5': '13.625rem',
+            '58': '14.5rem',
+            '58.5': '14.625rem',
+            '62': '15.5rem',
+            '62.5': '15.625rem',
+            '68': '17rem',
+            '69': '17.25rem',
+            '73': '18.25rem',
+            '74': '18.5rem',
             '88': '22rem',
+        },
+        padding: {
+            '2px': '2px',
         }
     },
   },

@@ -8,10 +8,10 @@ crate-type = ["cdylib", "rlib"]
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 [dependencies]
-leptos = { version = "0.3.0", default-features = false, features = ["serde"] }
-leptos_actix = { version = "0.3.0", optional = true }
-leptos_meta = { version = "0.3.0", default-features = false }
-leptos_router = { version = "0.3.0", default-features = false }
+leptos = { version = "0.6.9" }
+leptos_actix = { version = "0.6.9", optional = true }
+leptos_meta = { version = "0.6.9" }
+leptos_router = { version = "0.6.9" }
 gloo-net = { version = "0.2", features = ["http"] }
 cfg-if = { version = "1.0" }
 log = { version = "0.4.19" }
@@ -64,20 +64,10 @@ actix-web-actors = { version = "4.2.0", optional = true }
 uuid = { version = "1.4.0", features = ["v4"], optional = true }
 
 [features]
-default = ["csr"]
 hydrate = [
     "leptos/hydrate",
     "leptos_meta/hydrate",
     "leptos_router/hydrate",
-    "dep:wasm-bindgen",
-    "dep:console_log",
-    "dep:console_error_panic_hook",
-    "dep:js-sys",
-]
-csr = [
-    "leptos/csr",
-    "leptos_meta/csr",
-    "leptos_router/csr",
     "dep:wasm-bindgen",
     "dep:console_log",
     "dep:console_error_panic_hook",
@@ -122,12 +112,12 @@ lto = true
 opt-level = 'z'
 
 [package.metadata.leptos]
-# The name used by wasm-bindgen/cargo-leptos for the JS/WASM bundle. Defaults to the crate name   
+# The name used by wasm-bindgen/cargo-leptos for the JS/WASM bundle. Defaults to the crate name
 output-name = "chess_web"
 # The site root folder is where cargo-leptos generate all output. WARNING: all content of this folder will be erased on a rebuild. Use it in your server setup.
 site-root = "target/site"
 # The site-root relative folder where all compiled output (JS, WASM and CSS) is written
-# Defaults to pkg	
+# Defaults to pkg
 site-pkg-dir = "pkg"
 # # [Optional] The source CSS file. If it ends with .sass or .scss then it will be compiled by dart-sass into CSS. The CSS is optimized by Lightning CSS before being written to <site-root>/<site-pkg>/app.css
 # style-file = "pkg/chess_web.css"

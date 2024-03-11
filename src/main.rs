@@ -133,7 +133,7 @@ cfg_if! {
             let addr = SocketAddr::from(([0, 0, 0, 0], port));
 
             // Generate the list of routes in your Leptos App
-            let routes = generate_route_list(|cx| view! { cx, <App/> });
+            let routes = generate_route_list(|| view! { <App/> });
 
             // set up applications state
             // keep a count of the number of visitors
@@ -157,7 +157,7 @@ cfg_if! {
                     .route("/ws", web::get().to(chess_route))
                     .service(create_session)
                     .service(css)
-                    .leptos_routes(leptos_options.to_owned(), routes.to_owned(), |cx| view! { cx, <App/> })
+                    .leptos_routes(leptos_options.to_owned(), routes.to_owned(), || view! { <App/> })
                     .service(Files::new("/", site_root).show_files_listing())
                     .wrap(middleware::Compress::default())
             })

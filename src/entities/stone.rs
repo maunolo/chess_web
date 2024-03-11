@@ -1,7 +1,7 @@
 use std::{collections::HashSet, str::FromStr};
 
 use super::{
-    chess_board::{CastleOptions, ChessBoard},
+    chess_board::{castle_rules::CastleOptions, turns::Turn, ChessBoard},
     position::Position,
 };
 
@@ -12,8 +12,8 @@ pub struct MovePattern {
 }
 
 impl MovePattern {
-    pub fn moves_for(&self, position: &Position, chess_board: &ChessBoard) -> Vec<Position> {
-        let mut moves = Vec::new();
+    pub fn moves_for(&self, position: &Position, chess_board: &ChessBoard) -> HashSet<Position> {
+        let mut moves = HashSet::new();
 
         for (move_x, move_y) in &self.patterns {
             let mut x = position.x as i32 + move_x;
@@ -21,7 +21,7 @@ impl MovePattern {
             let mut multiply = 1;
 
             while x >= 0 && x <= 7 && y >= 0 && y <= 7 {
-                moves.push(Position::new(x as usize, y as usize));
+                moves.insert(Position::new(x as usize, y as usize));
 
                 if !self.sliding {
                     break;
@@ -170,8 +170,26 @@ impl Stone {
         self.kind
     }
 
+    pub fn as_str(&self) -> &str {
+        &self.image_class
+    }
+
     pub fn image_class(&self) -> String {
         self.image_class.clone()
+    }
+
+    pub fn threats(&self, position: &Position, chess_board: &ChessBoard) -> HashSet<Position> {
+        match self.kind {
+            Kind::Pawn => {
+                let eat_pattern = self.kind.pawn_eat_pattern(self.color);
+
+                eat_pattern
+                    .moves_for(position, chess_board)
+                    .into_iter()
+                    .collect()
+            }
+            _ => self.possible_moves(position, chess_board),
+        }
     }
 
     pub fn possible_moves(
@@ -179,14 +197,38 @@ impl Stone {
         position: &Position,
         chess_board: &ChessBoard,
     ) -> HashSet<Position> {
-        let mut moves = HashSet::<Position>::new();
         let move_pattern = self.kind.move_pattern(self.color);
+        let mut moves = move_pattern.moves_for(position, chess_board);
 
-        for move_pos in move_pattern.moves_for(position, chess_board) {
-            moves.insert(move_pos);
-        }
+        self.calculate_special_rules(position, chess_board, &mut moves);
+
+        moves
+            .into_iter()
+            .filter(|pos| {
+                chess_board
+                    .stone_at(pos.x, pos.y)
+                    .map(|s| s.color != self.color)
+                    .unwrap_or(true)
+            })
+            .collect()
+    }
+
+    fn calculate_special_rules(
+        &self,
+        position: &Position,
+        chess_board: &ChessBoard,
+        moves: &mut HashSet<Position>,
+    ) {
         match self.kind {
             Kind::Pawn => {
+                let Some(move_pos) = moves.iter().next().cloned() else {
+                    return;
+                };
+
+                if chess_board.stone_at(move_pos.x, move_pos.y).is_some() {
+                    moves.remove(&move_pos);
+                }
+
                 let eat_pattern = self.kind.pawn_eat_pattern(self.color);
 
                 for (move_x, move_y) in &eat_pattern.patterns {
@@ -207,42 +249,37 @@ impl Stone {
                     }
                 }
 
-                match self.color {
-                    Color::Light => {
-                        if position.y == 6 {
-                            let x = position.x as i32;
-                            let y = position.y as i32 - 2;
+                match (self.color, position.x, position.y) {
+                    (Color::Light, x, y) if y == 6 => {
+                        let y = position.y - 2;
 
-                            if chess_board.stone_at(x as usize, y as usize).is_none()
-                                && chess_board.stone_at(x as usize, y as usize + 1).is_none()
-                            {
-                                moves.insert(Position::new(x as usize, y as usize));
-                            }
+                        if chess_board.stone_at(x, y).is_none()
+                            && chess_board.stone_at(x, y + 1).is_none()
+                        {
+                            moves.insert(Position::new(x, y));
                         }
                     }
-                    Color::Dark => {
-                        if position.y == 1 {
-                            let x = position.x as i32;
-                            let y = position.y as i32 + 2;
+                    (Color::Dark, x, y) if y == 1 => {
+                        let y = position.y + 2;
 
-                            if chess_board.stone_at(x as usize, y as usize).is_none()
-                                && chess_board.stone_at(x as usize, y as usize - 1).is_none()
-                            {
-                                moves.insert(Position::new(x as usize, y as usize));
-                            }
+                        if chess_board.stone_at(x, y).is_none()
+                            && chess_board.stone_at(x, y - 1).is_none()
+                        {
+                            moves.insert(Position::new(x, y));
                         }
                     }
+                    _ => {}
                 }
             }
             Kind::King => {
-                for move_pos in moves.clone() {
-                    if chess_board.treat_at(move_pos.x, move_pos.y) {
-                        moves.remove(&move_pos);
+                for pos in moves.clone() {
+                    if chess_board.threat_at(pos.x, pos.y) {
+                        moves.remove(&pos);
                     }
                 }
 
-                match self.color {
-                    Color::Light => {
+                match (self.color, chess_board.turn, chess_board.is_in_check()) {
+                    (Color::Light, turn, in_check) if !(turn == Turn::White && in_check) => {
                         match chess_board.castle_rules().white() {
                             CastleOptions::BothSides => {
                                 // King side
@@ -273,7 +310,7 @@ impl Stone {
                             _ => {}
                         }
                     }
-                    Color::Dark => {
+                    (Color::Dark, turn, in_check) if !(turn == Turn::Black && in_check) => {
                         match chess_board.castle_rules().black() {
                             CastleOptions::BothSides => {
                                 // King side
@@ -304,20 +341,11 @@ impl Stone {
                             _ => {}
                         }
                     }
+                    _ => {}
                 }
             }
             _ => {}
         }
-
-        for move_pos in moves.clone() {
-            if let Some(stone) = chess_board.stone_at(move_pos.x, move_pos.y) {
-                if stone.color == self.color {
-                    moves.remove(&move_pos);
-                }
-            }
-        }
-
-        moves
     }
 }
 

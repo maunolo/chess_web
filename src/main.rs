@@ -31,11 +31,12 @@ cfg_if! {
         use std::env;
         use std::net::SocketAddr;
         use std::sync::{atomic::AtomicUsize, Arc};
+        use std::path::Path;
+        use std::time::{SystemTime, UNIX_EPOCH};
 
         use futures::StreamExt;
         use serde::{Deserialize, Serialize};
 
-        use std::time::{SystemTime, UNIX_EPOCH};
         use utils::SessionPayload;
 
         #[derive(Serialize, Deserialize)]
@@ -96,7 +97,9 @@ cfg_if! {
 
         #[get("/style.css")]
         async fn css() -> impl Responder {
-            actix_files::NamedFile::open_async("./target/site/pkg/chess_web.css").await
+            let site_path = env::var("LEPTOS_SITE_ROOT").unwrap_or("./target/site".to_string());
+            let css_path = Path::new(&site_path).join("pkg/chess_web.css");
+            actix_files::NamedFile::open_async(css_path).await
         }
 
         /// Entry point for our websocket route
@@ -127,7 +130,7 @@ cfg_if! {
             env_logger::init();
 
             // Setting this to None means we'll be using cargo-leptos and its env vars.
-            let conf = get_configuration(Some("Cargo.toml")).await.unwrap();
+            let conf = get_configuration(None).await.unwrap();
 
             let port = env::var("PORT").unwrap_or("3100".to_string()).parse::<u16>().unwrap_or(3100);
             let addr = SocketAddr::from(([0, 0, 0, 0], port));

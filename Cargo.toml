@@ -104,7 +104,7 @@ denylist = [
     "actix",
     "actix-web-actors",
 ]
-skip_feature_sets = [["csr", "ssr"], ["csr", "hydrate"], ["ssr", "hydrate"]]
+skip_feature_sets = [["ssr", "hydrate"]]
 
 [profile.release]
 codegen-units = 1

@@ -3,7 +3,7 @@ use leptos::prelude::*;
 use std::collections::BTreeMap;
 use web_sys::WebSocket;
 
-use super::ChessBoard;
+use super::{ChessBoard, ChessBoardBuilder};
 
 use crate::entities::{
     notification::{Notification, NotifyType},
@@ -323,16 +323,33 @@ impl ChessBoardSignals {
         });
     }
 
+    /// Takes the server's board after a move: turn, castling rights and en
+    /// passant square come from it, local moves don't apply those effects.
+    /// The pieces on screen are left alone, they already show the move.
+    pub fn sync_position(&self, fen: &str, trash: &str) {
+        let white_view = self.chess_board.with_untracked(|board| board.white_view());
+        match ChessBoardBuilder::new()
+            .fen(fen)
+            .deleted_stones(trash)
+            .is_white_view(white_view)
+            .validation(false)
+            .build()
+        {
+            Ok(board) => self.chess_board.set(board),
+            Err(err) => log::error!("Invalid position {} {}: {:?}", fen, trash, err),
+        }
+    }
+
     pub fn notify(&self, level: NotifyType, message: &str) {
         self.notification.update(|notification| {
             notification.show(level, message);
         });
     }
 
-    /// The user's seat in the room's game
+    /// The user's seat in the room's game. Reads the game first so a view
+    /// rendered before the session cookie exists still follows the game.
     pub fn my_seat(&self) -> Option<Side> {
-        let id = my_id()?;
-        self.game.with(|game| game.as_ref()?.seat_of(&id))
+        self.game.with(|game| game.as_ref()?.seat_of(&my_id()?))
     }
 
     pub fn is_game(&self) -> bool {

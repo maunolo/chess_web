@@ -88,10 +88,21 @@ pub enum ServerMsg {
         id: String,
         presence: Presence,
     },
+    /// Another user's move, or the side effect of a move (the pawn taken en
+    /// passant, the castling rook). `fen` and `trash` are the board after the
+    /// whole move, so clients take the turn, castling rights and en passant
+    /// square from the server instead of tracking them.
     Move {
         piece: String,
         from: String,
         to: String,
+        fen: String,
+        trash: String,
+    },
+    /// The board after the user's own move, which isn't sent back to them
+    Position {
+        fen: String,
+        trash: String,
     },
     Notify {
         level: NotifyType,

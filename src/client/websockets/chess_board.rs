@@ -38,7 +38,13 @@ fn query_position(square: &str) -> Option<Element> {
 
 fn handle_message(chess_board_signals: ChessBoardSignals, msg: ServerMsg) {
     match msg {
-        ServerMsg::Move { piece, from, to } => {
+        ServerMsg::Move {
+            piece,
+            from,
+            to,
+            fen,
+            trash,
+        } => {
             let last_move = (
                 Position::parse_square(&from).ok().flatten(),
                 Position::parse_square(&to).ok().flatten(),
@@ -47,7 +53,10 @@ fn handle_message(chess_board_signals: ChessBoardSignals, msg: ServerMsg) {
 
             let update_board = {
                 let (from, to) = (from.clone(), to.clone());
-                move || chess_board_signals.move_piece(piece.clone(), from.clone(), to.clone())
+                move || {
+                    chess_board_signals.move_piece(piece.clone(), from.clone(), to.clone());
+                    chess_board_signals.sync_position(&fen, &trash);
+                }
             };
 
             if from != DELETED && to != DELETED {
@@ -62,6 +71,7 @@ fn handle_message(chess_board_signals: ChessBoardSignals, msg: ServerMsg) {
                 update_board();
             }
         }
+        ServerMsg::Position { fen, trash } => chess_board_signals.sync_position(&fen, &trash),
         ServerMsg::SyncBoard { room, fen, trash } => {
             let white_view = chess_board_signals
                 .chess_board()

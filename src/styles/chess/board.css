@@ -82,4 +82,55 @@
     .trash {
         @apply pointer-events-none flex absolute h-10 sm:h-14 w-full z-20 bg-neutral-500;
     }
+
+    .last-move {
+        @apply pointer-events-none absolute z-20;
+
+        width: 12.5%;
+        height: 12.5%;
+        background: #faf05d4d;
+    }
+
+    .in-check {
+        @apply pointer-events-none absolute z-20;
+
+        width: 12.5%;
+        height: 12.5%;
+        background: radial-gradient(circle, #ef4444d9 0%, #ef444473 45%, transparent 75%);
+    }
+
+    /* Legal targets of the selected piece: a dot, or a ring around a capture */
+    .move-hint {
+        @apply pointer-events-none absolute z-[35];
+
+        width: 12.5%;
+        height: 12.5%;
+        background: radial-gradient(circle, #0000004d 0 16%, transparent 17%);
+
+        &.capture {
+            background: radial-gradient(circle, transparent 0 66%, #0000004d 67% 78%, transparent 79%);
+        }
+    }
+
+    .player-chip {
+        @apply absolute right-1 top-1/2 -translate-y-1/2 flex items-center gap-2 rounded px-2 py-0.5 text-xs sm:text-sm font-mono text-neutral-100 bg-neutral-700/80;
+
+        &--to-move {
+            @apply ring-2 ring-neutral-100;
+        }
+
+        .clock {
+            @apply font-bold tabular-nums;
+
+            &--low {
+                @apply text-red-400;
+            }
+        }
+    }
+
+    .promotion-choice {
+        @apply h-16 w-16 rounded bg-neutral-200 hover:bg-neutral-300 bg-center bg-no-repeat;
+
+        background-size: 85%;
+    }
 }

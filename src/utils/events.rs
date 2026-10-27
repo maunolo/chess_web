@@ -14,6 +14,12 @@ impl EventTargetExt for web_sys::MouseEvent {
     }
 }
 
+impl EventTargetExt for web_sys::PointerEvent {
+    fn target_element(&self) -> Option<web_sys::Element> {
+        super::js_cast::<web_sys::Element, _>(self.target()?)
+    }
+}
+
 impl EventTargetExt for web_sys::TouchEvent {
     fn target_element(&self) -> Option<web_sys::Element> {
         super::js_cast::<web_sys::Element, _>(self.target()?)
@@ -25,6 +31,12 @@ pub trait EventPositionExt {
 }
 
 impl EventPositionExt for web_sys::MouseEvent {
+    fn position(&self) -> (i32, i32) {
+        (self.client_x(), self.client_y())
+    }
+}
+
+impl EventPositionExt for web_sys::PointerEvent {
     fn position(&self) -> (i32, i32) {
         (self.client_x(), self.client_y())
     }

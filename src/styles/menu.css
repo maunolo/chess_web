@@ -103,8 +103,15 @@
             }
         }
 
+        /* header, then --menu-rows rows of items with gaps, and padding */
         &--is-active {
-            @apply pointer-events-auto h-69 sm:h-74;
+            @apply pointer-events-auto;
+
+            height: calc(4.5rem + var(--menu-rows) * 2.25rem + (var(--menu-rows) - 1) * 0.375rem);
+
+            @media (min-width: 640px) {
+                height: calc(4.5rem + var(--menu-rows) * 2.5rem + (var(--menu-rows) - 1) * 0.375rem);
+            }
         }
     }
 

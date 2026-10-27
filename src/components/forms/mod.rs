@@ -13,10 +13,7 @@ use web_sys::SubmitEvent;
 
 use self::{invite::Invite, join::Join, new_game::NewGame, options::Options, username::Username};
 
-const BACKDROP_CLASS: &str =
-    "z-40 flex absolute w-full h-full justify-center items-center bg-neutral-900/30";
-
-#[derive(Clone)]
+#[derive(Clone, PartialEq)]
 #[allow(dead_code)]
 pub enum Form {
     None,
@@ -149,31 +146,31 @@ pub fn Forms(chess_board_signals: ChessBoardSignals, show_form: RwSignal<Form>) 
 
     move || match show_form.get() {
         Form::Join => view! {
-            <div class=BACKDROP_CLASS on:click=close_on_backdrop>
+            <div class="backdrop" on:click=close_on_backdrop>
                 <Join submit=join_submit.clone()/>
             </div>
         }
         .into_any(),
         Form::Username => view! {
-            <div class=BACKDROP_CLASS>
+            <div class="backdrop">
                 <Username submit=username_submit/>
             </div>
         }
         .into_any(),
         Form::Options => view! {
-            <div class=BACKDROP_CLASS on:click=close_on_backdrop>
+            <div class="backdrop" on:click=close_on_backdrop>
                 <Options chess_board_signals=chess_board_signals submit=options_submit/>
             </div>
         }
         .into_any(),
         Form::NewGame => view! {
-            <div class=BACKDROP_CLASS on:click=close_on_backdrop>
+            <div class="backdrop" on:click=close_on_backdrop>
                 <NewGame submit=new_game_submit/>
             </div>
         }
         .into_any(),
         Form::Invite => view! {
-            <div class=BACKDROP_CLASS on:click=close_on_backdrop>
+            <div class="backdrop" on:click=close_on_backdrop>
                 <Invite chess_board_signals=chess_board_signals show_form=show_form/>
             </div>
         }

@@ -10,8 +10,8 @@ use crate::{
         game_banner::GameBanner,
         menu::Menu,
         notifications::Notifications,
+        people::PeopleDropdown,
         promotion::PromotionPicker,
-        status_menu::StatusMenu,
     },
     entities::{
         chess_board::signals::{ChessBoardSignals, Connection},
@@ -19,41 +19,6 @@ use crate::{
     },
     utils::{browser::now_ms, get_user_payload, WindowExt},
 };
-
-pub fn toggle_sub_menu(
-    menu_timeout_id: RwSignal<Option<i32>>,
-    show_menu: bool,
-    menu_base_class: &str,
-) {
-    use crate::utils::class_list::ClassListExt;
-
-    let window = web_sys::window().unwrap();
-    let sub_menu = window
-        .document()
-        .unwrap()
-        .get_element_by_id(menu_base_class)
-        .unwrap();
-
-    let is_active_class = format!("{}--is-active", menu_base_class);
-
-    if show_menu {
-        sub_menu.class_list_add(&is_active_class)
-    } else {
-        if let Some(id) =
-            window.set_timeout_callback(move || sub_menu.class_list_remove(&is_active_class), 250)
-        {
-            menu_timeout_id.set(Some(id))
-        };
-    }
-}
-
-pub fn clear_timeout(id: Option<i32>) {
-    if let Some(id) = id {
-        let window = web_sys::window().unwrap();
-
-        window.clear_timeout_with_handle(id);
-    }
-}
 
 /// The room of a page: `/g/<room>`, or the main board at `/`
 pub fn room_from_path(path: &str) -> String {
@@ -64,9 +29,15 @@ pub fn room_from_path(path: &str) -> String {
         .to_string()
 }
 
+/// Everything layered over the board: menus, dialogs, banners, and the
+/// effects that keep the page in step with the URL and the socket
 #[component]
-pub fn Overlay(chess_board_signals: ChessBoardSignals) -> impl IntoView {
-    let show_form = RwSignal::new(Form::None);
+pub fn Overlay(
+    chess_board_signals: ChessBoardSignals,
+    show_form: RwSignal<Form>,
+    menu_open: RwSignal<bool>,
+    people_open: RwSignal<bool>,
+) -> impl IntoView {
     let location = use_location();
     let navigate = use_navigate();
 
@@ -156,11 +127,20 @@ pub fn Overlay(chess_board_signals: ChessBoardSignals) -> impl IntoView {
         }
     });
 
+    let any_dropdown = move || menu_open.get() || people_open.get();
+    let close_dropdowns = move |_| {
+        menu_open.set(false);
+        people_open.set(false);
+    };
+
     view! {
         <>
             <Notifications chess_board_signals=chess_board_signals />
-            <Menu show_form=show_form chess_board_signals=chess_board_signals />
-            <StatusMenu show_form=show_form chess_board_signals=chess_board_signals />
+            <Show when=any_dropdown>
+                <div class="dropdown-backdrop" on:click=close_dropdowns></div>
+            </Show>
+            <Menu show_form=show_form chess_board_signals=chess_board_signals open=menu_open />
+            <PeopleDropdown chess_board_signals=chess_board_signals open=people_open show_form=show_form />
             <GameBanner chess_board_signals=chess_board_signals show_form=show_form />
             <Forms show_form=show_form chess_board_signals=chess_board_signals />
             <PromotionPicker chess_board_signals=chess_board_signals />

@@ -4,12 +4,6 @@ use crate::entities::chess_board::turns::Turn;
 use crate::entities::protocol::{ClientMsg, GameResult};
 use leptos::prelude::*;
 
-const OVERLAY_CLASS: &str =
-    "z-40 flex absolute w-full h-full justify-center items-center bg-neutral-900/30";
-const CARD_CLASS: &str = "flex h-fit flex-col justify-center items-center bg-white rounded p-4";
-const BUTTON_CLASS: &str =
-    "border w-full border-gray-400 hover:border-blue-500 hover:text-blue-500 rounded py-2 px-4 my-1";
-
 /// The end of a game, or a checkmate on a free board with validation
 #[component]
 pub fn CheckMate(chess_board_signals: ChessBoardSignals, show_form: RwSignal<Form>) -> impl IntoView {
@@ -54,20 +48,22 @@ pub fn CheckMate(chess_board_signals: ChessBoardSignals, show_form: RwSignal<For
         if let Some(result) = result().filter(|_| !dismissed.get()) {
             let seated = chess_board_signals.my_seat().is_some();
             view! {
-                <div class=OVERLAY_CLASS>
-                    <div class=CARD_CLASS>
-                        <h1 class="text-2xl font-bold mb-2">{title(result)}</h1>
-                        <span class="text-md font-light mb-2">{result.description()}</span>
+                <div class="backdrop">
+                    <div class="dialog items-stretch">
+                        <div class="flex flex-col items-center gap-1">
+                            <h1 class="text-2xl font-bold">{title(result)}</h1>
+                            <span class="text-sm text-ink-300">{result.description()}</span>
+                        </div>
                         {seated
                             .then(|| {
                                 view! {
-                                    <button class=BUTTON_CLASS on:click=move |_| send(ClientMsg::Rematch)>
+                                    <button class="btn btn-primary" on:click=move |_| send(ClientMsg::Rematch)>
                                         {rematch_label}
                                     </button>
                                 }
                             })}
                         <button
-                            class=BUTTON_CLASS
+                            class="btn btn-secondary"
                             on:click=move |_| {
                                 dismissed.set(true);
                                 show_form.set(Form::NewGame);
@@ -75,7 +71,7 @@ pub fn CheckMate(chess_board_signals: ChessBoardSignals, show_form: RwSignal<For
                         >
                             "New game"
                         </button>
-                        <button class=BUTTON_CLASS on:click=move |_| dismissed.set(true)>
+                        <button class="btn btn-ghost" on:click=move |_| dismissed.set(true)>
                             "Close"
                         </button>
                     </div>
@@ -84,15 +80,17 @@ pub fn CheckMate(chess_board_signals: ChessBoardSignals, show_form: RwSignal<For
             .into_any()
         } else if chess_board_signals.is_checkmate() {
             view! {
-                <div class=OVERLAY_CLASS>
-                    <div class=CARD_CLASS>
-                        <h1 class="text-2xl font-bold mb-2">"Checkmate!"</h1>
-                        <span class="text-md font-light">"The winner is " {winner}</span>
-                        <button class=BUTTON_CLASS on:click=move |_| send(ClientMsg::Reset)>
-                            "Reset Board"
+                <div class="backdrop">
+                    <div class="dialog items-stretch">
+                        <div class="flex flex-col items-center gap-1">
+                            <h1 class="text-2xl font-bold">"Checkmate!"</h1>
+                            <span class="text-sm text-ink-300">"The winner is " {winner}</span>
+                        </div>
+                        <button class="btn btn-primary" on:click=move |_| send(ClientMsg::Reset)>
+                            "Reset board"
                         </button>
-                        <button class=BUTTON_CLASS on:click=move |_| send(ClientMsg::Undo)>
-                            "Undo Last Move"
+                        <button class="btn btn-secondary" on:click=move |_| send(ClientMsg::Undo)>
+                            "Undo last move"
                         </button>
                     </div>
                 </div>

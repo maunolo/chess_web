@@ -6,22 +6,21 @@ where
     F: Fn(web_sys::SubmitEvent) -> () + 'static,
 {
     view! {
-        <form
-            class="flex h-fit flex-col justify-center items-center bg-white rounded p-4"
-            on:submit=submit
-        >
-            <label class="w-full flex justify-center text-xl">"Enter your username"</label>
-            <div class="w-full flex space-between">
-                <input
-                    class="border border-gray-400 rounded p-2 m-2"
-                    type="text"
-                    name="username"
-                    placeholder="Ex: John Doe"
-                />
-                <button class="border border-gray-400 hover:border-blue-500 hover:text-blue-500 rounded py-2 px-4 m-2" type="submit">
-                    ">"
-                </button>
-            </div>
+        <form class="dialog" on:submit=submit>
+            <label class="dialog-title" for="username">"What's your name?"</label>
+            <p class="text-sm text-ink-300 text-center -mt-2">"Shown to the other players in the room."</p>
+            <input
+                id="username"
+                class="input"
+                type="text"
+                name="username"
+                placeholder="Ex: John Doe"
+                autocomplete="nickname"
+                maxlength="24"
+            />
+            <button class="btn btn-primary" type="submit">
+                "Continue"
+            </button>
         </form>
     }
 }

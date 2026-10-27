@@ -27,9 +27,8 @@ pub fn move_piece(piece: &Element, client_position: (f64, f64)) {
     dark_trash.class_list_add("dragging-over");
     light_trash.class_list_add("dragging-over");
     chess_board.class_list_add("dragging-over");
-    let in_dark_trash = mouse_in_bounding(client_position, &dark_trash.get_bounding_client_rect());
-    let in_light_trash =
-        mouse_in_bounding(client_position, &light_trash.get_bounding_client_rect());
+    let in_dark_trash = mouse_in_bounding(client_position, &drop_zone(&dark_trash));
+    let in_light_trash = mouse_in_bounding(client_position, &drop_zone(&light_trash));
 
     if data_square == "deleted" {
         let restored_piece = if let Some(piece) = find_restored_piece_clone(piece) {
@@ -86,6 +85,17 @@ pub fn move_piece(piece: &Element, client_position: (f64, f64)) {
             piece.set_style("transform", &translate_value(client_position, &parent));
         }
     }
+}
+
+/// Where a dragged piece can be dropped to capture it: the whole player card
+/// around the trash strip, which is too thin a target on its own
+fn drop_zone(trash: &Element) -> DomRect {
+    trash
+        .closest(".player-card")
+        .ok()
+        .flatten()
+        .unwrap_or_else(|| trash.clone())
+        .get_bounding_client_rect()
 }
 
 pub fn find_restored_piece_clone(piece: &Element) -> Option<Element> {

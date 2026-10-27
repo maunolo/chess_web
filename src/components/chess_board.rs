@@ -1,6 +1,5 @@
 use crate::components::board::BoardBackground;
 use crate::components::coordinates::Coordinates;
-use crate::components::trash::{Trash, TrashType};
 use crate::entities::chess_board::signals::{ChessBoardSignals, StoneSignal};
 use crate::entities::chess_board::turns::Turn;
 use crate::entities::position::Position;
@@ -24,14 +23,6 @@ pub fn ChessBoard(chess_board_signals: ChessBoardSignals) -> impl IntoView {
             .clone()
             .into_iter()
     };
-    let deleted_stones_signals = move || {
-        chess_board_signals
-            .stones_signals()
-            .get()
-            .deleted_stones()
-            .clone()
-    };
-
     let last_move_squares = move || {
         chess_board_signals
             .last_move()
@@ -161,18 +152,6 @@ pub fn ChessBoard(chess_board_signals: ChessBoardSignals) -> impl IntoView {
                     let class = if capture { "move-hint capture" } else { "move-hint" };
                     view! { <div class=on_square(class, &position)></div> }
                 }
-            />
-            <Trash
-                chess_board_signals=chess_board_signals
-                id=TrashType::Dark
-                white_view=white_view
-                trash=deleted_stones_signals
-            />
-            <Trash
-                chess_board_signals=chess_board_signals
-                id=TrashType::Light
-                white_view=white_view
-                trash=deleted_stones_signals
             />
         </chess-board>
     }

@@ -1,24 +1,19 @@
 @layer components {
     .chessboard {
-        @apply relative m-auto aspect-square w-full font-mono font-extrabold sm:h-full sm:w-auto;
+        @apply block relative aspect-square w-full rounded-lg overflow-hidden font-mono font-extrabold select-none;
 
-        -webkit-user-select: none; /* Safari */
-        -moz-user-select: none; /* Firefox */
-        -ms-user-select: none; /* IE10+/Edge */
-        user-select: none; /* Standard */
         touch-action: none;
     }
 
     .board {
-        @apply pointer-events-none absolute z-0;
+        @apply pointer-events-none absolute inset-0 z-0 w-full h-full;
     }
 
     .coordinates {
         @apply pointer-events-none absolute z-10 w-full h-full;
 
-        text {
-            font-weight: 900;
-            fill: #0000007b;
+        span {
+            color: rgba(21, 24, 28, 0.55);
         }
     }
 
@@ -48,11 +43,19 @@
         transition: all 0.1s;
     }
 
-    .deleted {
-        @apply relative max-h-full bg-center;
+    /* Captured pieces, shown in the player cards. Dropping a piece on the
+       strip removes it from the board; dragging one out puts it back. */
+    .trash {
+        @apply flex flex-wrap items-center gap-px min-h-[1.5rem] min-w-[4rem] flex-grow rounded-md;
 
-        width: 6.25%;
-        height: auto;
+        transition: background-color 0.15s;
+    }
+
+    .deleted {
+        @apply relative bg-center bg-contain;
+
+        width: 22px;
+        height: 22px;
     }
 
     .dragging {
@@ -75,12 +78,8 @@
         }
     }
 
-    .element-pool {
-        display: none;
-    }
-
-    .trash {
-        @apply pointer-events-none flex absolute h-10 sm:h-14 w-full z-20 bg-neutral-500;
+    .trash.dragging-over {
+        @apply bg-ink-700;
     }
 
     .last-move {
@@ -112,25 +111,42 @@
         }
     }
 
-    .player-chip {
-        @apply absolute right-1 top-1/2 -translate-y-1/2 flex items-center gap-2 rounded px-2 py-0.5 text-xs sm:text-sm font-mono text-neutral-100 bg-neutral-700/80;
+    .promotion-choice {
+        @apply h-16 w-16 rounded-xl bg-ink-700 hover:bg-ink-600 bg-center bg-no-repeat;
 
-        &--to-move {
-            @apply ring-2 ring-neutral-100;
+        background-size: 85%;
+    }
+
+    /* A player: avatar, name, captured pieces and clock, above or below the board */
+    .player-card {
+        @apply card flex items-center gap-3 px-3 h-16 flex-shrink-0;
+
+        .avatar {
+            @apply w-10 h-10 rounded-full bg-ink-700 flex items-center justify-center text-base font-bold flex-shrink-0;
+        }
+
+        .player-name {
+            @apply text-[15px] font-semibold truncate;
+        }
+
+        .player-status {
+            @apply text-xs text-ink-300 flex items-center gap-1.5 min-h-[1.5rem];
+        }
+
+        .to-move-dot {
+            @apply w-2 h-2 rounded-full bg-accent flex-shrink-0;
         }
 
         .clock {
-            @apply font-bold tabular-nums;
+            @apply h-11 min-w-[5.75rem] px-3 rounded-[10px] flex items-center justify-center font-mono text-2xl font-bold tabular-nums bg-ink-700 text-ink-300 flex-shrink-0;
+
+            &--running {
+                @apply bg-accent text-ink-900;
+            }
 
             &--low {
-                @apply text-red-400;
+                @apply bg-coral text-ink-900;
             }
         }
-    }
-
-    .promotion-choice {
-        @apply h-16 w-16 rounded bg-neutral-200 hover:bg-neutral-300 bg-center bg-no-repeat;
-
-        background-size: 85%;
     }
 }

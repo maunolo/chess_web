@@ -216,6 +216,8 @@ pub struct ChessBoardSignals {
     created_game: RwSignal<Option<String>>,
     /// A room to send the user to, e.g. when a game link is gone
     redirect: RwSignal<Option<String>>,
+    /// The moves played so far, in algebraic notation
+    moves: RwSignal<Vec<String>>,
 }
 
 #[allow(dead_code)]
@@ -240,6 +242,7 @@ impl ChessBoardSignals {
             needs_username: RwSignal::new(false),
             created_game: RwSignal::new(None),
             redirect: RwSignal::new(None),
+            moves: RwSignal::new(Vec::new()),
         }
     }
 
@@ -309,6 +312,10 @@ impl ChessBoardSignals {
 
     pub fn redirect(&self) -> RwSignal<Option<String>> {
         self.redirect
+    }
+
+    pub fn moves(&self) -> RwSignal<Vec<String>> {
+        self.moves
     }
 
     /// Sends a message to the server, dropped while the socket is closed

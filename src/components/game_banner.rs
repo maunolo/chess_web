@@ -5,10 +5,6 @@ use crate::{
     entities::{chess_board::signals::ChessBoardSignals, protocol::ClientMsg},
 };
 
-const BANNER_CLASS: &str = "fixed top-16 left-1/2 -translate-x-1/2 z-30 flex items-center gap-3 whitespace-nowrap rounded bg-white/95 px-4 py-2 text-sm shadow";
-const BUTTON_CLASS: &str =
-    "rounded border border-gray-400 px-2 py-1 hover:border-blue-500 hover:text-blue-500";
-
 /// What a seated player has to act on: an opponent to invite, a draw offer
 #[component]
 pub fn GameBanner(chess_board_signals: ChessBoardSignals, show_form: RwSignal<Form>) -> impl IntoView {
@@ -24,9 +20,9 @@ pub fn GameBanner(chess_board_signals: ChessBoardSignals, show_form: RwSignal<Fo
         if !game.is_full() {
             Some(
                 view! {
-                    <div class=BANNER_CLASS>
+                    <div class="banner">
                         <span>"Waiting for an opponent"</span>
-                        <button class=BUTTON_CLASS on:click=move |_| show_form.set(Form::Invite)>
+                        <button class="btn btn-primary h-9" on:click=move |_| show_form.set(Form::Invite)>
                             "Invite"
                         </button>
                     </div>
@@ -36,12 +32,12 @@ pub fn GameBanner(chess_board_signals: ChessBoardSignals, show_form: RwSignal<Fo
         } else if game.draw_offer == Some(!seat) {
             Some(
                 view! {
-                    <div class=BANNER_CLASS>
+                    <div class="banner">
                         <span>"Your opponent offers a draw"</span>
-                        <button class=BUTTON_CLASS on:click=move |_| send(ClientMsg::AcceptDraw)>
+                        <button class="btn btn-primary h-9" on:click=move |_| send(ClientMsg::AcceptDraw)>
                             "Accept"
                         </button>
-                        <button class=BUTTON_CLASS on:click=move |_| send(ClientMsg::DeclineDraw)>
+                        <button class="btn btn-secondary h-9" on:click=move |_| send(ClientMsg::DeclineDraw)>
                             "Decline"
                         </button>
                     </div>

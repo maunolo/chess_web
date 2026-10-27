@@ -3,9 +3,6 @@ use std::collections::BTreeMap;
 use leptos::prelude::*;
 
 use crate::entities::chess_board::signals::{ChessBoardSignals, StoneSignal};
-use crate::entities::chess_board::turns::Turn;
-use crate::components::player_chip::PlayerChip;
-use crate::entities::protocol::Side;
 use crate::handlers::pointer_down;
 
 #[derive(Clone, Copy, PartialEq)]
@@ -23,27 +20,13 @@ impl From<TrashType> for String {
     }
 }
 
+/// The captured pieces of one color. On a free board a piece dropped here
+/// leaves the board, and one dragged out goes back.
 #[component]
-pub fn Trash<W, T>(
-    chess_board_signals: ChessBoardSignals,
-    id: TrashType,
-    white_view: W,
-    trash: T,
-) -> impl IntoView
+pub fn Trash<T>(chess_board_signals: ChessBoardSignals, id: TrashType, trash: T) -> impl IntoView
 where
-    W: Fn() -> bool + Send + 'static,
     T: Fn() -> BTreeMap<usize, RwSignal<StoneSignal>> + Copy + Send + 'static,
 {
-    let position_css = move || {
-        if (matches!(id, TrashType::Dark) && white_view())
-            || (matches!(id, TrashType::Light) && !white_view())
-        {
-            "-bottom-10 sm:-bottom-14 rounded-b".to_string()
-        } else {
-            "-top-10 sm:-top-14 rounded-t".to_string()
-        }
-    };
-
     let trash_signals = move || {
         trash()
             .into_iter()
@@ -52,15 +35,6 @@ where
             })
             .collect::<Vec<(usize, RwSignal<StoneSignal>)>>()
     };
-    let active = move || match (chess_board_signals.chess_board().get().turn, id) {
-        (Turn::Black, TrashType::Light) => "border-2 border-neutral-200".to_string(),
-        (Turn::White, TrashType::Dark) => "border-2 border-neutral-200".to_string(),
-        _ => "p-[2px]".to_string(),
-    };
-
-    let trash_class = move || format!("trash {} {}", position_css(), active());
-
-    let trash_id = move || format!("{}-trash", String::from(id));
 
     let piece_view = move |(idx, stone_signal): (usize, RwSignal<StoneSignal>)| {
         let stone = move || stone_signal.get().stone();
@@ -85,20 +59,13 @@ where
         }
     };
 
-    // white captures the dark pieces, so its name sits on that trash
-    let player = match id {
-        TrashType::Dark => Side::White,
-        TrashType::Light => Side::Black,
-    };
-
     view! {
-        <div class=trash_class data-trash=move || String::from(id) id=trash_id>
+        <div class="trash" data-trash=String::from(id) id=format!("{}-trash", String::from(id))>
             <For
                 each=trash_signals
                 key=move |(key, _)| key.to_string()
                 children=piece_view
             />
-            <PlayerChip chess_board_signals=chess_board_signals side=player/>
         </div>
     }
 }

@@ -1,17 +1,19 @@
 use crate::components::forms::Form;
 use crate::entities::chess_board::signals::ChessBoardSignals;
 use crate::entities::chess_board::turns::Turn;
-use crate::entities::protocol::{ClientMsg, GameResult};
+use crate::entities::protocol::{ClientMsg, GameResult, Side};
+use crate::i18n::{self, Key};
 use leptos::prelude::*;
 
 /// The end of a game, or a checkmate on a free board with validation
 #[component]
 pub fn CheckMate(chess_board_signals: ChessBoardSignals, show_form: RwSignal<Form>) -> impl IntoView {
+    let lang = i18n::current();
     let send = move |msg: ClientMsg| chess_board_signals.send(&msg);
 
     let winner = move || match chess_board_signals.chess_board().get().turn {
-        Turn::Black => "White",
-        Turn::White => "Black",
+        Turn::Black => lang.side(Side::White),
+        Turn::White => lang.side(Side::Black),
     };
 
     let result = move || {
@@ -28,19 +30,19 @@ pub fn CheckMate(chess_board_signals: ChessBoardSignals, show_form: RwSignal<For
     });
 
     let title = move |result: GameResult| match (result.winner(), chess_board_signals.my_seat()) {
-        (Some(winner), Some(seat)) if winner == seat => "You won!",
-        (Some(_), Some(_)) => "You lost",
-        (Some(_), None) => "Game over",
-        (None, _) => "Draw",
+        (Some(winner), Some(seat)) if winner == seat => lang.t(Key::YouWon),
+        (Some(_), Some(_)) => lang.t(Key::YouLost),
+        (Some(_), None) => lang.t(Key::GameOver),
+        (None, _) => lang.t(Key::Draw),
     };
     let rematch_label = move || {
         let offer = chess_board_signals
             .game()
             .with(|game| game.as_ref().and_then(|game| game.rematch_offer));
         match (offer, chess_board_signals.my_seat()) {
-            (Some(offer), Some(seat)) if offer == seat => "Rematch offered",
-            (Some(_), Some(_)) => "Accept rematch",
-            _ => "Rematch",
+            (Some(offer), Some(seat)) if offer == seat => lang.t(Key::RematchOffered),
+            (Some(_), Some(_)) => lang.t(Key::AcceptRematch),
+            _ => lang.t(Key::Rematch),
         }
     };
 
@@ -52,7 +54,7 @@ pub fn CheckMate(chess_board_signals: ChessBoardSignals, show_form: RwSignal<For
                     <div class="dialog items-stretch">
                         <div class="flex flex-col items-center gap-1">
                             <h1 class="text-2xl font-bold">{title(result)}</h1>
-                            <span class="text-sm text-ink-300">{result.description()}</span>
+                            <span class="text-sm text-ink-300">{lang.result(result)}</span>
                         </div>
                         {seated
                             .then(|| {
@@ -69,10 +71,10 @@ pub fn CheckMate(chess_board_signals: ChessBoardSignals, show_form: RwSignal<For
                                 show_form.set(Form::NewGame);
                             }
                         >
-                            "New game"
+                            {lang.t(Key::NewGame)}
                         </button>
                         <button class="btn btn-ghost" on:click=move |_| dismissed.set(true)>
-                            "Close"
+                            {lang.t(Key::Close)}
                         </button>
                     </div>
                 </div>
@@ -83,14 +85,14 @@ pub fn CheckMate(chess_board_signals: ChessBoardSignals, show_form: RwSignal<For
                 <div class="backdrop">
                     <div class="dialog items-stretch">
                         <div class="flex flex-col items-center gap-1">
-                            <h1 class="text-2xl font-bold">"Checkmate!"</h1>
-                            <span class="text-sm text-ink-300">"The winner is " {winner}</span>
+                            <h1 class="text-2xl font-bold">{lang.t(Key::Checkmate)}</h1>
+                            <span class="text-sm text-ink-300">{lang.t(Key::TheWinnerIs)} " " {winner}</span>
                         </div>
                         <button class="btn btn-primary" on:click=move |_| send(ClientMsg::Reset)>
-                            "Reset board"
+                            {lang.t(Key::ResetBoard)}
                         </button>
                         <button class="btn btn-secondary" on:click=move |_| send(ClientMsg::Undo)>
-                            "Undo last move"
+                            {lang.t(Key::UndoLastMove)}
                         </button>
                     </div>
                 </div>

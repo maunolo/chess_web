@@ -18,12 +18,16 @@ use crate::components::top_bar::TopBar;
 use crate::entities::chess_board::{signals::ChessBoardSignals, ChessBoard as ChessBoardEntity};
 use crate::entities::protocol::Side;
 use crate::handlers::{pointer_cancel, pointer_move, pointer_up};
+use crate::i18n;
 
-/// The HTML document the server renders around the app
+/// The HTML document the server renders around the app. Its `lang` is the
+/// request's language, which the client reads back when it hydrates.
 pub fn shell(options: LeptosOptions) -> impl IntoView {
+    let lang = i18n::detect();
+
     view! {
         <!DOCTYPE html>
-        <html lang="en">
+        <html lang=lang.tag()>
             <head>
                 <meta charset="utf-8"/>
                 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
@@ -42,6 +46,7 @@ pub fn shell(options: LeptosOptions) -> impl IntoView {
 #[component]
 pub fn App() -> impl IntoView {
     provide_meta_context();
+    provide_context(i18n::detect());
 
     let app_title = option_env!("APP_TITLE").unwrap_or("Chess");
 

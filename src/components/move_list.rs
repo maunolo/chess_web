@@ -1,6 +1,9 @@
 use leptos::prelude::*;
 
-use crate::entities::chess_board::signals::ChessBoardSignals;
+use crate::{
+    entities::chess_board::signals::ChessBoardSignals,
+    i18n::{self, Key},
+};
 
 /// `(number, white's move, black's move)` rows
 fn pairs(moves: &[String]) -> Vec<(usize, String, Option<String>)> {
@@ -52,6 +55,7 @@ pub fn MoveStrip(chess_board_signals: ChessBoardSignals) -> impl IntoView {
 /// Every move so far, three columns, for the desktop panel
 #[component]
 pub fn MoveTable(chess_board_signals: ChessBoardSignals) -> impl IntoView {
+    let lang = i18n::current();
     let rows = move || {
         let moves = chess_board_signals.moves().get();
         let count = moves.len();
@@ -68,9 +72,9 @@ pub fn MoveTable(chess_board_signals: ChessBoardSignals) -> impl IntoView {
 
     view! {
         <div class="card p-4 flex flex-col gap-2.5">
-            <span class="eyebrow">"Moves"</span>
+            <span class="eyebrow">{lang.t(Key::Moves)}</span>
             <Show when=empty>
-                <span class="text-sm text-ink-300">"No moves yet"</span>
+                <span class="text-sm text-ink-300">{lang.t(Key::NoMovesYet)}</span>
             </Show>
             <div class="move-table">
                 <For

@@ -2,6 +2,7 @@ pub mod app;
 mod components;
 pub mod entities;
 mod handlers;
+pub mod i18n;
 pub mod utils;
 
 #[cfg(feature = "ssr")]

@@ -44,7 +44,7 @@ fn form_data(e: &SubmitEvent) -> Option<web_sys::FormData> {
 }
 
 /// "300+2" from the new game form
-fn parse_time_control(value: &str) -> Option<TimeControl> {
+pub fn parse_time_control(value: &str) -> Option<TimeControl> {
     let (initial, increment) = value.split_once('+')?;
     Some(TimeControl {
         initial_secs: initial.parse().ok()?,

@@ -111,7 +111,7 @@ pub enum ServerMsg {
     },
     Notify {
         level: NotifyType,
-        message: String,
+        text: Text,
     },
     /// The side to move on a free board with validation is checkmated
     Checkmate,
@@ -138,12 +138,44 @@ pub enum ServerMsg {
 }
 
 impl ServerMsg {
-    pub fn notify(level: NotifyType, message: impl Into<String>) -> Self {
-        Self::Notify {
-            level,
-            message: message.into(),
-        }
+    pub fn notify(level: NotifyType, text: Text) -> Self {
+        Self::Notify { level, text }
     }
+}
+
+/// What a notification says. The client translates it, so the server
+/// doesn't need to know the user's language. The last two are raised by
+/// the client itself.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(tag = "key", rename_all = "snake_case")]
+pub enum Text {
+    JoinedGame { side: Side },
+    WatchingGame,
+    JoinedRoom { room: String },
+    InvalidRoomName,
+    FailedToCreateRoom,
+    NameRequired,
+    Spectator,
+    WaitingForOpponent,
+    NotYourTurn,
+    GameOver,
+    NotDuringGame,
+    FailedToReset,
+    NoMoreToUndo,
+    NoMoreToRedo,
+    FailedToUndo,
+    FailedToRedo,
+    OptionsApplied,
+    FailedToApplyOptions,
+    InvalidTimeControl,
+    NoGameOnFreeBoard,
+    PlayersOnly,
+    NoDrawOffer,
+    GameStillGoing,
+    GameGone,
+    OpenedElsewhere,
+    /// A message the server could not read, shown as it is
+    Error { message: String },
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -227,28 +259,6 @@ impl GameResult {
             | GameResult::Resignation { winner }
             | GameResult::Timeout { winner } => Some(*winner),
             _ => None,
-        }
-    }
-
-    pub fn description(&self) -> String {
-        let side_name = |side: &Side| match side {
-            Side::White => "White",
-            Side::Black => "Black",
-        };
-        match self {
-            GameResult::Checkmate { winner } => format!("{} wins by checkmate", side_name(winner)),
-            GameResult::Resignation { winner } => {
-                format!("{} wins by resignation", side_name(winner))
-            }
-            GameResult::Timeout { winner } => format!("{} wins on time", side_name(winner)),
-            GameResult::Stalemate => "Draw by stalemate".to_string(),
-            GameResult::Agreement => "Draw by agreement".to_string(),
-            GameResult::InsufficientMaterial => "Draw by insufficient material".to_string(),
-            GameResult::TimeoutVsInsufficientMaterial => {
-                "Draw: time out with no mating material".to_string()
-            }
-            GameResult::Repetition => "Draw by threefold repetition".to_string(),
-            GameResult::FiftyMoves => "Draw by the fifty-move rule".to_string(),
         }
     }
 }

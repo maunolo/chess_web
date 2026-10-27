@@ -1,9 +1,14 @@
 use leptos::prelude::*;
 
-use crate::entities::{chess_board::signals::ChessBoardSignals, notification::NotifyType};
+use crate::{
+    entities::{chess_board::signals::ChessBoardSignals, notification::NotifyType},
+    i18n::{self, Key},
+};
 
 #[component]
 pub fn Notifications(chess_board_signals: ChessBoardSignals) -> impl IntoView {
+    let lang = i18n::current();
+
     let success_icon = move || {
         view! {
             <svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64" fill="none">
@@ -48,12 +53,17 @@ pub fn Notifications(chess_board_signals: ChessBoardSignals) -> impl IntoView {
                 NotifyType::Warning => (warning_icon().into_any(), "notify-icon warning"),
                 NotifyType::Error => (error_icon().into_any(), "notify-icon error"),
             };
+            let message = notification
+                .text
+                .as_ref()
+                .map(|text| lang.message(text))
+                .unwrap_or_default();
 
             view! {
                 <div class="notify notify--is-active" role="status">
                     <div class=icon_class>{icon}</div>
-                    <p class="notify-text">{notification.message}</p>
-                    <button class="notify-close" on:click=close>
+                    <p class="notify-text">{message}</p>
+                    <button class="notify-close" on:click=close aria-label=lang.t(Key::Close)>
                         <span class="notify-close-icon"></span>
                     </button>
                 </div>

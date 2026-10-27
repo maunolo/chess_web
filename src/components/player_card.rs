@@ -3,6 +3,7 @@ use leptos::prelude::*;
 use crate::{
     components::trash::{Trash, TrashType},
     entities::{chess_board::signals::ChessBoardSignals, protocol::Side},
+    i18n::{self, Key},
     utils::my_id,
 };
 
@@ -24,10 +25,7 @@ pub fn format_clock(ms: i64) -> String {
 /// A player's name, captured pieces and clock, above or below the board
 #[component]
 pub fn PlayerCard(chess_board_signals: ChessBoardSignals, side: Side) -> impl IntoView {
-    let side_name = match side {
-        Side::White => "White",
-        Side::Black => "Black",
-    };
+    let lang = i18n::current();
     // a card sits on its own side of the board, so white's goes at the
     // bottom of a white view and at the top of a flipped one
     let order = move || {
@@ -42,13 +40,13 @@ pub fn PlayerCard(chess_board_signals: ChessBoardSignals, side: Side) -> impl In
             .with(|game| game.as_ref().map(|game| game.player(side).map(str::to_string)))
     };
     let name = move || match player_id() {
-        None => side_name.to_string(),
-        Some(None) => "Waiting…".to_string(),
+        None => lang.side(side).to_string(),
+        Some(None) => lang.t(Key::Waiting).to_string(),
         Some(Some(id)) => chess_board_signals
             .room_status()
             .with(|status| status.as_ref().and_then(|status| status.get_user(&id)))
             .map(|user| user.with(|user| user.username()))
-            .unwrap_or("Player".to_string()),
+            .unwrap_or(lang.t(Key::Player).to_string()),
     };
     let initial = move || match player_id() {
         Some(None) => "?".to_string(),
@@ -77,11 +75,7 @@ pub fn PlayerCard(chess_board_signals: ChessBoardSignals, side: Side) -> impl In
             "player-card"
         }
     };
-    let card_label = move || match (to_move(), is_me()) {
-        (true, true) => format!("{side_name}, your move"),
-        (true, false) => format!("{side_name}, to move"),
-        (false, _) => side_name.to_string(),
-    };
+    let card_label = move || lang.card_label(side, to_move(), is_me());
 
     // counts down locally from the last time the server sent the clock
     let clock_ms = move || {

@@ -12,7 +12,7 @@ use crate::{
         },
         notification::NotifyType,
         position::{Position, DELETED},
-        protocol::{Presence, ServerMsg, MAIN_ROOM},
+        protocol::{Presence, ServerMsg, Text, MAIN_ROOM},
         room::{RoomStatus, User},
     },
     utils::{
@@ -206,7 +206,7 @@ fn handle_message(chess_board_signals: ChessBoardSignals, msg: ServerMsg) {
                 });
             }
         }
-        ServerMsg::Notify { level, message } => chess_board_signals.notify(level, &message),
+        ServerMsg::Notify { level, text } => chess_board_signals.notify(level, text),
         ServerMsg::Checkmate => {
             chess_board_signals.room_status().update(|room_status| {
                 if let Some(room_status) = room_status {
@@ -222,16 +222,16 @@ fn handle_message(chess_board_signals: ChessBoardSignals, msg: ServerMsg) {
         ServerMsg::GameCreated { room } => chess_board_signals.created_game().set(Some(room)),
         ServerMsg::RoomGone { room } => {
             log::info!("Room {} is gone", room);
-            chess_board_signals.notify(NotifyType::Warning, "That game has ended and is no longer available");
+            chess_board_signals.notify(NotifyType::Warning, Text::GameGone);
             chess_board_signals.redirect().set(Some(MAIN_ROOM.to_string()));
         }
         ServerMsg::Replaced => {
             chess_board_signals.connection().set(Connection::Replaced);
-            chess_board_signals.notify(NotifyType::Warning, "The board was opened in another tab");
+            chess_board_signals.notify(NotifyType::Warning, Text::OpenedElsewhere);
         }
         ServerMsg::Error { message } => {
             log::error!("Server error: {}", message);
-            chess_board_signals.notify(NotifyType::Error, &message);
+            chess_board_signals.notify(NotifyType::Error, Text::Error { message });
         }
     }
 }

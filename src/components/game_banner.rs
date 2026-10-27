@@ -3,11 +3,13 @@ use leptos::prelude::*;
 use crate::{
     components::forms::Form,
     entities::{chess_board::signals::ChessBoardSignals, protocol::ClientMsg},
+    i18n::{self, Key},
 };
 
 /// What a seated player has to act on: an opponent to invite, a draw offer
 #[component]
 pub fn GameBanner(chess_board_signals: ChessBoardSignals, show_form: RwSignal<Form>) -> impl IntoView {
+    let lang = i18n::current();
     let send = move |msg: ClientMsg| chess_board_signals.send(&msg);
 
     move || {
@@ -21,9 +23,9 @@ pub fn GameBanner(chess_board_signals: ChessBoardSignals, show_form: RwSignal<Fo
             Some(
                 view! {
                     <div class="banner">
-                        <span>"Waiting for an opponent"</span>
+                        <span>{lang.t(Key::WaitingForOpponent)}</span>
                         <button class="btn btn-primary h-9" on:click=move |_| show_form.set(Form::Invite)>
-                            "Invite"
+                            {lang.t(Key::Invite)}
                         </button>
                     </div>
                 }
@@ -33,12 +35,12 @@ pub fn GameBanner(chess_board_signals: ChessBoardSignals, show_form: RwSignal<Fo
             Some(
                 view! {
                     <div class="banner">
-                        <span>"Your opponent offers a draw"</span>
+                        <span>{lang.t(Key::OpponentOffersDraw)}</span>
                         <button class="btn btn-primary h-9" on:click=move |_| send(ClientMsg::AcceptDraw)>
-                            "Accept"
+                            {lang.t(Key::Accept)}
                         </button>
                         <button class="btn btn-secondary h-9" on:click=move |_| send(ClientMsg::DeclineDraw)>
-                            "Decline"
+                            {lang.t(Key::Decline)}
                         </button>
                     </div>
                 }

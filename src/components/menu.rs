@@ -3,6 +3,7 @@ use leptos::prelude::*;
 use crate::{
     components::{forms::Form, icons::Icon},
     entities::chess_board::signals::ChessBoardSignals,
+    i18n::{self, Key},
 };
 
 /// The phone's menu, under the hamburger: everything that isn't a move
@@ -12,6 +13,7 @@ pub fn Menu(
     chess_board_signals: ChessBoardSignals,
     open: RwSignal<bool>,
 ) -> impl IntoView {
+    let lang = i18n::current();
     let class = move || {
         if open.get() {
             "dropdown dropdown--left dropdown--open"
@@ -33,29 +35,29 @@ pub fn Menu(
         <div class=class>
             <button class="dropdown-item" on:click=move |_| open_form(Form::NewGame)>
                 {Icon::NewGame.view()}
-                "New game"
+                {lang.t(Key::NewGame)}
             </button>
             <button class="dropdown-item" on:click=move |_| open_form(Form::Join)>
                 {Icon::Join.view()}
-                "Join room"
+                {lang.t(Key::JoinRoom)}
             </button>
             <button class="dropdown-item" on:click=move |_| open_form(Form::Invite)>
                 {Icon::Invite.view()}
-                "Invite"
+                {lang.t(Key::Invite)}
             </button>
             <Show when=free_board>
                 <button class="dropdown-item" on:click=move |_| open_form(Form::Options)>
                     {Icon::Options.view()}
-                    "Board options"
+                    {lang.t(Key::BoardOptions)}
                 </button>
             </Show>
             <button class="dropdown-item" on:click=flip>
                 {Icon::Flip.view()}
-                "Flip board"
+                {lang.t(Key::FlipBoard)}
             </button>
             <button class="dropdown-item" on:click=move |_| open_form(Form::Username)>
                 {Icon::Name.view()}
-                "Change name"
+                {lang.t(Key::ChangeName)}
             </button>
         </div>
     }

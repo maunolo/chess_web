@@ -9,6 +9,7 @@ Available at: [chess.maunolo.dev](https://chess.maunolo.dev)
 - **Free board** at `/`: anyone moves any piece, captured pieces go to the trash and can be put back. Options turns on rule validation.
 - **Games**: Menu → New game picks a color and a clock (none, or 1+0 up to 30+0), then shares a `/g/<id>` link. Whoever opens it first takes the other seat, everyone after that watches. The server enforces turns and the clock, and ends the game on checkmate, stalemate, time, resignation, agreed draw, threefold repetition, the fifty-move rule or insufficient material. Rematches swap colors.
 - **Moving**: drag a piece, or tap it and then tap its square. With validation on, the legal moves of the selected piece are marked.
+- **Language**: English, or Brazilian Portuguese when the browser asks for Portuguese (`Accept-Language`). The strings live in `src/i18n.rs`; server notifications are sent as keys and translated on the page.
 
 # Development
 

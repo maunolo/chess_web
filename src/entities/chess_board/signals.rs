@@ -8,7 +8,7 @@ use super::{ChessBoard, ChessBoardBuilder};
 use crate::entities::{
     notification::{Notification, NotifyType},
     position::Position,
-    protocol::{ClientMsg, GameInfo, Side},
+    protocol::{ClientMsg, GameInfo, Side, Text},
     room::RoomStatus,
     stone::Stone,
 };
@@ -230,7 +230,7 @@ impl ChessBoardSignals {
             chess_board_socket: RwSignal::new_local(None),
             stones_signals: RwSignal::new(StonesSignals::new()),
             should_render: RwSignal::new(false),
-            notification: RwSignal::new(Notification::new(String::new(), NotifyType::Success)),
+            notification: RwSignal::new(Notification::new()),
             game: RwSignal::new(None),
             clock_synced_at: RwSignal::new(0.0),
             clock_now: RwSignal::new(0.0),
@@ -347,9 +347,9 @@ impl ChessBoardSignals {
         }
     }
 
-    pub fn notify(&self, level: NotifyType, message: &str) {
+    pub fn notify(&self, level: NotifyType, text: Text) {
         self.notification.update(|notification| {
-            notification.show(level, message);
+            notification.show(level, text);
         });
     }
 

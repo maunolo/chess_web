@@ -1,20 +1,24 @@
 use leptos::prelude::*;
 
-use crate::entities::{
-    chess_board::{enums::PromotionKind, signals::ChessBoardSignals},
-    protocol::ClientMsg,
+use crate::{
+    entities::{
+        chess_board::{enums::PromotionKind, signals::ChessBoardSignals},
+        protocol::ClientMsg,
+    },
+    i18n::{self, Key},
 };
 
-const CHOICES: [(PromotionKind, char, &str); 4] = [
-    (PromotionKind::Queen, 'q', "Queen"),
-    (PromotionKind::Rook, 'r', "Rook"),
-    (PromotionKind::Bishop, 'b', "Bishop"),
-    (PromotionKind::Knight, 'n', "Knight"),
+const CHOICES: [(PromotionKind, char, Key); 4] = [
+    (PromotionKind::Queen, 'q', Key::Queen),
+    (PromotionKind::Rook, 'r', Key::Rook),
+    (PromotionKind::Bishop, 'b', Key::Bishop),
+    (PromotionKind::Knight, 'n', Key::Knight),
 ];
 
 /// Asks what a pawn reaching the last rank becomes, then sends its move
 #[component]
 pub fn PromotionPicker(chess_board_signals: ChessBoardSignals) -> impl IntoView {
+    let lang = i18n::current();
     let pick = move |promotion: PromotionKind| {
         let Some(pending) = chess_board_signals.pending_promotion().get_untracked() else {
             return;
@@ -34,14 +38,14 @@ pub fn PromotionPicker(chess_board_signals: ChessBoardSignals) -> impl IntoView 
             view! {
                 <div class="backdrop">
                     <div class="dialog w-auto items-center">
-                        <span class="dialog-title">"Promote to"</span>
+                        <span class="dialog-title">{lang.t(Key::PromoteTo)}</span>
                         <div class="flex gap-2">
                             {CHOICES
                                 .map(|(promotion, letter, name)| {
                                     view! {
                                         <button
                                             class=format!("promotion-choice {color}{letter}")
-                                            aria-label=name
+                                            aria-label=lang.t(name)
                                             on:click=move |_| pick(promotion)
                                         ></button>
                                     }

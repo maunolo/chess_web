@@ -3,6 +3,7 @@ use leptos::prelude::*;
 use crate::{
     components::{forms::Form, icons::Icon},
     entities::{chess_board::signals::ChessBoardSignals, protocol::ClientMsg},
+    i18n::{self, Key},
 };
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -49,50 +50,46 @@ fn action(label: &'static str, icon: Icon, kind: Kind, run: Run) -> Action {
 /// player, a free board's undo and redo, and flipping for everyone
 #[component]
 pub fn GameActions(chess_board_signals: ChessBoardSignals, show_form: RwSignal<Form>, layout: ActionsLayout) -> impl IntoView {
+    let lang = i18n::current();
     // a first tap on "Resign" asks for a second one
     let confirm_resign = RwSignal::new(false);
 
     let actions = move || {
         let game = chess_board_signals.game().get();
         let seat = chess_board_signals.my_seat();
-        let flip = action("Flip", Icon::Flip, Kind::Ghost, Run::Flip);
-        let invite = action("Invite", Icon::Invite, Kind::Normal, Run::Open(Form::Invite));
+        let flip = action(lang.t(Key::Flip), Icon::Flip, Kind::Ghost, Run::Flip);
+        let invite = action(lang.t(Key::Invite), Icon::Invite, Kind::Normal, Run::Open(Form::Invite));
 
         match game {
             Some(game) if seat.is_some() && game.result.is_none() => {
-                let draw_label = match (game.draw_offer, seat) {
-                    (Some(offer), Some(seat)) if offer == seat => "Draw offered",
-                    (Some(_), _) => "Accept draw",
-                    _ => "Offer draw",
-                };
-                let draw_msg = if draw_label == "Accept draw" {
-                    ClientMsg::AcceptDraw
-                } else {
-                    ClientMsg::OfferDraw
+                let (draw_label, draw_msg) = match (game.draw_offer, seat) {
+                    (Some(offer), Some(seat)) if offer == seat => (Key::DrawOffered, ClientMsg::OfferDraw),
+                    (Some(_), _) => (Key::AcceptDraw, ClientMsg::AcceptDraw),
+                    _ => (Key::OfferDraw, ClientMsg::OfferDraw),
                 };
                 let resign_label = if confirm_resign.get() {
-                    "Confirm resign"
+                    Key::ConfirmResign
                 } else {
-                    "Resign"
+                    Key::Resign
                 };
                 vec![
                     flip,
-                    action(draw_label, Icon::Draw, Kind::Normal, Run::Send(draw_msg)),
-                    action(resign_label, Icon::Resign, Kind::Danger, Run::Resign),
+                    action(lang.t(draw_label), Icon::Draw, Kind::Normal, Run::Send(draw_msg)),
+                    action(lang.t(resign_label), Icon::Resign, Kind::Danger, Run::Resign),
                     invite,
                 ]
             }
             Some(_) => vec![
                 flip,
-                action("New game", Icon::NewGame, Kind::Normal, Run::Open(Form::NewGame)),
+                action(lang.t(Key::NewGame), Icon::NewGame, Kind::Normal, Run::Open(Form::NewGame)),
                 invite,
             ],
             None => vec![
                 flip,
-                action("Undo", Icon::Undo, Kind::Normal, Run::Send(ClientMsg::Undo)),
-                action("Redo", Icon::Redo, Kind::Normal, Run::Send(ClientMsg::Redo)),
-                action("Reset", Icon::Reset, Kind::Normal, Run::Send(ClientMsg::Reset)),
-                action("Options", Icon::Options, Kind::Normal, Run::Open(Form::Options)),
+                action(lang.t(Key::Undo), Icon::Undo, Kind::Normal, Run::Send(ClientMsg::Undo)),
+                action(lang.t(Key::Redo), Icon::Redo, Kind::Normal, Run::Send(ClientMsg::Redo)),
+                action(lang.t(Key::Reset), Icon::Reset, Kind::Normal, Run::Send(ClientMsg::Reset)),
+                action(lang.t(Key::Options), Icon::Options, Kind::Normal, Run::Open(Form::Options)),
             ],
         }
     };

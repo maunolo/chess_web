@@ -3,12 +3,14 @@ use leptos::prelude::*;
 use crate::{
     components::{people::PeopleList, top_bar::room_title},
     entities::chess_board::signals::ChessBoardSignals,
+    i18n::{self, Key},
 };
 
 /// The desktop's left column: what this room is, and who is in it
 #[component]
 pub fn RoomPanel(chess_board_signals: ChessBoardSignals) -> impl IntoView {
-    let title = move || room_title(chess_board_signals).0;
+    let lang = i18n::current();
+    let title = move || room_title(lang, chess_board_signals).0;
     let room = move || {
         chess_board_signals
             .room_status()
@@ -17,9 +19,9 @@ pub fn RoomPanel(chess_board_signals: ChessBoardSignals) -> impl IntoView {
     };
     let eyebrow = move || {
         if chess_board_signals.is_game() {
-            "Game"
+            lang.t(Key::Game)
         } else {
-            "Free board"
+            lang.t(Key::FreeBoard)
         }
     };
     let count = move || {
@@ -36,7 +38,7 @@ pub fn RoomPanel(chess_board_signals: ChessBoardSignals) -> impl IntoView {
                 <span class="font-mono text-[13px] text-ink-300">{room}</span>
             </div>
             <div class="card p-4 flex flex-col gap-3">
-                <span class="eyebrow">{move || format!("In the room · {}", count())}</span>
+                <span class="eyebrow">{move || lang.in_the_room(count())}</span>
                 <PeopleList chess_board_signals=chess_board_signals/>
             </div>
         </aside>

@@ -18,7 +18,7 @@ use crate::entities::{
     notification::NotifyType,
     position::{Position, DELETED},
     protocol::{
-        ClientMsg, ClockInfo, GameInfo, GameResult, Presence, SeatChoice, ServerMsg, Side,
+        ClientMsg, ClockInfo, GameInfo, GameResult, Presence, SeatChoice, ServerMsg, Side, Text,
         TimeControl, UserInfo, MAIN_ROOM,
     },
     stone::{Color, Kind, Stone},
@@ -127,13 +127,6 @@ fn side_color(side: Side) -> Color {
     match side {
         Side::White => Color::Light,
         Side::Black => Color::Dark,
-    }
-}
-
-fn side_name(side: Side) -> &'static str {
-    match side {
-        Side::White => "White",
-        Side::Black => "Black",
     }
 }
 
@@ -390,13 +383,13 @@ enum MoveRefusal {
 
 impl MoveRefusal {
     /// What to tell the player, nothing when the board resync says it all
-    fn message(&self) -> Option<&'static str> {
+    fn text(&self) -> Option<Text> {
         match self {
             MoveRefusal::Board(_) => None,
-            MoveRefusal::Spectator => Some("You are watching this game"),
-            MoveRefusal::WaitingForOpponent => Some("Waiting for an opponent to join"),
-            MoveRefusal::NotYourTurn => Some("It's not your turn"),
-            MoveRefusal::GameOver => Some("The game is over"),
+            MoveRefusal::Spectator => Some(Text::Spectator),
+            MoveRefusal::WaitingForOpponent => Some(Text::WaitingForOpponent),
+            MoveRefusal::NotYourTurn => Some(Text::NotYourTurn),
+            MoveRefusal::GameOver => Some(Text::GameOver),
         }
     }
 }
@@ -777,12 +770,12 @@ impl Room {
         user_id: &str,
         msg: &ClientMsg,
         now: Instant,
-    ) -> Result<GameAction, &'static str> {
+    ) -> Result<GameAction, Text> {
         let Some(game) = &mut self.game else {
-            return Err("There is no game on a free board");
+            return Err(Text::NoGameOnFreeBoard);
         };
         let Some(seat) = game.seat_of(user_id) else {
-            return Err("Only the players can do that");
+            return Err(Text::PlayersOnly);
         };
         let game_over = game.result.is_some();
 
@@ -796,8 +789,8 @@ impl Room {
                 game.finish(GameResult::Agreement, now)
             }
             ClientMsg::OfferDraw if !game_over && game.is_full() => game.draw_offer = Some(seat),
-            ClientMsg::OfferDraw if !game_over => return Err("Waiting for an opponent to join"),
-            ClientMsg::AcceptDraw if !game_over => return Err("There is no draw offer"),
+            ClientMsg::OfferDraw if !game_over => return Err(Text::WaitingForOpponent),
+            ClientMsg::AcceptDraw if !game_over => return Err(Text::NoDrawOffer),
             ClientMsg::DeclineDraw if game.draw_offer == Some(!seat) => game.draw_offer = None,
             ClientMsg::DeclineDraw => {}
             ClientMsg::Rematch if game_over && game.rematch_offer == Some(!seat) => {
@@ -805,8 +798,8 @@ impl Room {
                 return Ok(GameAction::RematchStarted);
             }
             ClientMsg::Rematch if game_over => game.rematch_offer = Some(seat),
-            ClientMsg::Rematch => return Err("The game is still going"),
-            _ => return Err("The game is over"),
+            ClientMsg::Rematch => return Err(Text::GameStillGoing),
+            _ => return Err(Text::GameOver),
         }
 
         Ok(GameAction::Updated)
@@ -876,8 +869,8 @@ impl ChessServer {
         }
     }
 
-    fn notify(&self, id: &str, level: NotifyType, message: &str) {
-        self.send_message_to_session(id, &ServerMsg::notify(level, message));
+    fn notify(&self, id: &str, level: NotifyType, text: Text) {
+        self.send_message_to_session(id, &ServerMsg::notify(level, text));
     }
 
     /// Name of the room the user is in
@@ -1008,7 +1001,7 @@ impl ChessServer {
 
     fn join(&mut self, id: &str, room: &str, fen: Option<String>, trash: Option<String>) {
         let Some(room_name) = sanitize_room_name(room) else {
-            self.notify(id, NotifyType::Error, "Invalid room name");
+            self.notify(id, NotifyType::Error, Text::InvalidRoomName);
             return;
         };
         // an old game link would otherwise open a new free board
@@ -1021,7 +1014,7 @@ impl ChessServer {
         // the user where they were
         if !self.rooms.contains_key(&room_name) {
             let Ok(room) = Room::new(&room_name, fen, trash) else {
-                self.notify(id, NotifyType::Error, "Failed to create room");
+                self.notify(id, NotifyType::Error, Text::FailedToCreateRoom);
                 return;
             };
             self.rooms.insert(room_name.clone(), room);
@@ -1058,12 +1051,14 @@ impl ChessServer {
         }
 
         if !already_in {
-            let message = match (is_game, seat) {
-                (true, Some(side)) => format!("Joined the game as {}", side_name(side)),
-                (true, None) => "Watching the game".to_string(),
-                (false, _) => format!("Joined room {}", room_name),
+            let text = match (is_game, seat) {
+                (true, Some(side)) => Text::JoinedGame { side },
+                (true, None) => Text::WatchingGame,
+                (false, _) => Text::JoinedRoom {
+                    room: room_name.clone(),
+                },
             };
-            self.notify(id, NotifyType::Success, &message);
+            self.notify(id, NotifyType::Success, text);
 
             // notify all users in room
             if let Some(user) = self.sessions.get(id) {
@@ -1075,7 +1070,7 @@ impl ChessServer {
 
     fn rename(&mut self, id: &str, name: &str) {
         let Some(name) = sanitize_username(name) else {
-            self.notify(id, NotifyType::Error, "A name is required");
+            self.notify(id, NotifyType::Error, Text::NameRequired);
             return;
         };
         let Some(user) = self.sessions.get_mut(id) else {
@@ -1151,8 +1146,8 @@ impl ChessServer {
                 );
                 let sync_board = room.sync_board_message();
                 self.send_message_to_session(id, &sync_board);
-                if let Some(message) = refusal.message() {
-                    self.notify(id, NotifyType::Warning, message);
+                if let Some(text) = refusal.text() {
+                    self.notify(id, NotifyType::Warning, text);
                 }
                 // the move may have arrived after the clock flagged
                 if matches!(refusal, MoveRefusal::GameOver) {
@@ -1214,41 +1209,35 @@ impl ChessServer {
             return;
         };
         if room.game.is_some() {
-            self.notify(id, NotifyType::Warning, "Not available during a game");
+            self.notify(id, NotifyType::Warning, Text::NotDuringGame);
             return;
         }
 
         match msg {
             ClientMsg::Reset => match room.reset() {
                 Ok(()) => self.broadcast_board(&room_name),
-                Err(_) => self.notify(id, NotifyType::Error, "Failed to reset board"),
+                Err(_) => self.notify(id, NotifyType::Error, Text::FailedToReset),
             },
             ClientMsg::Undo | ClientMsg::Redo => {
-                let (step, action): (fn(&mut Room) -> Result<bool, ChessBoardError>, _) =
+                let (step, no_more, failed): (fn(&mut Room) -> Result<bool, ChessBoardError>, _, _) =
                     match msg {
-                        ClientMsg::Undo => (Room::undo, "undo"),
-                        _ => (Room::redo, "redo"),
+                        ClientMsg::Undo => (Room::undo, Text::NoMoreToUndo, Text::FailedToUndo),
+                        _ => (Room::redo, Text::NoMoreToRedo, Text::FailedToRedo),
                     };
                 match step(room) {
                     Ok(true) => self.broadcast_board(&room_name),
-                    Ok(false) => self.notify(
-                        id,
-                        NotifyType::Warning,
-                        &format!("No more moves to {}", action),
-                    ),
-                    Err(_) => {
-                        self.notify(id, NotifyType::Error, &format!("Failed to {} move", action))
-                    }
+                    Ok(false) => self.notify(id, NotifyType::Warning, no_more),
+                    Err(_) => self.notify(id, NotifyType::Error, failed),
                 }
             }
             ClientMsg::Options { validation, sync } => {
-                let (level, notification) = match room.set_options(validation, sync) {
-                    Ok(()) => (NotifyType::Success, "Options applied"),
-                    Err(_) => (NotifyType::Error, "Failed to apply options"),
+                let (level, text) = match room.set_options(validation, sync) {
+                    Ok(()) => (NotifyType::Success, Text::OptionsApplied),
+                    Err(_) => (NotifyType::Error, Text::FailedToApplyOptions),
                 };
                 let options = room.options_message();
 
-                self.notify(id, level, notification);
+                self.notify(id, level, text);
                 self.send_message(&room_name, &options, None);
             }
             _ => {}
@@ -1261,7 +1250,7 @@ impl ChessServer {
                 || time_control.initial_secs > MAX_INITIAL_SECS
                 || time_control.increment_secs > MAX_INCREMENT_SECS
             {
-                self.notify(id, NotifyType::Error, "Invalid time control");
+                self.notify(id, NotifyType::Error, Text::InvalidTimeControl);
                 return;
             }
         }
@@ -1298,7 +1287,7 @@ impl ChessServer {
                 }
                 self.broadcast_game(&room_name, now);
             }
-            Err(message) => self.notify(id, NotifyType::Warning, message),
+            Err(text) => self.notify(id, NotifyType::Warning, text),
         }
     }
 }

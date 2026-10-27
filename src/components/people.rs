@@ -4,15 +4,16 @@ use crate::{
     components::{forms::Form, icons::Icon},
     entities::{
         chess_board::signals::{ChessBoardSignals, Connection},
-        protocol::Side,
         room::{User, UserStatus},
     },
+    i18n::{self, Key},
     utils::my_id,
 };
 
 /// Everyone in the room, with their seat
 #[component]
 pub fn PeopleList(chess_board_signals: ChessBoardSignals) -> impl IntoView {
+    let lang = i18n::current();
     let users = move || {
         chess_board_signals
             .room_status()
@@ -28,16 +29,15 @@ pub fn PeopleList(chess_board_signals: ChessBoardSignals) -> impl IntoView {
                     .game()
                     .with(|game| game.as_ref().and_then(|game| game.seat_of(&id)));
                 let seat = match seat {
-                    Some(Side::White) => "White",
-                    Some(Side::Black) => "Black",
-                    None if chess_board_signals.is_game() => "Watching",
+                    Some(side) => lang.side(side),
+                    None if chess_board_signals.is_game() => lang.t(Key::Watching),
                     None => "",
                 };
                 let me = my_id().as_deref() == Some(id.as_str());
                 match (seat, me) {
-                    ("", true) => "you".to_string(),
+                    ("", true) => lang.t(Key::You).to_string(),
                     ("", false) => String::new(),
-                    (seat, true) => format!("{seat} · you"),
+                    (seat, true) => format!("{seat} · {}", lang.t(Key::You)),
                     (seat, false) => seat.to_string(),
                 }
             }
@@ -83,6 +83,7 @@ pub fn PeopleButton(
     open: RwSignal<bool>,
     menu_open: RwSignal<bool>,
 ) -> impl IntoView {
+    let lang = i18n::current();
     let count = move || {
         chess_board_signals
             .room_status()
@@ -96,7 +97,7 @@ pub fn PeopleButton(
             "w-2 h-2 rounded-full bg-coral animate-pulse-brightness"
         }
     };
-    let label = move || format!("{} in the room", count());
+    let label = move || lang.in_the_room(count());
     let toggle = move |_| {
         menu_open.set(false);
         open.update(|open| *open = !*open);
@@ -118,6 +119,7 @@ pub fn PeopleDropdown(
     open: RwSignal<bool>,
     show_form: RwSignal<Form>,
 ) -> impl IntoView {
+    let lang = i18n::current();
     let class = move || {
         if open.get() {
             "dropdown dropdown--right dropdown--open"
@@ -137,17 +139,17 @@ pub fn PeopleDropdown(
 
     view! {
         <div class=class>
-            <span class="eyebrow px-2 pt-1">"In the room"</span>
+            <span class="eyebrow px-2 pt-1">{lang.t(Key::InTheRoom)}</span>
             <PeopleList chess_board_signals=chess_board_signals/>
             <div class="border-t border-ink-700 mt-1 pt-1 flex flex-col gap-1">
                 <button class="dropdown-item" on:click=change_name>
                     {Icon::Name.view()}
-                    "Change name"
+                    {lang.t(Key::ChangeName)}
                 </button>
                 <Show when=disconnected>
                     <button class="dropdown-item text-coral" on:click=reconnect>
                         {Icon::Refresh.view()}
-                        "Reconnect"
+                        {lang.t(Key::Reconnect)}
                     </button>
                 </Show>
             </div>

@@ -2,45 +2,28 @@ use leptos::prelude::*;
 
 use crate::{
     components::{forms::Form, icons::Icon, people::PeopleButton},
-    entities::{chess_board::signals::ChessBoardSignals, protocol::TimeControl},
+    entities::chess_board::signals::ChessBoardSignals,
+    i18n::{self, Key, Lang},
 };
 
-fn time_control_category(time_control: &TimeControl) -> &'static str {
-    match time_control.initial_secs {
-        secs if secs < 180 => "Bullet",
-        secs if secs < 600 => "Blitz",
-        secs if secs < 1800 => "Rapid",
-        _ => "Classical",
-    }
-}
-
 /// What the page is showing: a title and a line under it
-pub fn room_title(chess_board_signals: ChessBoardSignals) -> (String, String) {
-    let room = chess_board_signals
+pub fn room_title(lang: Lang, chess_board_signals: ChessBoardSignals) -> (String, String) {
+    let Some(room) = chess_board_signals
         .room_status()
         .with(|status| status.as_ref().map(|status| status.name()))
-        .unwrap_or("Chess".to_string());
-    let game = chess_board_signals.game().get();
+    else {
+        return ("Chess".to_string(), String::new());
+    };
 
-    match game {
+    match chess_board_signals.game().get() {
         Some(game) => {
             let title = match game.time_control {
-                Some(time_control) => format!(
-                    "{} · {}",
-                    time_control.label(),
-                    time_control_category(&time_control)
-                ),
-                None => "Casual game".to_string(),
+                Some(time_control) => lang.time_control(&time_control),
+                None => lang.t(Key::CasualGame).to_string(),
             };
-            (title, format!("Game {room}"))
+            (title, lang.game_title(&room))
         }
-        None => {
-            let mut title = room;
-            if let Some(first) = title.get_mut(..1) {
-                first.make_ascii_uppercase();
-            }
-            (title, "Free board".to_string())
-        }
+        None => (lang.room_name(&room), lang.t(Key::FreeBoard).to_string()),
     }
 }
 
@@ -51,8 +34,9 @@ pub fn TopBar(
     menu_open: RwSignal<bool>,
     people_open: RwSignal<bool>,
 ) -> impl IntoView {
-    let title = move || room_title(chess_board_signals).0;
-    let subtitle = move || room_title(chess_board_signals).1;
+    let lang = i18n::current();
+    let title = move || room_title(lang, chess_board_signals).0;
+    let subtitle = move || room_title(lang, chess_board_signals).1;
     let menu_btn_class = move || {
         if menu_open.get() {
             "icon-btn menu-btn menu-btn--is-active"
@@ -69,7 +53,7 @@ pub fn TopBar(
         // above the dropdown backdrop, so its buttons switch between dropdowns
         <header class="relative z-40 h-14 flex-shrink-0 flex items-center justify-between px-2 lg:px-5 lg:border-b lg:border-ink-800">
             <div class="flex items-center gap-2 lg:hidden">
-                <button class=menu_btn_class on:click=toggle_menu aria-label="Menu">
+                <button class=menu_btn_class on:click=toggle_menu aria-label=lang.t(Key::Menu)>
                     <span class="line"></span>
                 </button>
             </div>
@@ -85,40 +69,21 @@ pub fn TopBar(
 
             <div class="flex items-center gap-1 lg:gap-2">
                 <button class="btn btn-outline hidden lg:inline-flex h-10" on:click=move |_| show_form.set(Form::NewGame)>
-                    "New game"
+                    {lang.t(Key::NewGame)}
                 </button>
                 <button class="btn btn-outline hidden lg:inline-flex h-10" on:click=move |_| show_form.set(Form::Join)>
-                    "Join room"
+                    {lang.t(Key::JoinRoom)}
                 </button>
                 <button class="btn btn-primary hidden lg:inline-flex h-10" on:click=move |_| show_form.set(Form::Invite)>
-                    "Invite"
+                    {lang.t(Key::Invite)}
                 </button>
                 <Show when=move || chess_board_signals.is_game()>
-                    <button class="icon-btn lg:hidden" aria-label="Invite" on:click=move |_| show_form.set(Form::Invite)>
+                    <button class="icon-btn lg:hidden" aria-label=lang.t(Key::Invite) on:click=move |_| show_form.set(Form::Invite)>
                         {Icon::Invite.view()}
                     </button>
                 </Show>
                 <PeopleButton chess_board_signals=chess_board_signals open=people_open menu_open=menu_open/>
             </div>
         </header>
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_time_control_category() {
-        let category = |initial_secs| {
-            time_control_category(&TimeControl {
-                initial_secs,
-                increment_secs: 0,
-            })
-        };
-        assert_eq!(category(60), "Bullet");
-        assert_eq!(category(180), "Blitz");
-        assert_eq!(category(600), "Rapid");
-        assert_eq!(category(1800), "Classical");
     }
 }

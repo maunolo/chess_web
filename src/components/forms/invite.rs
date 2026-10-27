@@ -3,11 +3,13 @@ use leptos::prelude::*;
 use crate::{
     components::forms::{room_path, Form},
     entities::chess_board::signals::ChessBoardSignals,
+    i18n::{self, Key},
     utils::browser::{can_share, copy_to_clipboard, page_origin, share_url},
 };
 
 #[component]
 pub fn Invite(chess_board_signals: ChessBoardSignals, show_form: RwSignal<Form>) -> impl IntoView {
+    let lang = i18n::current();
     let link = move || {
         let room = chess_board_signals
             .room_status()
@@ -17,21 +19,21 @@ pub fn Invite(chess_board_signals: ChessBoardSignals, show_form: RwSignal<Form>)
     };
     let hint = move || {
         if chess_board_signals.is_game() {
-            "Whoever opens this link first takes the free seat; everyone after that watches."
+            lang.t(Key::InviteGameHint)
         } else {
-            "Anyone with this link joins the board."
+            lang.t(Key::InviteBoardHint)
         }
     };
     let copied = RwSignal::new(false);
 
     view! {
         <div class="dialog">
-            <span class="dialog-title">"Invite"</span>
+            <span class="dialog-title">{lang.t(Key::Invite)}</span>
             <p class="text-sm text-ink-300 text-center -mt-2">{hint}</p>
             <input class="input font-mono text-[13px]" readonly prop:value=link/>
             <div class="flex gap-2">
                 <button class="btn btn-primary flex-1" on:click=move |_| copied.set(copy_to_clipboard(&link()))>
-                    {move || if copied.get() { "Copied!" } else { "Copy link" }}
+                    {move || if copied.get() { lang.t(Key::Copied) } else { lang.t(Key::CopyLink) }}
                 </button>
                 {can_share()
                     .then(|| {
@@ -39,16 +41,16 @@ pub fn Invite(chess_board_signals: ChessBoardSignals, show_form: RwSignal<Form>)
                             <button
                                 class="btn btn-secondary flex-1"
                                 on:click=move |_| {
-                                    share_url("Play chess with me", &link());
+                                    share_url(lang.t(Key::ShareTitle), &link());
                                 }
                             >
-                                "Share"
+                                {lang.t(Key::Share)}
                             </button>
                         }
                     })}
             </div>
             <button class="btn btn-ghost" on:click=move |_| show_form.set(Form::None)>
-                "Close"
+                {lang.t(Key::Close)}
             </button>
         </div>
     }

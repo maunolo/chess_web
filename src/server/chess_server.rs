@@ -295,6 +295,8 @@ impl Game {
 #[derive(Debug)]
 struct PlayedMove {
     message: ServerMsg,
+    /// The board after the move, for the player who made it
+    position: ServerMsg,
     /// Side effects the clients don't apply themselves: the pawn taken en
     /// passant, the castling rook
     follow_ups: Vec<ServerMsg>,
@@ -494,45 +496,48 @@ impl Room {
             Color::Light => ("lr", "dp", 7),
             Color::Dark => ("dr", "lp", 0),
         };
+        let (fen, trash) = (self.chess_board.fen.clone(), self.chess_board.trash_string());
+        let move_message = |piece: &str, from: String, to: String| ServerMsg::Move {
+            piece: piece.to_string(),
+            from,
+            to,
+            fen: fen.clone(),
+            trash: trash.clone(),
+        };
         let mut follow_ups = Vec::new();
         let mut resync = false;
 
         match board_move {
             BoardMove::Passant(captured) => {
-                follow_ups.push(ServerMsg::Move {
-                    piece: opponent_pawn.to_string(),
-                    from: captured.to_string(),
-                    to: DELETED.to_string(),
-                });
+                follow_ups.push(move_message(
+                    opponent_pawn,
+                    captured.to_string(),
+                    DELETED.to_string(),
+                ));
             }
             BoardMove::Castle(side) => {
                 let (rook_from, rook_to) = match side {
                     CastlePosition::KingSide => (7, 5),
                     CastlePosition::QueenSide => (0, 3),
                 };
-                follow_ups.push(ServerMsg::Move {
-                    piece: rook.to_string(),
-                    from: Position::new(rook_from, back_rank).to_string(),
-                    to: Position::new(rook_to, back_rank).to_string(),
-                });
+                follow_ups.push(move_message(
+                    rook,
+                    Position::new(rook_from, back_rank).to_string(),
+                    Position::new(rook_to, back_rank).to_string(),
+                ));
             }
             BoardMove::Promotion(_) => resync = true,
             BoardMove::Normal => {}
         }
 
+        let message = move_message(piece, from.to_string(), to.to_string());
         self.history.truncate(self.history_index + 1);
-        self.history.push((
-            self.chess_board.fen.clone(),
-            self.chess_board.trash_string(),
-        ));
+        self.history.push((fen.clone(), trash.clone()));
         self.history_index += 1;
 
         Ok(Some(PlayedMove {
-            message: ServerMsg::Move {
-                piece: piece.to_string(),
-                from: from.to_string(),
-                to: to.to_string(),
-            },
+            message,
+            position: ServerMsg::Position { fen, trash },
             follow_ups,
             resync,
             checkmate: self.chess_board.is_checkmate(),
@@ -1017,6 +1022,7 @@ impl ChessServer {
                 for follow_up in &played.follow_ups {
                     self.send_message(&room_name, follow_up, None);
                 }
+                self.send_message_to_session(id, &played.position);
                 if is_game {
                     self.broadcast_game(&room_name, now);
                     self.schedule_flag_check(&room_name, ctx, now);
@@ -1352,11 +1358,17 @@ mod tests {
             .unwrap()
     }
 
-    fn move_msg(piece: &str, from: &str, to: &str) -> ServerMsg {
-        ServerMsg::Move {
-            piece: piece.to_string(),
-            from: from.to_string(),
-            to: to.to_string(),
+    /// The piece, squares and side to move of a move message
+    fn move_parts(msg: &ServerMsg) -> (&str, &str, &str, &str) {
+        match msg {
+            ServerMsg::Move {
+                piece,
+                from,
+                to,
+                fen,
+                ..
+            } => (piece, from, to, fen.split(' ').nth(1).unwrap()),
+            other => panic!("not a move: {other:?}"),
         }
     }
 
@@ -1414,11 +1426,20 @@ mod tests {
     fn test_follow_ups() {
         let mut room = validated_room("r3k2r/8/8/3pP3/8/8/8/R3K2R w KQkq d6 0 1");
 
+        // the follow ups carry the board after the whole move, black to move
         let played = play(&mut room, "lp", "e5", "d6").unwrap();
-        assert_eq!(played.follow_ups, vec![move_msg("dp", "d5", DELETED)]);
+        assert_eq!(played.follow_ups.len(), 1);
+        assert_eq!(move_parts(&played.follow_ups[0]), ("dp", "d5", DELETED, "b"));
+        assert_eq!(move_parts(&played.message), ("lp", "e5", "d6", "b"));
+        let ServerMsg::Position { fen, .. } = &played.position else {
+            panic!("not a position");
+        };
+        assert_eq!(fen, &room.chess_board.fen);
+        assert!(fen.starts_with("r3k2r/8/3P4/8/"));
 
         let played = play(&mut room, "dk", "e8", "c8").unwrap();
-        assert_eq!(played.follow_ups, vec![move_msg("dr", "a8", "d8")]);
+        assert_eq!(played.follow_ups.len(), 1);
+        assert_eq!(move_parts(&played.follow_ups[0]), ("dr", "a8", "d8", "w"));
 
         let mut room = validated_room("8/4P3/8/8/8/8/8/k6K w - - 0 1");
         let played = room

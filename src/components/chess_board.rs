@@ -62,11 +62,14 @@ pub fn ChessBoard(chess_board_signals: ChessBoardSignals) -> impl IntoView {
                 return vec![];
             }
 
+            let is_pawn = selected.piece.ends_with('p');
             let mut hints: Vec<(Position, bool)> = board
                 .possible_moves(&from)
                 .into_iter()
                 .map(|to| {
-                    let capture = board.stone_at(to.x, to.y).is_some();
+                    // a pawn taking en passant lands on an empty square
+                    let capture = board.stone_at(to.x, to.y).is_some()
+                        || (is_pawn && board.passant.as_ref() == Some(&to));
                     (to, capture)
                 })
                 .collect();

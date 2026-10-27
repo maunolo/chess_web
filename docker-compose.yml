@@ -6,6 +6,7 @@ services:
             - 3100:3100
         environment:
             PORT: 3100
+            JWT_SECRET: ${JWT_SECRET:-dev_secret}
             RUST_LOG: debug
         # entrypoint: sh -c "echo 'Chess WEB awaiting manual start' && tail -f /dev/null"
         volumes:

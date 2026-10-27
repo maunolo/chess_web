@@ -145,48 +145,26 @@ pub struct ChessBoard {
 #[allow(dead_code)]
 impl ChessBoard {
     pub fn new(fen: &str) -> Result<Self, ChessBoardError> {
-        let fen_fields = fen.split(" ").collect::<Vec<&str>>();
-        let mut chess_board = Self {
-            fen: fen.to_string(),
-            stones: fen_to_stones(fen_fields[0]).map_err(|e| ChessBoardError::InvalidFen(e))?,
-            threat_map: [[false; 8]; 8],
-            turn: fen_to_turn(fen_fields[1]).map_err(|e| ChessBoardError::InvalidFen(e))?,
-            castle_rules: fen_to_castle_rules(fen_fields[2])
-                .map_err(|e| ChessBoardError::InvalidFen(e))?,
-            passant: fen_to_passant(fen_fields[3]).map_err(|e| ChessBoardError::InvalidFen(e))?,
-            half_move_clock: fen_fields[4]
-                .parse::<i32>()
-                .map_err(|_| ChessBoardError::InvalidFen(FenError::InvalidHalfMoveClock))?,
-            full_move_clock: fen_fields[5]
-                .parse::<i32>()
-                .map_err(|_| ChessBoardError::InvalidFen(FenError::InvalidFullMoveClock))?,
-            deleted_stones: Vec::new(),
-            is_white_view: true,
-            validation: false,
-            sync: true,
-        };
-        if chess_board.sync {
-            chess_board.sync_threat_map();
-        }
-        if chess_board.validation && !chess_board.valid_castle_rules() {
-            return Err(ChessBoardError::InvalidFen(FenError::InvalidCastleRules));
-        }
-        Ok(chess_board)
+        ChessBoardBuilder::new().fen(fen).validation(false).build()
     }
 
+    /// The side to move is in check and has no legal move. A position with no
+    /// legal move and no check is a stalemate, not a checkmate.
     pub fn is_checkmate(&self) -> bool {
-        for (position, stone) in self.stones_and_positions_iter() {
-            match (self.turn, stone.color()) {
-                (Turn::White, Color::Light) | (Turn::Black, Color::Dark) => {
-                    let possible_moves = self.possible_moves(&position);
-                    if !possible_moves.is_empty() {
-                        return false;
-                    }
-                }
-                _ => {}
-            }
+        self.is_in_check() && !self.has_legal_move()
+    }
+
+    pub fn has_legal_move(&self) -> bool {
+        self.stones_and_positions_iter()
+            .filter(|(_, stone)| stone.color() == self.turn_color())
+            .any(|(position, _)| !self.possible_moves(&position).is_empty())
+    }
+
+    fn turn_color(&self) -> Color {
+        match self.turn {
+            Turn::White => Color::Light,
+            Turn::Black => Color::Dark,
         }
-        return true;
     }
 
     pub fn is_in_check(&self) -> bool {
@@ -204,83 +182,26 @@ impl ChessBoard {
     }
 
     pub fn valid_castle_rules(&self) -> bool {
-        match self.castle_rules.white() {
-            CastleOptions::KingSide => {
-                if !self.stone_at_is(4, 7, Kind::King) {
-                    return false;
-                }
+        let valid_for = |options: &CastleOptions, y: usize, color: Color| {
+            let (king_side, queen_side) = match options {
+                CastleOptions::KingSide => (true, false),
+                CastleOptions::QueenSide => (false, true),
+                CastleOptions::BothSides => (true, true),
+                CastleOptions::None => return true,
+            };
 
-                if !self.stone_at_is(7, 7, Kind::Rook) {
-                    return false;
-                }
-            }
-            CastleOptions::QueenSide => {
-                if !self.stone_at_is(4, 7, Kind::King) {
-                    return false;
-                }
+            self.stone_at_is(4, y, Kind::King, color)
+                && (!king_side || self.stone_at_is(7, y, Kind::Rook, color))
+                && (!queen_side || self.stone_at_is(0, y, Kind::Rook, color))
+        };
 
-                if !self.stone_at_is(0, 7, Kind::Rook) {
-                    return false;
-                }
-            }
-            CastleOptions::BothSides => {
-                if !self.stone_at_is(4, 7, Kind::King) {
-                    return false;
-                }
-
-                if !self.stone_at_is(7, 7, Kind::Rook) {
-                    return false;
-                }
-
-                if !self.stone_at_is(0, 7, Kind::Rook) {
-                    return false;
-                }
-            }
-            _ => {}
-        }
-
-        match self.castle_rules.black() {
-            CastleOptions::KingSide => {
-                if !self.stone_at_is(4, 0, Kind::King) {
-                    return false;
-                }
-
-                if !self.stone_at_is(7, 0, Kind::Rook) {
-                    return false;
-                }
-            }
-            CastleOptions::QueenSide => {
-                if !self.stone_at_is(4, 0, Kind::King) {
-                    return false;
-                }
-
-                if !self.stone_at_is(0, 0, Kind::Rook) {
-                    return false;
-                }
-            }
-            CastleOptions::BothSides => {
-                if !self.stone_at_is(4, 0, Kind::King) {
-                    return false;
-                }
-
-                if !self.stone_at_is(7, 0, Kind::Rook) {
-                    return false;
-                }
-
-                if !self.stone_at_is(0, 0, Kind::Rook) {
-                    return false;
-                }
-            }
-            _ => {}
-        }
-
-        true
+        valid_for(self.castle_rules.white(), 7, Color::Light)
+            && valid_for(self.castle_rules.black(), 0, Color::Dark)
     }
 
-    #[allow(unused_variables)]
-    pub fn stone_at_is(&self, x: usize, y: usize, kind: Kind) -> bool {
+    pub fn stone_at_is(&self, x: usize, y: usize, kind: Kind, color: Color) -> bool {
         self.stone_at(x, y)
-            .map(|s| matches!(s.kind(), kind))
+            .map(|s| s.kind() == kind && s.color() == color)
             .unwrap_or(false)
     }
 
@@ -388,25 +309,26 @@ impl ChessBoard {
     }
 
     pub fn possible_moves(&self, position: &Position) -> HashSet<Position> {
-        let Some(ref stone) = self.stone_at(position.x, position.y) else {
+        let Some(stone) = self.stone_at(position.x, position.y) else {
             return HashSet::new();
         };
-        let mut moves = HashSet::new();
-        for possible_move in stone.possible_moves(position, &self) {
-            let mut chess_board = self.clone();
-            chess_board.validation = false;
-            chess_board.sync = false;
-            let _ = chess_board.move_piece(
-                &stone.image_class(),
-                Some(position.clone()),
-                Some(possible_move.clone()),
-            );
-            chess_board.sync_threat_map();
-            if !chess_board.is_in_check() {
-                moves.insert(possible_move);
-            }
-        }
-        moves
+
+        stone
+            .possible_moves(position, &self)
+            .into_iter()
+            .filter(|possible_move| {
+                let mut chess_board = self.clone();
+                chess_board.sync = false;
+                let _ = chess_board.apply_move(
+                    stone.as_str(),
+                    Some(position.clone()),
+                    Some(possible_move.clone()),
+                    true,
+                );
+                chess_board.sync_threat_map();
+                !chess_board.is_in_check()
+            })
+            .collect()
     }
 
     pub fn move_piece(
@@ -420,79 +342,108 @@ impl ChessBoard {
         }
 
         if self.validation {
-            let stone = piece
-                .parse::<Stone>()
-                .map_err(|_| ChessBoardError::InvalidMove(MoveError::NoStoneFound))?;
-
-            match (stone.color(), self.turn) {
-                (Color::Light, Turn::White) | (Color::Dark, Turn::Black) => {}
-                _ => return Err(ChessBoardError::InvalidMove(MoveError::InvalidMove)),
-            }
-
-            if from.is_none() || to.is_none() {
-                return Err(ChessBoardError::InvalidMove(MoveError::InvalidMove));
-            }
-
-            let to = to.clone().unwrap();
-            let from = from.clone().unwrap();
-            let possible_moves = self.possible_moves(&from);
-            if !possible_moves.contains(&to) {
-                return Err(ChessBoardError::InvalidMove(MoveError::InvalidMove));
-            }
+            self.validate_move(piece, from.as_ref(), to.as_ref())?;
         }
 
-        let Some(stone) = (match from.clone() {
-            None => {
-                if let Some(idx) = self
-                    .deleted_stones
-                    .iter()
-                    .position(|s| s.image_class() == piece)
-                {
-                    Some(self.deleted_stones.remove(idx))
-                } else {
-                    return Err(ChessBoardError::InvalidMove(MoveError::NoStoneFound));
-                }
-            }
-            Some(from) => self.take_stone_at(from.x, from.y),
-        }) else {
-            return Err(ChessBoardError::InvalidMove(MoveError::NoStoneFound));
+        self.apply_move(piece, from, to, self.validation)
+    }
+
+    fn validate_move(
+        &self,
+        piece: &str,
+        from: Option<&Position>,
+        to: Option<&Position>,
+    ) -> Result<(), ChessBoardError> {
+        let invalid_move = ChessBoardError::InvalidMove(MoveError::InvalidMove);
+        let stone = piece
+            .parse::<Stone>()
+            .map_err(|_| ChessBoardError::InvalidMove(MoveError::NoStoneFound))?;
+
+        if stone.color() != self.turn_color() {
+            return Err(invalid_move);
+        }
+
+        let (Some(from), Some(to)) = (from, to) else {
+            return Err(invalid_move);
         };
 
-        let result;
+        if !self.possible_moves(from).contains(to) {
+            return Err(invalid_move);
+        }
 
-        if from.is_none() {
-            let to = to.unwrap();
-            let old_piece = self.take_stone_at(to.x, to.y);
-            self.stones[to.y as usize][to.x as usize] = Some(stone);
-            if let Some(old_piece) = old_piece {
-                self.deleted_stones.push(old_piece);
+        Ok(())
+    }
+
+    /// Moves `piece` without checking the rules. `from` / `to` set to `None`
+    /// mean the trash. The stone at `from` must be `piece`, so a client with a
+    /// stale board can't move a different stone than the one it sees.
+    fn apply_move(
+        &mut self,
+        piece: &str,
+        from: Option<Position>,
+        to: Option<Position>,
+        with_effects: bool,
+    ) -> Result<Move, ChessBoardError> {
+        let no_stone_found = || ChessBoardError::InvalidMove(MoveError::NoStoneFound);
+        let off_board = from.is_none() || to.is_none();
+
+        let stone = match from.as_ref() {
+            Some(from) => {
+                if self.stone_at(from.x, from.y).map(|s| s.as_str()) != Some(piece) {
+                    return Err(no_stone_found());
+                }
+                self.take_stone_at(from.x, from.y).ok_or_else(no_stone_found)?
             }
-            result = Move::Normal;
-        } else if to.is_none() {
-            self.deleted_stones.push(stone);
-            result = Move::Normal;
-        } else {
-            let from = from.unwrap();
-            let to = to.unwrap();
-
-            let old_piece = self.take_stone_at(to.x, to.y);
-            self.stones[to.y as usize][to.x as usize] = Some(stone.clone());
-            if let Some(old_piece) = old_piece {
-                self.deleted_stones.push(old_piece);
+            None => {
+                let idx = self
+                    .deleted_stones
+                    .iter()
+                    .position(|s| s.as_str() == piece)
+                    .ok_or_else(no_stone_found)?;
+                self.deleted_stones.remove(idx)
             }
+        };
 
-            result = if self.validation {
-                self.apply_move_validation_and_effects((&stone, &from, &to))
-            } else {
+        let mut captured = false;
+        let result = match (from, to) {
+            (_, None) => {
+                self.deleted_stones.push(stone.clone());
                 Move::Normal
             }
-        }
+            (from, Some(to)) => {
+                if let Some(old_stone) = self.take_stone_at(to.x, to.y) {
+                    self.deleted_stones.push(old_stone);
+                    captured = true;
+                }
+                self.stones[to.y][to.x] = Some(stone.clone());
+
+                match from {
+                    Some(from) if with_effects => {
+                        self.apply_move_validation_and_effects((&stone, &from, &to))
+                    }
+                    _ => {
+                        self.passant = None;
+                        Move::Normal
+                    }
+                }
+            }
+        };
 
         if self.sync {
+            if captured || off_board || stone.kind() == Kind::Pawn {
+                self.half_move_clock = 0;
+            } else {
+                self.half_move_clock += 1;
+            }
+            if self.turn == Turn::Black {
+                self.full_move_clock += 1;
+            }
             self.turn = !self.turn;
-            self.sync_fen();
             self.sync_threat_map();
         }
+        // The FEN is the room's saved position, so it follows the stones even
+        // when turns aren't synced
+        self.sync_fen();
 
         Ok(result)
     }
@@ -502,15 +453,21 @@ impl ChessBoard {
         stone_move: (&Stone, &Position, &Position),
     ) -> Move {
         match stone_move {
-            (stone, _, to) if Some(to.clone()) == self.passant => {
-                let passant_pos = to.clone();
-                let passant_stone = match stone.color() {
-                    Color::Light => self.take_stone_at(passant_pos.x, passant_pos.y + 1),
-                    Color::Dark => self.take_stone_at(passant_pos.x, passant_pos.y - 1),
-                };
-                self.deleted_stones.push(passant_stone.unwrap());
+            (stone, _, to) if stone.kind() == Kind::Pawn && self.passant.as_ref() == Some(to) => {
                 self.passant = None;
-                Move::Passant
+                let (captured_y, opponent) = match stone.color() {
+                    Color::Light => (to.y + 1, Color::Dark),
+                    Color::Dark => (to.y.wrapping_sub(1), Color::Light),
+                };
+
+                if captured_y < 8 && self.stone_at_is(to.x, captured_y, Kind::Pawn, opponent) {
+                    if let Some(captured) = self.take_stone_at(to.x, captured_y) {
+                        self.deleted_stones.push(captured);
+                    }
+                    Move::Passant(Position::new(to.x, captured_y))
+                } else {
+                    Move::Normal
+                }
             }
             (stone, from, to) if stone.as_str() == "lp" && from.y == 6 && to.y == 4 => {
                 self.passant = Some(Position::new(to.x, 5));
@@ -648,48 +605,50 @@ impl ChessBoard {
     }
 
     pub fn sync_fen(&mut self) {
-        let mut new_fen = String::new();
-        for (i, row) in self.stones.iter().enumerate() {
-            let mut empty = 0;
-            for stone in row {
-                if let Some(stone) = stone {
-                    if empty > 0 {
-                        new_fen.push_str(&empty.to_string());
-                        empty = 0;
+        let placement = self
+            .stones
+            .iter()
+            .map(|row| {
+                let mut rank = String::new();
+                let mut empty = 0;
+                for stone in row {
+                    match stone {
+                        Some(stone) => {
+                            if empty > 0 {
+                                rank.push_str(&empty.to_string());
+                                empty = 0;
+                            }
+                            rank.push(stone.char());
+                        }
+                        None => empty += 1,
                     }
-                    new_fen.push_str(&stone.char().to_string());
-                } else {
-                    empty += 1;
                 }
-            }
-            if empty > 0 {
-                new_fen.push_str(&empty.to_string());
-            }
-            if i < 7 {
-                new_fen.push('/');
-            }
-        }
-        if matches!(self.turn, Turn::White) {
-            new_fen.push_str(" w");
-        } else {
-            new_fen.push_str(" b");
-        }
-        let fen_clone = self.fen.clone();
-        let mut fen_split = fen_clone.split(" ").skip(4);
-        let fen_castle_rules = self.castle_rules.to_string();
-        new_fen.push_str(&format!(" {}", fen_castle_rules));
-        let fen_passant = self
+                if empty > 0 {
+                    rank.push_str(&empty.to_string());
+                }
+                rank
+            })
+            .collect::<Vec<_>>()
+            .join("/");
+        let turn = match self.turn {
+            Turn::White => "w",
+            Turn::Black => "b",
+        };
+        let passant = self
             .passant
             .as_ref()
             .map(|pos| pos.to_string())
             .unwrap_or("-".to_string());
-        new_fen.push_str(&format!(" {}", fen_passant));
-        let fen_half_moves = fen_split.next().unwrap();
-        new_fen.push_str(&format!(" {}", fen_half_moves));
-        let fen_full_moves = fen_split.next().unwrap();
-        new_fen.push_str(&format!(" {}", fen_full_moves));
 
-        self.fen = new_fen;
+        self.fen = format!(
+            "{} {} {} {} {} {}",
+            placement,
+            turn,
+            self.castle_rules.to_string(),
+            passant,
+            self.half_move_clock,
+            self.full_move_clock
+        );
     }
 
     pub fn css_class(&self) -> String {
@@ -724,5 +683,96 @@ mod tests {
             HashSet::<Position>::new(),
             chess_board.possible_moves(&Position::new(3, 2))
         );
+    }
+
+    fn board(fen: &str, validation: bool) -> ChessBoard {
+        ChessBoardBuilder::new()
+            .fen(fen)
+            .validation(validation)
+            .sync(true)
+            .build()
+            .unwrap()
+    }
+
+    fn pos(s: &str) -> Option<Position> {
+        s.parse().ok()
+    }
+
+    #[test]
+    fn test_off_board_square_does_not_panic() {
+        let mut chess_board = board(
+            "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
+            false,
+        );
+
+        assert!(chess_board.move_piece("lp", pos("i1"), pos("e4")).is_err());
+        assert!(chess_board.move_piece("lp", pos("e2"), pos("a9")).is_ok());
+    }
+
+    #[test]
+    fn test_invalid_fen_fields_are_rejected() {
+        let fens = [
+            "rnbqkbnr/pppppppp/8/8/0/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
+            "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq A3 0 1",
+            "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq e9 0 1",
+            "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq e4 0 1",
+        ];
+
+        for fen in fens {
+            assert!(
+                ChessBoardBuilder::new().fen(fen).build().is_err(),
+                "{fen}"
+            );
+        }
+    }
+
+    #[test]
+    fn test_only_pawns_capture_en_passant() {
+        let mut chess_board = board("4k3/8/8/5n2/4P3/8/8/4K3 b - e3 0 1", true);
+
+        let result = chess_board.move_piece("dn", pos("f5"), pos("e3"));
+
+        assert!(matches!(result, Ok(Move::Normal)));
+        assert!(chess_board.stone_at(4, 4).is_some());
+    }
+
+    #[test]
+    fn test_en_passant_without_pawn_does_not_panic() {
+        let mut chess_board = board("4k3/8/8/3P4/8/8/8/4K3 w - e6 0 1", true);
+
+        assert!(chess_board.move_piece("lp", pos("d5"), pos("e6")).is_ok());
+    }
+
+    #[test]
+    fn test_castle_rules_validation_checks_piece_kind() {
+        let result = ChessBoardBuilder::new()
+            .fen("4k3/8/8/8/8/8/8/4Q2R w K - 0 1")
+            .validation(true)
+            .build();
+
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_stalemate_is_not_checkmate() {
+        assert!(!board("7k/5Q2/6K1/8/8/8/8/8 b - - 0 1", true).is_checkmate());
+        assert!(board("7k/6Q1/6K1/8/8/8/8/8 b - - 0 1", true).is_checkmate());
+    }
+
+    #[test]
+    fn test_move_clocks_advance() {
+        let mut chess_board = board(
+            "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
+            true,
+        );
+
+        chess_board.move_piece("lp", pos("e2"), pos("e4")).unwrap();
+        assert!(chess_board.fen.ends_with("b KQkq e3 0 1"));
+
+        chess_board.move_piece("dp", pos("e7"), pos("e5")).unwrap();
+        assert!(chess_board.fen.ends_with("w KQkq e6 0 2"));
+
+        chess_board.move_piece("ln", pos("g1"), pos("f3")).unwrap();
+        assert!(chess_board.fen.ends_with("b KQkq - 1 2"));
     }
 }

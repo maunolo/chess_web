@@ -7,6 +7,7 @@ use actix::prelude::*;
 use actix_web_actors::ws;
 
 use crate::server::chess_server::{self, ChessServer};
+use crate::utils::sanitize::{sanitize_room_name, sanitize_username};
 
 /// How often heartbeat pings are sent
 const HEARTBEAT_INTERVAL: Duration = Duration::from_secs(5);
@@ -25,12 +26,6 @@ pub struct WsChessSession {
 
     /// Chat server
     pub addr: Addr<ChessServer>,
-
-    /// Is authenticated
-    pub authenticated_at: Option<Instant>,
-
-    /// Disconnected at
-    pub disconnected_at: Option<Instant>,
 }
 
 impl WsChessSession {
@@ -40,8 +35,6 @@ impl WsChessSession {
             hb: Instant::now(),
             name,
             addr,
-            authenticated_at: None,
-            disconnected_at: None,
         }
     }
 
@@ -62,11 +55,7 @@ impl WsChessSession {
                 // heartbeat timed out
                 log::info!("Websocket Client heartbeat failed, disconnecting!");
 
-                // notify chat server
-                act.addr
-                    .do_send(chess_server::Disconnect { id: act.id.clone() });
-
-                // stop actor
+                // stop actor, `stopping` notifies the chess server
                 ctx.stop();
 
                 // don't try to send a ping
@@ -100,13 +89,12 @@ impl Actor for WsChessSession {
         })
     }
 
-    fn stopping(&mut self, _: &mut Self::Context) -> Running {
-        // notify chat server
-        if self.disconnected_at.is_none() {
-            self.addr.do_send(chess_server::Disconnect {
-                id: self.id.clone(),
-            });
-        }
+    fn stopping(&mut self, ctx: &mut Self::Context) -> Running {
+        // notify chat server, it ignores this socket if it was replaced
+        self.addr.do_send(chess_server::Disconnect {
+            id: self.id.clone(),
+            addr: ctx.address(),
+        });
         Running::Stop
     }
 }
@@ -128,11 +116,10 @@ impl Handler<chess_server::UserSync> for WsChessSession {
     }
 }
 
-impl Handler<chess_server::Disconnect> for WsChessSession {
+impl Handler<chess_server::Kick> for WsChessSession {
     type Result = ();
 
-    fn handle(&mut self, _: chess_server::Disconnect, ctx: &mut Self::Context) {
-        self.disconnected_at = Some(Instant::now());
+    fn handle(&mut self, _: chess_server::Kick, ctx: &mut Self::Context) {
         ctx.stop();
     }
 }
@@ -164,29 +151,28 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for WsChessSession {
                     let (cmd, input) = m.split_once(' ').unwrap_or((m, ""));
                     match cmd {
                         "/join" => {
-                            let v: Vec<&str> = input.splitn(2, ' ').collect();
-                            if v.len() >= 1 && v.len() <= 2 {
-                                let room_name = v[0].to_owned();
-                                let params: Option<(Option<String>, Option<String>)> =
-                                    v.get(1).map(|s| match s.to_owned().split_once("|") {
-                                        Some((fen, trash)) => {
-                                            (Some(fen.to_owned()), Some(trash.to_owned()))
-                                        }
-                                        None => (Some(s.to_owned().to_owned()), None),
-                                    });
-                                self.addr.do_send(chess_server::Join {
-                                    id: self.id.clone(),
-                                    name: room_name,
-                                    fen: params.clone().unwrap_or((None, None)).0,
-                                    trash: params.unwrap_or((None, None)).1,
-                                });
-                            } else {
+                            // `/join <room> [<fen>[|<trash>]]`
+                            let (room_name, position) = input.split_once(' ').unwrap_or((input, ""));
+                            let position = position.trim();
+                            let Some(room_name) = sanitize_room_name(room_name) else {
                                 ctx.text("!!! room name is required");
-                            }
+                                return;
+                            };
+                            let (fen, trash) = match position.split_once('|') {
+                                Some((fen, trash)) => (Some(fen.to_owned()), Some(trash.to_owned())),
+                                None => ((!position.is_empty()).then(|| position.to_owned()), None),
+                            };
+
+                            self.addr.do_send(chess_server::Join {
+                                id: self.id.clone(),
+                                name: room_name,
+                                fen,
+                                trash,
+                            });
                         }
                         "/username" => {
-                            if input != "" {
-                                self.name = input.to_owned();
+                            if let Some(name) = sanitize_username(input) {
+                                self.name = name;
 
                                 self.addr.do_send(chess_server::UserSync {
                                     id: self.id.clone(),

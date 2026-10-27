@@ -32,8 +32,13 @@ pub fn Forms(chess_board_signals: ChessBoardSignals, show_form: RwSignal<Form>) 
 
             if let Some(form) = form {
                 let data = web_sys::FormData::new_with_form(&form).unwrap();
-                let room = data.get("room").as_string().unwrap();
-                let msg = format!("/join {}", room);
+                let input = data.get("room").as_string().unwrap_or_default();
+                // `<room> [<fen>[|<trash>]]`
+                let (room, position) = input.trim().split_once(' ').unwrap_or((input.trim(), ""));
+                let Some(room) = crate::utils::sanitize::sanitize_room_name(room) else {
+                    return;
+                };
+                let msg = format!("/join {} {}", room, position);
                 match socket.send_with_str(&msg) {
                     Ok(_) => {}
                     Err(err) => log::error!("error sending message: {:?}", err),

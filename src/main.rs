@@ -6,8 +6,6 @@ mod utils;
 
 use cfg_if::cfg_if;
 
-use crate::server::chess_server;
-
 cfg_if! {
     if #[cfg(feature = "ssr")] {
         mod server;
@@ -17,13 +15,14 @@ cfg_if! {
         use crate::app::*;
         use leptos_actix::{generate_route_list, LeptosRoutes};
         use actix_web::{
+            cookie::{Cookie, SameSite},
             middleware, App, HttpServer, get, post, error, web, Error, HttpRequest, HttpResponse, Responder
         };
         use actix_web_actors::ws;
         use server::{
             middlewares::cache_control::CacheControlInterceptor,
             websockets::session::WsChessSession,
-            chess_server::ChessServer,
+            chess_server::{self, ChessServer},
         };
         use actix::Addr;
         use actix::Actor;
@@ -34,63 +33,56 @@ cfg_if! {
         use std::path::Path;
         use std::time::{SystemTime, UNIX_EPOCH};
 
-        use futures::StreamExt;
         use serde::{Deserialize, Serialize};
 
-        use utils::SessionPayload;
+        use utils::{sanitize::sanitize_username, SessionPayload};
 
         #[derive(Serialize, Deserialize)]
         struct PostSessionPayload {
             username: String
         }
 
-        const MAX_SIZE: usize = 262_144; // max payload size is 256k
-
+        /// Creates the session cookie, or renames the user of an existing one
+        // `web::Bytes` caps the body at 256k. The client doesn't send a JSON
+        // content type, so the body is parsed by hand instead of `web::Json`.
         #[post("/sessions")]
-        async fn create_session(req: HttpRequest, mut payload: web::Payload, srv: web::Data<Addr<ChessServer>>) -> impl Responder {
-            // payload is a stream of Bytes objects
-            let mut body = web::BytesMut::new();
-            while let Some(chunk) = payload.next().await {
-                let chunk = chunk?;
-                // limit max size of in-memory payload
-                if (body.len() + chunk.len()) > MAX_SIZE {
-                    return Err(error::ErrorBadRequest("overflow"));
-                }
-                body.extend_from_slice(&chunk);
-            }
+        async fn create_session(req: HttpRequest, body: web::Bytes, srv: web::Data<Addr<ChessServer>>) -> Result<HttpResponse, Error> {
+            let payload: PostSessionPayload = serde_json::from_slice(&body)?;
+            let Some(username) = sanitize_username(&payload.username) else {
+                return Err(error::ErrorBadRequest("username is required"));
+            };
 
-            // payload is loaded, now we can deserialize serde-json
-            let payload: PostSessionPayload = serde_json::from_slice::<PostSessionPayload>(&body)?;
+            // A token that doesn't verify (e.g. the secret changed) gets a new
+            // identity instead of locking the browser out for good
+            let token = req
+                .cookie("session_token")
+                .and_then(|cookie| utils::jwt::verified_decode::<SessionPayload>(cookie.value()).ok());
 
-            let session_payload = if let Some(session_cookie) = req.cookie("session_token") {
-                let Ok(token) = utils::jwt::verified_decode::<SessionPayload>(&session_cookie.value().to_string()) else {
-                    return Ok(HttpResponse::Unauthorized().finish());
-                };
-
-                let chess_server_addr = srv.get_ref().clone();
-
-                chess_server_addr.do_send(
-                    chess_server::UserSync { id: token.claims().sub.clone(), name: payload.username.clone() }
+            let session_payload = if let Some(token) = token {
+                srv.get_ref().do_send(
+                    chess_server::UserSync { id: token.claims().sub.clone(), name: username.clone() }
                 );
 
                 SessionPayload {
                     sub: token.claims().sub.clone(),
-                    name: payload.username,
+                    name: username,
                     iat: token.claims().iat,
                 }
             } else {
                 let iat = SystemTime::now().duration_since(UNIX_EPOCH).expect("Time went backwards").as_secs();
                 SessionPayload {
                     sub: uuid::Uuid::new_v4().to_string(),
-                    name: payload.username,
-                    iat: iat,
+                    name: username,
+                    iat,
                 }
             };
 
+            let session_token = utils::jwt::encode(session_payload).map_err(error::ErrorInternalServerError)?;
 
-            let session_token = utils::jwt::encode(session_payload).expect("Failed to encode JWT");
-
-            let session_cookie = actix_web::cookie::Cookie::build("session_token", session_token).path("/").finish();
+            let session_cookie = Cookie::build("session_token", session_token)
+                .path("/")
+                .same_site(SameSite::Lax)
+                .finish();
 
             Ok(HttpResponse::Ok().cookie(session_cookie).finish()) // <- send response
         }
@@ -111,11 +103,12 @@ cfg_if! {
             let Some(session_cookie) = req.cookie("session_token") else {
                 return Ok(HttpResponse::Unauthorized().finish());
             };
-            let Ok(token) = utils::jwt::verified_decode::<SessionPayload>(&session_cookie.value().to_string()) else {
+            let Ok(token) = utils::jwt::verified_decode::<SessionPayload>(session_cookie.value()) else {
                 return Ok(HttpResponse::Unauthorized().finish());
             };
 
-            let username = token.claims().name.clone();
+            // Tokens issued before names were sanitized may still carry a bad one
+            let username = sanitize_username(&token.claims().name).unwrap_or("Anonymous".to_string());
             let id = token.claims().sub.clone();
 
             ws::start(
@@ -128,6 +121,11 @@ cfg_if! {
         #[actix_web::main]
         async fn main() -> std::io::Result<()> {
             env_logger::init();
+
+            if env::var("JWT_SECRET").map_or(true, |secret| secret.is_empty()) {
+                log::error!("JWT_SECRET must be set");
+                std::process::exit(1);
+            }
 
             // Setting this to None means we'll be using cargo-leptos and its env vars.
             let conf = get_configuration(None).await.unwrap();
@@ -161,7 +159,7 @@ cfg_if! {
                     .service(create_session)
                     .service(css)
                     .leptos_routes(leptos_options.to_owned(), routes.to_owned(), || view! { <App/> })
-                    .service(Files::new("/", site_root).show_files_listing())
+                    .service(Files::new("/", site_root))
                     .wrap(middleware::Compress::default())
             })
             .workers(2)

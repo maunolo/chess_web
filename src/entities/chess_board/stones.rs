@@ -19,6 +19,9 @@ pub fn fen_to_stones(field: &str) -> Result<[[Option<Stone>; 8]; 8], FenError> {
 
             if c.is_digit(10) {
                 let n = c.to_digit(10).ok_or(FenError::InvalidStones)?;
+                if !(1..=8).contains(&n) {
+                    return Err(FenError::InvalidStones);
+                }
                 let x = x + empty_squares as usize;
                 empty_squares += n - 1;
                 for i in 0..n {

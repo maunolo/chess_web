@@ -23,7 +23,7 @@ use crate::handlers::{interaction_end, interaction_move};
 pub fn App() -> impl IntoView {
     provide_meta_context();
 
-    let app_title = env!("APP_TITLE");
+    let app_title = option_env!("APP_TITLE").unwrap_or("Chess");
 
     view! {
         <Html lang="en"/>

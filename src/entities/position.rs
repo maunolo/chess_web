@@ -1,5 +1,8 @@
 use std::str::FromStr;
 
+/// What the websocket protocol sends instead of a square for a stone in the trash
+pub const DELETED: &str = "deleted";
+
 #[derive(Clone, Debug, Eq, Hash)]
 pub struct Position {
     pub x: usize,
@@ -9,6 +12,15 @@ pub struct Position {
 impl Position {
     pub fn new(x: usize, y: usize) -> Position {
         Position { x, y }
+    }
+
+    /// Parses a square, or [`DELETED`] for the trash
+    pub fn parse_square(s: &str) -> Result<Option<Position>, ()> {
+        if s == DELETED {
+            Ok(None)
+        } else {
+            s.parse().map(Some)
+        }
     }
 
     pub fn from_ui_position(ui_x: f64, ui_y: f64, is_white_view: bool) -> Position {
@@ -68,25 +80,34 @@ impl Position {
 impl FromStr for Position {
     type Err = ();
 
+    /// Parses a square like `e4`; anything off the board is an error.
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        if s.len() != 2 {
+        let &[file @ b'a'..=b'h', rank @ b'1'..=b'8'] = s.as_bytes() else {
             return Err(());
-        }
+        };
 
-        let x = s.as_bytes()[0] as i32 - 97;
-        let y = 8 - s
-            .chars()
-            .last()
-            .unwrap()
-            .to_string()
-            .parse::<i32>()
-            .map_err(|_| ())?;
-        Ok(Position::new(x as usize, y as usize))
+        Ok(Position::new((file - b'a') as usize, (b'8' - rank) as usize))
     }
 }
 
 impl PartialEq for Position {
     fn eq(&self, other: &Self) -> bool {
         self.x == other.x && self.y == other.y
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_parse_square() {
+        assert_eq!("a8".parse(), Ok(Position::new(0, 0)));
+        assert_eq!("h1".parse(), Ok(Position::new(7, 7)));
+        assert_eq!(Position::parse_square(DELETED), Ok(None));
+
+        for square in ["i1", "a9", "a0", "`1", "A1", "e", "e44", ""] {
+            assert_eq!(Position::parse_square(square), Err(()), "{square}");
+        }
     }
 }

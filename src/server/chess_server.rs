@@ -3,7 +3,7 @@
 //! room through `ChessServer`.
 
 use std::{
-    collections::HashMap,
+    collections::{HashMap, HashSet},
     env,
     sync::{
         atomic::{AtomicUsize, Ordering},
@@ -15,12 +15,20 @@ use std::{
 use actix::prelude::*;
 
 use crate::entities::{
-    chess_board::{self, enums::CastlePosition, turns::Turn, ChessBoard, ChessBoardBuilder},
-    position::Position,
-    stone::Stone,
+    chess_board::{
+        enums::{CastlePosition, ChessBoardError, Move as BoardMove, MoveError},
+        ChessBoard, ChessBoardBuilder,
+    },
+    position::{Position, DELETED},
+    stone::{Color, Stone},
 };
 
 use super::websockets::session::WsChessSession;
+
+const MAIN_ROOM: &str = "main";
+const DEFAULT_FEN: &str = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
+/// Gives clients time to animate a promoting pawn before its board is replaced
+const PROMOTION_SYNC_DELAY: Duration = Duration::from_millis(200);
 
 /// Chat server sends this messages to session
 #[derive(Message)]
@@ -43,7 +51,14 @@ pub struct Connect {
 #[rtype(result = "()")]
 pub struct Disconnect {
     pub id: String,
+    /// Socket that closed, ignored when the user already reconnected on another one
+    pub addr: Addr<WsChessSession>,
 }
+
+/// Tells a session it was replaced by a newer socket of the same user
+#[derive(Message)]
+#[rtype(result = "()")]
+pub struct Kick;
 
 /// Send message to specific room
 #[derive(Message)]
@@ -124,34 +139,28 @@ pub struct ChessServer {
     visitor_count: Arc<AtomicUsize>,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+#[derive(Clone, Debug)]
 pub struct User {
     pub id: String,
     pub name: String,
     pub addr: Addr<WsChessSession>,
     pub current_room: String,
-    pub disconected_at: Option<Instant>,
+    pub disconnected_at: Option<Instant>,
 }
 
 impl User {
-    pub fn new(
-        id: String,
-        name: String,
-        addr: Addr<WsChessSession>,
-        current_room: String,
-        disconected_at: Option<Instant>,
-    ) -> Self {
+    pub fn new(id: String, name: String, addr: Addr<WsChessSession>, current_room: String) -> Self {
         Self {
             id,
             name,
             addr,
             current_room,
-            disconected_at,
+            disconnected_at: None,
         }
     }
 
     pub fn to_string(&self) -> String {
-        let status = if self.disconected_at.is_some() {
+        let status = if self.disconnected_at.is_some() {
             "away"
         } else {
             "online"
@@ -160,162 +169,202 @@ impl User {
     }
 }
 
-#[derive(Clone, Debug)]
-pub struct MoveResult {
-    pub from: Option<Position>,
-    pub to: Option<Position>,
-    pub stone: Stone,
-    pub chess_board_move: chess_board::enums::Move,
-    pub msg: String,
-    pub previous_fen: String,
-    pub previous_trash: String,
-    pub current_fen: String,
-    pub current_trash: String,
+/// A move played on a room's board, and what to broadcast for it
+struct PlayedMove {
+    message: String,
+    /// Side effects the clients don't apply themselves (the pawn taken en
+    /// passant, the castling rook) and checkmate
+    follow_ups: Vec<String>,
+    /// A promotion swaps the pawn, so clients get the whole board once they're
+    /// done animating the move
+    resync: bool,
 }
 
 #[derive(Debug)]
 pub struct Room {
-    original_fen: String,
-    current_fen: String,
+    name: String,
     chess_board: ChessBoard,
-    moves: Vec<MoveResult>,
-    sessions: HashMap<String, User>,
-    original_trash: String,
-    trash: String,
+    /// Every `(fen, trash)` the board went through, starting with the initial one
+    history: Vec<(String, String)>,
+    /// Index in `history` of the position on the board, moved by undo and redo
+    history_index: usize,
+    /// Ids of the users in the room
+    sessions: HashSet<String>,
     empty_at: Option<Instant>,
-    current_move_index: Option<usize>,
+}
+
+fn build_board(
+    fen: &str,
+    trash: &str,
+    validation: bool,
+    sync: bool,
+) -> Result<ChessBoard, ChessBoardError> {
+    ChessBoardBuilder::new()
+        .fen(fen)
+        .deleted_stones(trash)
+        .validation(validation)
+        .sync(sync)
+        .build()
 }
 
 impl Room {
-    pub fn new(fen: Option<String>, trash: Option<String>) -> Result<Self, ()> {
-        let fen =
-            fen.unwrap_or("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1".to_string());
-        let trash = trash.unwrap_or("".to_string());
-        let chess_board = ChessBoardBuilder::new()
-            .fen(&fen)
-            .deleted_stones(&trash)
-            .validation(false)
-            .sync(true)
-            .build()
-            .map_err(|_| ())?;
+    pub fn new(
+        name: &str,
+        fen: Option<String>,
+        trash: Option<String>,
+    ) -> Result<Self, ChessBoardError> {
+        let fen = fen.unwrap_or(DEFAULT_FEN.to_string());
+        let trash = trash.unwrap_or_default();
+        let chess_board = build_board(&fen, &trash, false, true)?;
 
         Ok(Self {
-            original_fen: fen.clone(),
-            current_fen: fen.clone(),
+            name: name.to_string(),
             chess_board,
-            moves: vec![],
-            sessions: HashMap::new(),
-            trash: trash.clone(),
-            original_trash: trash,
+            history: vec![(fen, trash)],
+            history_index: 0,
+            sessions: HashSet::new(),
             empty_at: Some(Instant::now()),
-            current_move_index: None,
         })
     }
 
-    pub fn sessions(&self) -> &HashMap<String, User> {
-        &self.sessions
-    }
-
-    pub fn insert_session(&mut self, id: String, user: User) {
-        self.sessions.insert(id, user);
-    }
-
-    pub fn remove_session(&mut self, id: &str) -> Option<User> {
-        self.sessions.remove(id)
-    }
-
-    pub fn disconnect_session(&mut self, id: &str) {
-        if let Some(user) = self.sessions.get_mut(id) {
-            user.disconected_at = Some(Instant::now());
-        }
-    }
-
-    pub fn connect_session(&mut self, id: &str, addr: Addr<WsChessSession>) {
-        if let Some(user) = self.sessions.get_mut(id) {
-            user.disconected_at = None;
-            user.addr = addr;
-        }
-    }
-
-    pub fn usernames(&self) -> Vec<String> {
-        self.sessions
-            .values()
-            .map(|user| user.to_string())
-            .collect()
+    pub fn sync_board_message(&self) -> String {
+        format!(
+            "/sync_board {}|{}|{}",
+            self.name,
+            self.chess_board.fen,
+            self.chess_board.trash_string()
+        )
     }
 
     pub fn options_string(&self) -> String {
-        let validation = self.chess_board.validation;
-        let sync = self.chess_board.sync;
         let mut str = String::new();
 
-        if validation {
+        if self.chess_board.validation {
             str.push_str(" validation");
         }
 
-        if sync {
+        if self.chess_board.sync {
             str.push_str(" sync");
         }
 
         str.trim().to_string()
     }
 
-    pub fn push_move(&mut self, result: MoveResult) {
-        self.moves.push(result);
-        match self.current_move_index {
-            Some(_) => {
-                self.current_move_index = Some(self.moves.len() - 1);
-            }
-            None => {
-                self.current_move_index = Some(0);
-            }
-        }
+    pub fn set_options(&mut self, validation: bool, sync: bool) -> Result<(), ChessBoardError> {
+        self.chess_board = build_board(
+            &self.chess_board.fen,
+            &self.chess_board.trash_string(),
+            validation,
+            sync,
+        )?;
+        Ok(())
     }
 
-    pub fn get_move(&self, idx: &usize) -> Option<MoveResult> {
-        self.moves.get(idx.clone()).cloned()
+    /// Loads `history[index]`, keeping the room's options
+    fn load_history(&mut self, index: usize) -> Result<(), ChessBoardError> {
+        let (fen, trash) = self.history.get(index).ok_or(ChessBoardError::BuildError)?;
+        self.chess_board = build_board(
+            fen,
+            trash,
+            self.chess_board.validation,
+            self.chess_board.sync,
+        )?;
+        self.history_index = index;
+        Ok(())
     }
 
-    pub fn undo_move(&mut self) -> Result<MoveResult, ()> {
-        if let Some(i) = self.current_move_index {
-            let result = self.get_move(&i);
+    /// Back to the initial position. Redo still replays the undone moves.
+    pub fn reset(&mut self) -> Result<(), ChessBoardError> {
+        self.load_history(0)
+    }
 
-            if i > 0 {
-                self.current_move_index = Some(i - 1);
-            } else {
-                self.current_move_index = None;
+    /// `Ok(false)` when there is no move to undo
+    pub fn undo(&mut self) -> Result<bool, ChessBoardError> {
+        if self.history_index == 0 {
+            return Ok(false);
+        }
+        self.load_history(self.history_index - 1).map(|_| true)
+    }
+
+    /// `Ok(false)` when there is no move to redo
+    pub fn redo(&mut self) -> Result<bool, ChessBoardError> {
+        if self.history_index + 1 >= self.history.len() {
+            return Ok(false);
+        }
+        self.load_history(self.history_index + 1).map(|_| true)
+    }
+
+    /// Plays a `/move` from a client. `Ok(None)` when the stone didn't move.
+    fn play_move(
+        &mut self,
+        piece: &str,
+        from: &str,
+        to: &str,
+    ) -> Result<Option<PlayedMove>, ChessBoardError> {
+        let invalid_move = || ChessBoardError::InvalidMove(MoveError::InvalidMove);
+        let stone = piece
+            .parse::<Stone>()
+            .map_err(|_| ChessBoardError::InvalidMove(MoveError::NoStoneFound))?;
+        let from_position = Position::parse_square(from).map_err(|_| invalid_move())?;
+        let to_position = Position::parse_square(to).map_err(|_| invalid_move())?;
+
+        if from_position == to_position {
+            return Ok(None);
+        }
+
+        let board_move = self
+            .chess_board
+            .move_piece(piece, from_position, to_position)?;
+
+        let (rook, opponent_pawn, back_rank) = match stone.color() {
+            Color::Light => ("lr", "dp", 7),
+            Color::Dark => ("dr", "lp", 0),
+        };
+        let mut follow_ups = Vec::new();
+        let mut resync = false;
+
+        match board_move {
+            BoardMove::Passant(captured) => {
+                follow_ups.push(format!(
+                    "/move {} {} {}",
+                    opponent_pawn,
+                    captured.to_string(),
+                    DELETED
+                ));
             }
-
-            result.ok_or(())
-        } else {
-            Err(())
-        }
-    }
-
-    pub fn redo_move(&mut self) -> Result<MoveResult, ()> {
-        if self.current_move_index.map(|i| i as isize).unwrap_or(-1) < self.moves.len() as isize - 1
-        {
-            match self.current_move_index {
-                Some(i) => {
-                    self.current_move_index = Some(i + 1);
-                }
-                None => {
-                    self.current_move_index = Some(0);
-                }
+            BoardMove::Castle(side) => {
+                let (rook_from, rook_to) = match side {
+                    CastlePosition::KingSide => (7, 5),
+                    CastlePosition::QueenSide => (0, 3),
+                };
+                follow_ups.push(format!(
+                    "/move {} {} {}",
+                    rook,
+                    Position::new(rook_from, back_rank).to_string(),
+                    Position::new(rook_to, back_rank).to_string()
+                ));
             }
-
-            self.get_move(&self.current_move_index.unwrap()).ok_or(())
-        } else {
-            Err(())
+            BoardMove::Promotion(_) => resync = true,
+            BoardMove::Normal => {}
         }
-    }
 
-    pub fn truncate_moves_on_current_move(&mut self) {
-        if let Some(i) = self.current_move_index {
-            self.moves.truncate(i + 1);
-        } else {
-            self.moves.truncate(0);
+        // The resync carries the checkmate itself, so it isn't wiped by the board reload
+        if !resync && self.chess_board.is_checkmate() {
+            follow_ups.push("/checkmate".to_string());
         }
+
+        self.history.truncate(self.history_index + 1);
+        self.history.push((
+            self.chess_board.fen.clone(),
+            self.chess_board.trash_string(),
+        ));
+        self.history_index += 1;
+
+        Ok(Some(PlayedMove {
+            message: format!("/move {} {} {}", piece, from, to),
+            follow_ups,
+            resync,
+        }))
     }
 }
 
@@ -324,8 +373,8 @@ impl ChessServer {
         // default room
         let mut rooms = HashMap::new();
         rooms.insert(
-            "main".to_owned(),
-            Room::new(None, None).expect("Failed to create default room"),
+            MAIN_ROOM.to_owned(),
+            Room::new(MAIN_ROOM, None, None).expect("Failed to create default room"),
         );
 
         ChessServer {
@@ -339,14 +388,13 @@ impl ChessServer {
 impl ChessServer {
     /// Send message to all users in the room
     fn send_message(&self, room_name: &str, message: &str, skip_id: Option<&str>) {
-        let skip_id = skip_id.unwrap_or("");
-        if let Some(sessions) = self.rooms.get(room_name).map(|m| m.sessions()) {
-            for (id, _) in sessions {
-                if *id != skip_id {
-                    if let Some(user) = self.sessions.get(id) {
-                        user.addr.do_send(Message(message.to_owned()));
-                    }
-                }
+        let Some(room) = self.rooms.get(room_name) else {
+            return;
+        };
+
+        for id in &room.sessions {
+            if Some(id.as_str()) != skip_id {
+                self.send_message_to_session(id, message);
             }
         }
     }
@@ -357,50 +405,110 @@ impl ChessServer {
         }
     }
 
-    fn disconnect_session(&mut self, id: &str) -> Option<&mut User> {
-        if let Some(user) = self.sessions.get_mut(id) {
-            user.disconected_at = Some(Instant::now());
+    /// Name of the room the user is in
+    fn room_of(&self, id: &str) -> Option<String> {
+        let room_name = self.sessions.get(id).map(|user| user.current_room.clone());
+        if room_name.is_none() {
+            log::error!("No user found for id {}", id);
+        }
+        room_name
+    }
 
-            if let Some(room) = self.rooms.get_mut(&user.current_room) {
-                room.disconnect_session(id);
-            }
+    fn users_string(&self, room: &Room) -> String {
+        room.sessions
+            .iter()
+            .filter_map(|id| self.sessions.get(id))
+            .map(User::to_string)
+            .collect::<Vec<_>>()
+            .join(",")
+    }
 
-            Some(user)
-        } else {
-            None
+    /// Sends a session everything it needs to render its room
+    fn sync_session(&self, id: &str, room_name: &str) {
+        let Some(room) = self.rooms.get(room_name) else {
+            log::error!("No room found with name {}", room_name);
+            return;
+        };
+
+        self.send_message_to_session(id, &room.sync_board_message());
+        self.send_message_to_session(
+            id,
+            &format!("/sync_users {}|{}", room.name, self.users_string(room)),
+        );
+        self.send_message_to_session(id, &format!("/sync_options {}", room.options_string()));
+        if room.chess_board.is_checkmate() {
+            self.send_message_to_session(id, "/checkmate");
         }
     }
 
-    fn remove_session(&mut self, id: &str) -> Option<User> {
-        let user = self.sessions.remove(id);
+    /// Sends the room's board to all its users
+    fn broadcast_board(&self, room_name: &str) {
+        let Some(room) = self.rooms.get(room_name) else {
+            return;
+        };
 
-        if let Some(u) = user.as_ref() {
-            if let Some(room) = self.rooms.get_mut(&u.current_room) {
-                room.remove_session(id);
+        self.send_message(room_name, &room.sync_board_message(), None);
+        if room.chess_board.is_checkmate() {
+            self.send_message(room_name, "/checkmate", None);
+        }
+    }
 
-                if room.sessions().is_empty() {
-                    room.empty_at = Some(Instant::now());
-                }
+    fn enter_room(&mut self, id: &str, room_name: &str) {
+        if let Some(room) = self.rooms.get_mut(room_name) {
+            room.sessions.insert(id.to_string());
+            room.empty_at = None;
+        }
+
+        if let Some(user) = self.sessions.get_mut(id) {
+            user.current_room = room_name.to_string();
+        }
+    }
+
+    fn leave_room(&mut self, id: &str) {
+        let Some(user) = self.sessions.get(id) else {
+            return;
+        };
+        let room_name = user.current_room.clone();
+        let user_string = user.to_string();
+
+        if let Some(room) = self.rooms.get_mut(&room_name) {
+            room.sessions.remove(id);
+
+            if room.sessions.is_empty() {
+                room.empty_at = Some(Instant::now());
             }
         }
 
-        user
+        self.send_message(&room_name, &format!("/remove_user {}", user_string), None);
     }
 
-    fn connect_session(&mut self, id: &str, addr: Addr<WsChessSession>) -> Option<&mut User> {
-        if let Some(user) = self.sessions.get_mut(id) {
-            user.addr.do_send(Disconnect { id: id.to_string() });
+    fn remove_session(&mut self, id: &str) {
+        self.leave_room(id);
+        self.sessions.remove(id);
+    }
 
-            user.disconected_at = None;
-            user.addr = addr.clone();
+    fn step_history(
+        &mut self,
+        id: &str,
+        step: fn(&mut Room) -> Result<bool, ChessBoardError>,
+        action: &str,
+    ) {
+        let Some(room_name) = self.room_of(id) else {
+            return;
+        };
+        let Some(room) = self.rooms.get_mut(&room_name) else {
+            return;
+        };
 
-            if let Some(room) = self.rooms.get_mut(&user.current_room) {
-                room.connect_session(id, addr);
+        match step(room) {
+            Ok(true) => self.broadcast_board(&room_name),
+            Ok(false) => self.send_message_to_session(
+                id,
+                &format!("/notify warning No more moves to {}", action),
+            ),
+            Err(_) => {
+                self.send_message_to_session(id, &format!("/notify error Failed to {} move", action))
             }
-
-            Some(user)
-        } else {
-            None
         }
     }
 }
@@ -431,39 +539,31 @@ impl Actor for ChessServer {
         );
 
         ctx.run_interval(Duration::from_secs(5), move |act, _| {
-            let mut rooms = vec![];
-            let mut sessions = vec![];
-
-            for (name, room) in &mut act.rooms {
-                if let Some(empty_at) = room.empty_at {
-                    if empty_at.elapsed() > room_timeout {
-                        log::info!("Room {} is empty, removing", name);
-                        rooms.push(name.clone());
-                    }
+            act.rooms.retain(|name, room| {
+                let expired = room
+                    .empty_at
+                    .is_some_and(|empty_at| empty_at.elapsed() > room_timeout);
+                if expired {
+                    log::info!("Room {} is empty, removing", name);
                 }
-            }
+                !expired
+            });
 
-            for (id, user) in &mut act.sessions {
-                if let Some(disconected_at) = user.disconected_at {
-                    if disconected_at.elapsed() > user_timeout {
-                        log::info!("User {}:{} is disconected, removing", id, user.name);
-                        sessions.push(id.clone());
-                    }
-                }
-            }
+            let expired_sessions: Vec<String> = act
+                .sessions
+                .values()
+                .filter(|user| {
+                    user.disconnected_at
+                        .is_some_and(|disconnected_at| disconnected_at.elapsed() > user_timeout)
+                })
+                .map(|user| {
+                    log::info!("User {}:{} is disconected, removing", user.id, user.name);
+                    user.id.clone()
+                })
+                .collect();
 
-            for name in rooms {
-                act.rooms.remove(&name);
-            }
-
-            for id in sessions {
-                if let Some(user) = act.remove_session(&id) {
-                    act.send_message(
-                        &user.current_room,
-                        &format!("/remove_user {}", user.to_string()),
-                        None,
-                    );
-                };
+            for id in expired_sessions {
+                act.remove_session(&id);
             }
         });
     }
@@ -478,74 +578,38 @@ impl Handler<Connect> for ChessServer {
     fn handle(&mut self, msg: Connect, _: &mut Context<Self>) {
         log::debug!("Someone joined");
 
-        // register session with random id
         let Connect { addr, id, name } = msg;
-        if let Some(user) = self.connect_session(&id, addr.clone()).cloned() {
-            let user_string = user.to_string();
+
+        if let Some(user) = self.sessions.get_mut(&id) {
+            // Same user on a new socket (page reload or another tab)
+            user.addr.do_send(Kick);
+            user.addr = addr;
+            user.disconnected_at = None;
+
             let room_name = user.current_room.clone();
-
-            if let Some(current_room) = self.rooms.get(&user.current_room) {
-                let is_checkmate = current_room.chess_board.is_checkmate();
-                let current_fen = current_room.current_fen.clone();
-                let trash = current_room.trash.clone();
-                let users = current_room.usernames().join(",");
-                let options_str = current_room.options_string();
-
-                // send message to all users in the room
-                self.send_message(
-                    &room_name,
-                    &format!("/connect_user {}", user_string),
-                    Some(&id),
-                );
-
-                // sync fen
-                self.send_message_to_session(
-                    &id,
-                    &format!("/sync_board {}|{}|{}", room_name, current_fen, trash),
-                );
-                // sync users
-                self.send_message_to_session(&id, &format!("/sync_users {}|{}", room_name, users));
-                // sync options
-                self.send_message_to_session(&id, &format!("/sync_options {}", options_str));
-                // notify user if checkmate
-                if is_checkmate {
-                    self.send_message_to_session(&id, "/checkmate");
-                }
-            }
-        } else {
-            let room_name = "main".to_string();
-            let user = User::new(id.clone(), name, addr, room_name.clone(), None);
-
             let user_string = user.to_string();
-            self.sessions.insert(id.clone(), user.clone());
-            // auto join session to main room
-            let current_room = self
-                .rooms
-                .entry(room_name.clone())
-                .or_insert_with(|| Room::new(None, None).expect("Failed to create default room"));
 
-            current_room.insert_session(id.clone(), user);
-            current_room.empty_at = None;
-            let current_fen = current_room.current_fen.clone();
-            let trash = current_room.trash.clone();
-            let users = current_room.usernames().join(",");
-            let options_str = current_room.options_string();
+            self.send_message(
+                &room_name,
+                &format!("/connect_user {}", user_string),
+                Some(&id),
+            );
+            self.sync_session(&id, &room_name);
+        } else {
+            let user = User::new(id.clone(), name, addr, MAIN_ROOM.to_string());
+            let user_string = user.to_string();
+            self.sessions.insert(id.clone(), user);
+
+            // auto join session to main room
+            self.rooms.entry(MAIN_ROOM.to_string()).or_insert_with(|| {
+                Room::new(MAIN_ROOM, None, None).expect("Failed to create default room")
+            });
+            self.enter_room(&id, MAIN_ROOM);
 
             let count = self.visitor_count.fetch_add(1, Ordering::SeqCst);
-            self.send_message(&room_name, &format!("Total visitors {count}"), None);
-
-            // send message to all users in the room
-            self.send_message(&room_name, &format!("/add_user {}", user_string), Some(&id));
-
-            // sync fen
-            self.send_message_to_session(
-                &id,
-                &format!("/sync_board {}|{}|{}", room_name, current_fen, trash),
-            );
-            // sync users
-            self.send_message_to_session(&id, &format!("/sync_users {}|{}", room_name, users));
-            // sync options
-            self.send_message_to_session(&id, &format!("/sync_options {}", options_str));
+            self.send_message(MAIN_ROOM, &format!("Total visitors {count}"), None);
+            self.send_message(MAIN_ROOM, &format!("/add_user {}", user_string), Some(&id));
+            self.sync_session(&id, MAIN_ROOM);
         }
     }
 }
@@ -557,20 +621,19 @@ impl Handler<Disconnect> for ChessServer {
     fn handle(&mut self, msg: Disconnect, _: &mut Context<Self>) {
         log::info!("Someone disconnected");
 
-        let mut rooms: Vec<(String, String)> = Vec::new();
+        let Some(user) = self.sessions.get_mut(&msg.id) else {
+            return;
+        };
 
-        // remove address
-        if let Some(user) = self.disconnect_session(&msg.id) {
-            rooms.push((
-                user.current_room.clone(),
-                format!("/disconnect_user {}", user.to_string()),
-            ));
+        if user.addr != msg.addr {
+            return;
         }
 
-        // send message to all users in all rooms
-        for (room_name, message) in rooms {
-            self.send_message(&room_name, &message, Some(&msg.id));
-        }
+        user.disconnected_at = Some(Instant::now());
+        let room_name = user.current_room.clone();
+        let message = format!("/disconnect_user {}", user.to_string());
+
+        self.send_message(&room_name, &message, Some(&msg.id));
     }
 }
 
@@ -579,12 +642,11 @@ impl Handler<ClientMessage> for ChessServer {
     type Result = ();
 
     fn handle(&mut self, msg: ClientMessage, _: &mut Context<Self>) {
-        let Some(session) = self.sessions.get(&msg.id) else {
-            log::error!("No user found for id {}", msg.id);
+        let Some(room_name) = self.room_of(&msg.id) else {
             return;
         };
 
-        self.send_message(&session.current_room, msg.msg.as_str(), Some(&msg.id));
+        self.send_message(&room_name, msg.msg.as_str(), Some(&msg.id));
     }
 }
 
@@ -600,70 +662,38 @@ impl Handler<Join> for ChessServer {
             fen,
             trash,
         } = msg;
-        let Some(user) = self.sessions.get_mut(&id) else {
+
+        if !self.sessions.contains_key(&id) {
             log::error!("No user found for id {}", id);
             return;
-        };
-
-        user.current_room = name.clone();
-        let mut rooms: Vec<(String, String)> = Vec::new();
-        let user_string = user.to_string();
-
-        // remove session from all rooms
-        for (n, current_room) in &mut self.rooms {
-            if current_room.remove_session(&id).is_some() {
-                rooms.push((n.clone(), format!("/remove_user {}", user_string)));
-
-                if current_room.sessions().is_empty() {
-                    current_room.empty_at = Some(Instant::now());
-                }
-            }
         }
 
-        let current_room = self.rooms.get_mut(&name);
-
-        let current_room = if current_room.is_some() {
-            current_room.unwrap()
-        } else {
-            let Ok(room) = Room::new(fen.clone(), trash.clone()) else {
+        // Create the room before leaving the current one, so a bad FEN leaves
+        // the user where they were
+        if !self.rooms.contains_key(&name) {
+            let Ok(room) = Room::new(&name, fen, trash) else {
                 self.send_message_to_session(&id, "/notify error Failed to create room");
                 return;
             };
-            self.rooms.entry(name.clone()).or_insert_with(|| room)
-        };
-
-        current_room.insert_session(id.clone(), user.clone());
-        current_room.empty_at = None;
-        let current_fen = current_room.current_fen.clone();
-        let trash = current_room.trash.clone();
-        let users = current_room.usernames().join(",");
-        let options_str = current_room.options_string();
-
-        // send message to all users in all rooms
-        for (room_name, message) in rooms {
-            self.send_message(&room_name, &message, None);
+            self.rooms.insert(name.clone(), room);
         }
-        // sync fen
-        self.send_message_to_session(
-            &id,
-            &format!("/sync_board {}|{}|{}", name, current_fen, trash),
-        );
-        // sync users
-        self.send_message_to_session(&id, &format!("/sync_users {}|{}", name, users));
-        // sync options
-        self.send_message_to_session(&id, &format!("/sync_options {}", options_str));
-        // notify user
+
+        self.leave_room(&id);
+        self.enter_room(&id, &name);
+        self.sync_session(&id, &name);
         self.send_message_to_session(&id, &format!("/notify success Joined room {}", name));
 
         // notify all users in room
-        self.send_message(&name, &format!("/add_user {}", user_string), Some(&id));
+        if let Some(user) = self.sessions.get(&id) {
+            self.send_message(&name, &format!("/add_user {}", user.to_string()), Some(&id));
+        }
     }
 }
 
 impl Handler<Move> for ChessServer {
     type Result = ();
 
-    fn handle(&mut self, msg: Move, _: &mut Self::Context) -> Self::Result {
+    fn handle(&mut self, msg: Move, ctx: &mut Self::Context) -> Self::Result {
         let Move {
             id,
             piece,
@@ -671,118 +701,39 @@ impl Handler<Move> for ChessServer {
             to,
         } = msg;
 
-        let Some(session) = self.sessions.get(&id) else {
-            log::error!("No user found for id {}", id);
+        let Some(room_name) = self.room_of(&id) else {
+            return;
+        };
+        let Some(room) = self.rooms.get_mut(&room_name) else {
             return;
         };
 
-        if let Some(current_room) = self.rooms.get_mut(&session.current_room) {
-            let chess_board = &mut current_room.chess_board;
-            let from_position: Option<Position> = from.parse().ok();
-            let to_position: Option<Position> = to.parse().ok();
-            let current_fen = chess_board.fen.clone();
-            let trash = chess_board.trash_string();
-            let mut reactive_move_message = (0, None);
-            let chess_board_move_result;
-            match chess_board.move_piece(&piece, from_position.clone(), to_position.clone()) {
-                Ok(move_result) => {
-                    chess_board_move_result = Some(move_result.clone());
-                    match move_result {
-                        chess_board::enums::Move::Passant => {
-                            let to = to_position.clone().unwrap();
-                            let (piece, passant_pos) = match chess_board.turn {
-                                Turn::White => ("lp", Position::new(to.x, to.y - 1)),
-                                Turn::Black => ("dp", Position::new(to.x, to.y + 1)),
-                            };
-                            reactive_move_message = (
-                                0,
-                                Some(format!(
-                                    "/move {} {} deleted",
-                                    piece,
-                                    passant_pos.to_string()
-                                )),
-                            );
-                        }
-                        chess_board::enums::Move::Castle(castle_side) => {
-                            let (old_rook_x, new_rook_x) = match castle_side {
-                                CastlePosition::KingSide => (7, 5),
-                                CastlePosition::QueenSide => (0, 3),
-                            };
-                            let (piece, rook_pos) = match chess_board.turn {
-                                Turn::White => ("dr", Position::new(old_rook_x, 0)),
-                                Turn::Black => ("lr", Position::new(old_rook_x, 7)),
-                            };
-                            reactive_move_message = (
-                                0,
-                                Some(format!(
-                                    "/move {} {} {}",
-                                    piece,
-                                    rook_pos.to_string(),
-                                    Position::new(new_rook_x, rook_pos.y).to_string()
-                                )),
-                            );
-                        }
-                        chess_board::enums::Move::Promotion(_) => {
-                            reactive_move_message = (
-                                200,
-                                Some(format!(
-                                    "/sync_board {}|{}|{}",
-                                    session.current_room,
-                                    chess_board.fen.clone(),
-                                    chess_board.trash_string()
-                                )),
-                            );
-                        }
-                        _ => {}
-                    }
+        match room.play_move(&piece, &from, &to) {
+            Ok(Some(played)) => {
+                self.send_message(&room_name, &played.message, Some(&id));
+                for follow_up in &played.follow_ups {
+                    self.send_message(&room_name, follow_up, None);
                 }
-                Err(e) => {
-                    log::warn!(
-                        "Room: {} -> failed attempt to move piece {} from {} to {} -> {:?}",
-                        session.current_room,
-                        piece,
-                        from,
-                        to,
-                        e
-                    );
-                    self.send_message_to_session(
-                        &id,
-                        &format!(
-                            "/sync_board {}|{}|{}",
-                            session.current_room, current_fen, trash
-                        ),
-                    );
-                    return;
+                if played.resync {
+                    ctx.run_later(PROMOTION_SYNC_DELAY, move |act, _| {
+                        act.broadcast_board(&room_name)
+                    });
                 }
             }
-            let is_checkmate = chess_board.is_checkmate();
-            current_room.current_fen = chess_board.fen.clone();
-            current_room.trash = chess_board.trash_string();
-
-            let move_msg = format!("/move {} {} {}", piece, from, to);
-            let move_result = MoveResult {
-                stone: piece.parse().unwrap(),
-                from: from_position,
-                to: to_position,
-                chess_board_move: chess_board_move_result.unwrap(),
-                msg: move_msg.clone(),
-                previous_fen: current_fen,
-                previous_trash: trash,
-                current_fen: current_room.current_fen.clone(),
-                current_trash: current_room.trash.clone(),
-            };
-            current_room.truncate_moves_on_current_move();
-            current_room.push_move(move_result);
-
-            self.send_message(&session.current_room, &move_msg, Some(&id));
-            if let (timeout, Some(reactive_move_message)) = reactive_move_message {
-                std::thread::sleep(Duration::from_millis(timeout));
-                self.send_message(&session.current_room, &reactive_move_message, None);
+            Ok(None) => {}
+            Err(e) => {
+                log::warn!(
+                    "Room: {} -> failed attempt to move piece {} from {} to {} -> {:?}",
+                    room_name,
+                    piece,
+                    from,
+                    to,
+                    e
+                );
+                let sync_board = room.sync_board_message();
+                self.send_message_to_session(&id, &sync_board);
             }
-            if is_checkmate {
-                self.send_message(&session.current_room, "/checkmate", None)
-            }
-        };
+        }
     }
 }
 
@@ -790,39 +741,17 @@ impl Handler<Reset> for ChessServer {
     type Result = ();
 
     fn handle(&mut self, msg: Reset, _: &mut Self::Context) -> Self::Result {
-        let Some(session) = self.sessions.get(&msg.id) else {
-            log::error!("No user found for id {}", msg.id);
+        let Some(room_name) = self.room_of(&msg.id) else {
+            return;
+        };
+        let Some(room) = self.rooms.get_mut(&room_name) else {
             return;
         };
 
-        if let Some(current_room) = self.rooms.get_mut(&session.current_room) {
-            let Ok(chess_board) = ChessBoardBuilder::new()
-                .fen(&current_room.original_fen)
-                .deleted_stones(&current_room.original_trash)
-                .validation(current_room.chess_board.validation)
-                .sync(current_room.chess_board.sync)
-                .build()
-            else {
-                self.send_message_to_session(&msg.id, "/notify error Failed to reset board");
-                return;
-            };
-            current_room.current_fen = current_room.original_fen.clone();
-            current_room.trash = current_room.original_trash.to_owned();
-            current_room.current_move_index = None;
-            current_room.chess_board = chess_board;
-
-            let current_fen = current_room.current_fen.clone();
-            let trash = current_room.trash.clone();
-
-            self.send_message(
-                &session.current_room,
-                &format!(
-                    "/sync_board {}|{}|{}",
-                    session.current_room, current_fen, trash
-                ),
-                None,
-            );
-        };
+        match room.reset() {
+            Ok(()) => self.broadcast_board(&room_name),
+            Err(_) => self.send_message_to_session(&msg.id, "/notify error Failed to reset board"),
+        }
     }
 }
 
@@ -830,49 +759,7 @@ impl Handler<Undo> for ChessServer {
     type Result = ();
 
     fn handle(&mut self, msg: Undo, _: &mut Self::Context) -> Self::Result {
-        let Undo { id } = msg.clone();
-
-        let Some(session) = self.sessions.get(&id) else {
-            log::error!("No user found for id {}", id);
-            return;
-        };
-
-        if let Some(current_room) = self.rooms.get_mut(&session.current_room) {
-            let msg;
-
-            match current_room.undo_move() {
-                Ok(move_result) => {
-                    msg = format!(
-                        "/sync_board {}|{}|{}",
-                        session.current_room, move_result.previous_fen, move_result.previous_trash
-                    );
-                    let Ok(chess_board) = ChessBoardBuilder::new()
-                        .fen(&move_result.previous_fen)
-                        .deleted_stones(&move_result.previous_trash)
-                        .validation(current_room.chess_board.validation)
-                        .sync(current_room.chess_board.sync)
-                        .build()
-                    else {
-                        let _ = current_room.redo_move();
-                        self.send_message_to_session(&id, "/notify error Failed to undo move");
-                        return;
-                    };
-                    current_room.current_fen = move_result.previous_fen;
-                    current_room.trash = move_result.previous_trash;
-                    current_room.chess_board = chess_board;
-                }
-                Err(_) => {
-                    let fen = current_room.current_fen.clone();
-                    let trash = current_room.trash.clone();
-                    self.send_message_to_session(&id, "/notify warning No more moves to undo");
-                    msg = format!("/sync_board {}|{}|{}", session.current_room, fen, trash);
-                }
-            };
-
-            self.send_message(&session.current_room, &msg, None);
-        } else {
-            log::error!("No room found with name {}", session.current_room);
-        }
+        self.step_history(&msg.id, Room::undo, "undo");
     }
 }
 
@@ -880,55 +767,7 @@ impl Handler<Redo> for ChessServer {
     type Result = ();
 
     fn handle(&mut self, msg: Redo, _: &mut Self::Context) -> Self::Result {
-        let Redo { id } = msg.clone();
-
-        let Some(session) = self.sessions.get(&id) else {
-            log::error!("No user found for id {}", id);
-            return;
-        };
-
-        if let Some(current_room) = self.rooms.get_mut(&session.current_room) {
-            let msg;
-            let mut is_checkmate = false;
-
-            match current_room.redo_move() {
-                Ok(move_result) => {
-                    msg = format!(
-                        "/sync_board {}|{}|{}",
-                        session.current_room, move_result.current_fen, move_result.current_trash
-                    );
-                    let Ok(chess_board) = ChessBoardBuilder::new()
-                        .fen(&move_result.current_fen)
-                        .deleted_stones(&move_result.current_trash)
-                        .validation(current_room.chess_board.validation)
-                        .sync(current_room.chess_board.sync)
-                        .build()
-                    else {
-                        let _ = current_room.undo_move();
-                        self.send_message_to_session(&id, "/notify error Failed to redo move");
-                        return;
-                    };
-
-                    is_checkmate = chess_board.is_checkmate();
-                    current_room.current_fen = move_result.current_fen;
-                    current_room.trash = move_result.current_trash;
-                    current_room.chess_board = chess_board;
-                }
-                Err(_) => {
-                    let fen = current_room.current_fen.clone();
-                    let trash = current_room.trash.clone();
-                    self.send_message_to_session(&id, "/notify warning No more moves to redo");
-                    msg = format!("/sync_board {}|{}|{}", session.current_room, fen, trash);
-                }
-            };
-
-            self.send_message(&session.current_room, &msg, None);
-            if is_checkmate {
-                self.send_message(&session.current_room, "/checkmate", None)
-            }
-        } else {
-            log::error!("No room found with name {}", session.current_room);
-        }
+        self.step_history(&msg.id, Room::redo, "redo");
     }
 }
 
@@ -936,37 +775,20 @@ impl Handler<UserSync> for ChessServer {
     type Result = ();
 
     fn handle(&mut self, msg: UserSync, _: &mut Self::Context) -> Self::Result {
-        let UserSync { id, name } = msg.clone();
-
-        let Some(user) = self.sessions.get_mut(&id) else {
-            log::error!("No user found for id {}", id);
+        let Some(user) = self.sessions.get_mut(&msg.id) else {
+            log::error!("No user found for id {}", msg.id);
             return;
         };
 
-        user.name = name.clone();
-        let addr = user.addr.clone();
+        user.name = msg.name.clone();
+        // keep the socket's copy of the name, used to prefix chat lines
+        user.addr.do_send(msg);
 
-        let user_string = user.to_string();
-        let current_room_name = user.current_room.clone();
+        let room_name = user.current_room.clone();
+        let message = format!("/add_user {}", user.to_string());
 
-        if let Some(current_room) = self.rooms.get_mut(&current_room_name) {
-            current_room
-                .sessions
-                .get_mut(&id)
-                .expect(&format!(
-                    "User {}:{} was expected to be in the room {}",
-                    user.name, user.id, current_room_name
-                ))
-                .name = name;
-
-            // notify all users in room
-            self.send_message(
-                &current_room_name,
-                &format!("/add_user {}", user_string),
-                None,
-            );
-        };
-        addr.do_send(msg);
+        // notify all users in room
+        self.send_message(&room_name, &message, None);
     }
 }
 
@@ -974,39 +796,93 @@ impl Handler<Options> for ChessServer {
     type Result = ();
 
     fn handle(&mut self, msg: Options, _: &mut Self::Context) -> Self::Result {
-        let Some(session) = self.sessions.get(&msg.id) else {
-            log::error!("No user found for id {}", msg.id);
+        let Some(room_name) = self.room_of(&msg.id) else {
+            return;
+        };
+        let Some(room) = self.rooms.get_mut(&room_name) else {
             return;
         };
 
-        let Some(current_room) = self.rooms.get_mut(&session.current_room) else {
-            log::error!("No room found with name {}", session.current_room);
-            return;
+        let notification = match room.set_options(msg.validation, msg.sync) {
+            Ok(()) => "/notify success Options applied",
+            Err(_) => "/notify error Failed to apply options",
         };
+        let options = format!("/sync_options {}", room.options_string());
 
-        let new_chess_board = ChessBoardBuilder::new()
-            .fen(&current_room.current_fen)
-            .deleted_stones(&current_room.trash)
-            .validation(msg.validation)
-            .sync(msg.sync)
-            .build();
+        self.send_message_to_session(&msg.id, notification);
+        self.send_message(&room_name, &options, None);
+    }
+}
 
-        let result_msg;
+#[cfg(test)]
+mod tests {
+    use super::*;
 
-        if let Ok(chess_board) = new_chess_board {
-            current_room.chess_board = chess_board;
+    fn play(room: &mut Room, piece: &str, from: &str, to: &str) -> Option<PlayedMove> {
+        room.play_move(piece, from, to).unwrap()
+    }
 
-            result_msg = current_room.options_string();
-            self.send_message_to_session(&msg.id, "/notify success Options applied");
-        } else {
-            result_msg = current_room.options_string();
-            self.send_message_to_session(&msg.id, "/notify error Failed to apply options");
-        }
+    #[test]
+    fn test_play_move_rejects_bad_input() {
+        let mut room = Room::new("test", None, None).unwrap();
+        let fen = room.chess_board.fen.clone();
 
-        self.send_message(
-            &session.current_room,
-            &format!("/sync_options {}", result_msg),
-            None,
-        );
+        assert!(room.play_move("xx", "e2", "e4").is_err());
+        assert!(room.play_move("lp", "i1", "e4").is_err());
+        assert!(room.play_move("lp", "e2", "z9").is_err());
+        assert!(room.play_move("lq", "e2", "e4").is_err());
+        assert!(play(&mut room, "lp", "e2", "e2").is_none());
+        assert_eq!(room.chess_board.fen, fen);
+        assert_eq!(room.history.len(), 1);
+    }
+
+    #[test]
+    fn test_history() {
+        let mut room = Room::new("test", None, None).unwrap();
+        let start = room.chess_board.fen.clone();
+
+        play(&mut room, "lp", "e2", "e4").unwrap();
+        let after_e4 = room.chess_board.fen.clone();
+        play(&mut room, "dp", "e7", "e5").unwrap();
+
+        assert_eq!(room.undo().unwrap(), true);
+        assert_eq!(room.chess_board.fen, after_e4);
+        assert_eq!(room.redo().unwrap(), true);
+        assert_eq!(room.redo().unwrap(), false);
+
+        room.reset().unwrap();
+        assert_eq!(room.chess_board.fen, start);
+        assert_eq!(room.undo().unwrap(), false);
+
+        // A new move drops the undone ones
+        play(&mut room, "lp", "d2", "d4").unwrap();
+        assert_eq!(room.redo().unwrap(), false);
+        assert_eq!(room.history.len(), 2);
+    }
+
+    fn validated_room(fen: &str) -> Room {
+        let mut room = Room::new("test", Some(fen.to_string()), None).unwrap();
+        room.set_options(true, true).unwrap();
+        room
+    }
+
+    #[test]
+    fn test_follow_ups() {
+        let mut room = validated_room("r3k2r/8/8/3pP3/8/8/8/R3K2R w KQkq d6 0 1");
+
+        let played = play(&mut room, "lp", "e5", "d6").unwrap();
+        assert_eq!(played.follow_ups, vec!["/move dp d5 deleted"]);
+
+        let played = play(&mut room, "dk", "e8", "c8").unwrap();
+        assert_eq!(played.follow_ups, vec!["/move dr a8 d8"]);
+
+        let mut room = validated_room("8/4P3/8/8/8/8/8/k6K w - - 0 1");
+        let played = play(&mut room, "lp", "e7", "e8").unwrap();
+        assert!(played.resync);
+        assert!(played.follow_ups.is_empty());
+
+        let mut room = validated_room("7k/8/6K1/8/8/8/8/5Q2 w - - 0 1");
+        let played = play(&mut room, "lq", "f1", "f8").unwrap();
+        assert_eq!(played.follow_ups, vec!["/checkmate"]);
     }
 }

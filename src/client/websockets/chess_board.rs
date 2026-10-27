@@ -27,10 +27,15 @@ fn on_message_callback(chess_board_signals: ChessBoardSignals) -> Closure<dyn Fn
                 match cmd {
                     "/move" => {
                         let mut input = input.split(" ");
-                        let piece_data = input.next().unwrap().to_string();
-
-                        let old_pos = input.next().unwrap().to_string();
-                        let new_pos = input.next().unwrap().to_string();
+                        let (Some(piece_data), Some(old_pos), Some(new_pos)) =
+                            (input.next(), input.next(), input.next())
+                        else {
+                            log::error!("Invalid message: {}", text);
+                            return;
+                        };
+                        let piece_data = piece_data.to_string();
+                        let old_pos = old_pos.to_string();
+                        let new_pos = new_pos.to_string();
 
                         let old_pos_clone = old_pos.clone();
                         let new_pos_clone = new_pos.clone();
@@ -55,12 +60,29 @@ fn on_message_callback(chess_board_signals: ChessBoardSignals) -> Closure<dyn Fn
                         };
                     }
                     "/sync_board" => {
-                        chess_board_signals.should_render().set(false);
-                        let mut input = input.split("|");
+                        let mut fields = input.split("|");
+                        let (Some(room_name), Some(fen), Some(trash)) =
+                            (fields.next(), fields.next(), fields.next())
+                        else {
+                            log::error!("Invalid message: {}", text);
+                            return;
+                        };
 
-                        let room_name = input.next().unwrap();
-                        let fen = input.next().unwrap();
-                        let trash = input.next().unwrap();
+                        let white_view = chess_board_signals
+                            .chess_board()
+                            .with_untracked(|cb| cb.white_view());
+                        let Ok(new_chessboard) = ChessBoardBuilder::new()
+                            .fen(fen)
+                            .deleted_stones(trash)
+                            .is_white_view(white_view)
+                            .validation(false)
+                            .build()
+                        else {
+                            log::error!("Invalid board: {}", input);
+                            return;
+                        };
+
+                        chess_board_signals.should_render().set(false);
 
                         chess_board_signals
                             .stones_signals()
@@ -78,17 +100,7 @@ fn on_message_callback(chess_board_signals: ChessBoardSignals) -> Closure<dyn Fn
                             }
                         });
 
-                        chess_board_signals.chess_board().update(|chessboard| {
-                            let new_chessboard = ChessBoardBuilder::new()
-                                .fen(fen)
-                                .deleted_stones(trash)
-                                .is_white_view(chessboard.white_view())
-                                .validation(false)
-                                .build()
-                                .unwrap();
-
-                            *chessboard = new_chessboard;
-                        });
+                        chess_board_signals.chess_board().set(new_chessboard);
 
                         let positions_and_stones = chess_board_signals
                             .chess_board()
@@ -111,15 +123,16 @@ fn on_message_callback(chess_board_signals: ChessBoardSignals) -> Closure<dyn Fn
                         chess_board_signals.should_render().set(true);
                     }
                     "/sync_users" => {
-                        let mut input = input.split("|");
-                        let room_name = input.next().unwrap();
-                        let users: Vec<String> =
-                            input.next().unwrap().split(",").map(String::from).collect();
+                        let Some((room_name, users)) = input.split_once("|") else {
+                            log::error!("Invalid message: {}", text);
+                            return;
+                        };
+                        let users: Vec<String> = users.split(",").map(String::from).collect();
 
                         let room_status = chess_board_signals.room_status().get_untracked();
 
                         if let Some(mut room_status) = room_status {
-                            for user in users.iter().map(|user| user.parse::<User>().unwrap()) {
+                            for user in users.iter().filter_map(|user| user.parse::<User>().ok()) {
                                 if let Some(old_user) = room_status.get_user(&user.id()) {
                                     match user.status() {
                                         UserStatus::Away => old_user.update(|u| u.disconnect()),
@@ -148,7 +161,10 @@ fn on_message_callback(chess_board_signals: ChessBoardSignals) -> Closure<dyn Fn
                     "/add_user" => {
                         let room_status = chess_board_signals.room_status().get_untracked();
 
-                        let new_user = input.parse::<User>().unwrap();
+                        let Ok(new_user) = input.parse::<User>() else {
+                            log::error!("Invalid message: {}", text);
+                            return;
+                        };
 
                         if let Some(mut room_status) = room_status {
                             if let Some(old_user) = room_status.get_user(&new_user.id()) {

@@ -27,11 +27,10 @@ services:
 
 ### Dependencies
 
-1. `cargo install --locked cargo-leptos`
-2. `rustup toolchain install nightly --allow-downgrade` - make sure you have Rust nightly
-3. `rustup default nightly` - setup nightly as default, or you can use rust-toolchain file later on 
-4. `rustup target add wasm32-unknown-unknown` - add the ability to compile Rust to WebAssembly
-5. `yarn install` if you don't have yarn installed you can find how to do it [here](https://classic.yarnpkg.com/lang/en/docs/install)
+1. Rust stable 1.85 or newer (the crate uses the 2024 edition), the Docker image builds with 1.99
+2. `cargo install --locked cargo-leptos`
+3. `rustup target add wasm32-unknown-unknown` - add the ability to compile Rust to WebAssembly
+4. `yarn install` if you don't have yarn installed you can find how to do it [here](https://classic.yarnpkg.com/lang/en/docs/install)
 
 ### Running
 
@@ -39,6 +38,14 @@ For running the actix server and compiling the wasm package run:
 
 ```sh
 JWT_SECRET=your_secret RUST_LOG=debug cargo leptos watch
+```
+
+`JWT_SECRET` is required, the server exits at startup without it. `APP_TITLE` sets the page title at compile time and defaults to `Chess`.
+
+### Tests
+
+```sh
+cargo test --features ssr
 ```
 
 and for compiling the css run (needs to run after the server is running):

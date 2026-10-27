@@ -7,12 +7,9 @@ pub fn fen_to_passant(field: &str) -> Result<Option<Position>, FenError> {
         return Ok(None);
     }
 
-    let x = field.chars().nth(0).ok_or(FenError::InvalidPassant)? as usize - 97;
-    let y = 8 - field
-        .chars()
-        .nth(1)
-        .ok_or(FenError::InvalidPassant)?
-        .to_digit(10)
-        .ok_or(FenError::InvalidPassant)? as usize;
-    Ok(Some(Position::new(x, y)))
+    // An en passant target square can only be on the 3rd or 6th rank
+    match field.parse::<Position>() {
+        Ok(position) if position.y == 2 || position.y == 5 => Ok(Some(position)),
+        _ => Err(FenError::InvalidPassant),
+    }
 }

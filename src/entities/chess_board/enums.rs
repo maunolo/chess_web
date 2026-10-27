@@ -1,3 +1,7 @@
+use crate::entities::position::Position;
+
+// The error payloads are only read through `Debug`, in logs
+#[allow(dead_code)]
 #[derive(Clone, Debug)]
 pub enum ChessBoardError {
     InvalidFen(FenError),
@@ -23,12 +27,14 @@ pub enum FenError {
     InvalidFullMoveClock,
 }
 
+#[allow(dead_code)]
 #[derive(Clone, Debug)]
 pub enum Move {
     Normal,
     Promotion(PromotionKind),
     Castle(CastlePosition),
-    Passant,
+    /// Holds the square of the captured pawn
+    Passant(Position),
 }
 
 #[derive(Clone, Debug)]

@@ -70,7 +70,18 @@ pub fn PlayerCard(chess_board_signals: ChessBoardSignals, side: Side) -> impl In
         let shows_turns = chess_board_signals.is_game() || chess_board_signals.validation();
         turn && shows_turns && !game_over()
     };
-    let to_move_label = move || if is_me() { "Your move" } else { "To move" };
+    let card_class = move || {
+        if to_move() {
+            "player-card player-card--to-move"
+        } else {
+            "player-card"
+        }
+    };
+    let card_label = move || match (to_move(), is_me()) {
+        (true, true) => format!("{side_name}, your move"),
+        (true, false) => format!("{side_name}, to move"),
+        (false, _) => side_name.to_string(),
+    };
 
     // counts down locally from the last time the server sent the clock
     let clock_ms = move || {
@@ -105,15 +116,11 @@ pub fn PlayerCard(chess_board_signals: ChessBoardSignals, side: Side) -> impl In
     };
 
     view! {
-        <div class="player-card" style=order>
+        <div class=card_class style=order aria-label=card_label>
             <div aria-hidden="true" class="avatar">{initial}</div>
             <div class="flex-grow min-w-0 flex flex-col gap-0.5">
                 <span class="player-name">{name}</span>
                 <div class="player-status">
-                    <Show when=to_move>
-                        <span aria-hidden="true" class="to-move-dot"></span>
-                        <span class="flex-shrink-0">{to_move_label}</span>
-                    </Show>
                     <Trash chess_board_signals=chess_board_signals id=trash trash=deleted_stones/>
                 </div>
             </div>

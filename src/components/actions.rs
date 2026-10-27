@@ -92,6 +92,7 @@ pub fn GameActions(chess_board_signals: ChessBoardSignals, show_form: RwSignal<F
                 action("Undo", Icon::Undo, Kind::Normal, Run::Send(ClientMsg::Undo)),
                 action("Redo", Icon::Redo, Kind::Normal, Run::Send(ClientMsg::Redo)),
                 action("Reset", Icon::Reset, Kind::Normal, Run::Send(ClientMsg::Reset)),
+                action("Options", Icon::Options, Kind::Normal, Run::Open(Form::Options)),
             ],
         }
     };

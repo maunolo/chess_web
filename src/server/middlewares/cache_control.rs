@@ -2,7 +2,7 @@ use actix_service::{Service, Transform};
 use actix_web::{
     body::MessageBody,
     dev::ServiceResponse,
-    http::header::{HeaderName, HeaderValue},
+    http::header::{HeaderValue, CACHE_CONTROL},
     Error,
 };
 use futures::{
@@ -13,7 +13,14 @@ use futures::{
 use std::pin::Pin;
 use std::task::{Context, Poll};
 
-const FILE_PATHS: [&str; 3] = ["/style.css", "/static/", "/favicon.ico"];
+/// `Cache-Control` by path prefix. The JS, WASM and CSS in `/pkg/` keep their
+/// URLs across deploys, so browsers revalidate them (the file handler answers
+/// 304 while a file is unchanged) and never run a bundle older than the page.
+const CACHE_RULES: [(&str, &str); 3] = [
+    ("/pkg/", "no-cache"),
+    ("/static/", "max-age=3600"),
+    ("/favicon.ico", "max-age=3600"),
+];
 
 pub struct CacheControlInterceptor;
 
@@ -57,14 +64,17 @@ where
         Box::pin(async move {
             let mut res = fut.await?;
             let path = res.request().path();
-            if FILE_PATHS.into_iter().any(|p| path.starts_with(p)) {
-                let headers = res.headers_mut();
-                headers.append(
-                    HeaderName::from_lowercase(b"cache-control").unwrap(),
-                    HeaderValue::from_str("max-age=3600").unwrap(),
-                );
+            let cache_control = CACHE_RULES
+                .iter()
+                .find(|(prefix, _)| path.starts_with(prefix))
+                .map(|(_, value)| *value);
+
+            // An error isn't cached, so a file missing for a moment is fetched again
+            if let (Some(value), true) = (cache_control, res.status().is_success()) {
+                res.headers_mut()
+                    .insert(CACHE_CONTROL, HeaderValue::from_static(value));
             }
-            return Ok(res);
+            Ok(res)
         })
     }
 }

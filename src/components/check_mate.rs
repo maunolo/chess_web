@@ -1,6 +1,6 @@
 use crate::entities::chess_board::signals::ChessBoardSignals;
 use crate::entities::chess_board::turns::Turn;
-use leptos::*;
+use leptos::prelude::*;
 
 #[derive(Clone)]
 #[allow(dead_code)]
@@ -58,10 +58,9 @@ pub fn CheckMate(chess_board_signals: ChessBoardSignals) -> impl IntoView {
                     </div>
                 </div>
             }
+            .into_any()
         } else {
-            view! {
-                <div class="hidden"></div>
-            }
+            view! { <div class="hidden"></div> }.into_any()
         }
     };
 

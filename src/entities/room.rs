@@ -1,6 +1,6 @@
 use std::{collections::BTreeMap, str::FromStr};
 
-use leptos::{create_rw_signal, RwSignal};
+use leptos::prelude::*;
 
 #[derive(Clone)]
 pub struct RoomStatus {
@@ -219,7 +219,7 @@ impl RoomStatus {
                 if let Some(old_user) = self.users.remove(&user.id()) {
                     (user.id(), old_user)
                 } else {
-                    (user.id(), create_rw_signal(user))
+                    (user.id(), RwSignal::new(user))
                 }
             })
             .collect();
@@ -230,7 +230,7 @@ impl RoomStatus {
     }
 
     pub fn add_user(&mut self, user: User) {
-        self.users.insert(user.id(), create_rw_signal(user));
+        self.users.insert(user.id(), RwSignal::new(user));
     }
 
     pub fn remove_user(&mut self, username: &str) {

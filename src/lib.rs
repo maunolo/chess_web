@@ -1,8 +1,11 @@
-mod app;
+pub mod app;
 mod components;
 mod entities;
 mod handlers;
-mod utils;
+pub mod utils;
+
+#[cfg(feature = "ssr")]
+pub mod server;
 
 use cfg_if::cfg_if;
 
@@ -11,17 +14,14 @@ cfg_if! {
         mod client;
 
         use wasm_bindgen::prelude::wasm_bindgen;
-        use crate::app::*;
-        use leptos::*;
+        use crate::app::App;
 
         #[wasm_bindgen]
         pub fn hydrate() {
             _ = console_log::init_with_level(log::Level::Debug);
             console_error_panic_hook::set_once();
 
-            leptos::mount_to_body(|| {
-                view! { <App/> }
-            });
+            leptos::mount::hydrate_body(App);
         }
     }
 }

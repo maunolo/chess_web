@@ -5,7 +5,6 @@
 //! clients would read the line as a server command.
 
 const SEPARATORS: [char; 3] = ['|', ',', ':'];
-#[allow(dead_code)]
 pub const MAX_USERNAME_LEN: usize = 24;
 pub const MAX_ROOM_NAME_LEN: usize = 32;
 
@@ -13,8 +12,6 @@ fn allowed(c: &char) -> bool {
     !c.is_control() && !SEPARATORS.contains(c)
 }
 
-// Unused by the server build of the lib, only its binary calls it
-#[allow(dead_code)]
 pub fn sanitize_username(name: &str) -> Option<String> {
     let name: String = name.chars().filter(allowed).collect();
     let name = name.split_whitespace().collect::<Vec<_>>().join(" ");

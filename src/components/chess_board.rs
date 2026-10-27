@@ -3,7 +3,7 @@ use crate::components::coordinates::Coordinates;
 use crate::components::trash::{Trash, TrashType};
 use crate::entities::chess_board::signals::{ChessBoardSignals, StoneSignal};
 use crate::handlers::interaction_start;
-use leptos::*;
+use leptos::prelude::*;
 
 #[component]
 pub fn ChessBoard(chess_board_signals: ChessBoardSignals) -> impl IntoView {
@@ -63,9 +63,11 @@ pub fn ChessBoard(chess_board_signals: ChessBoardSignals) -> impl IntoView {
         <chess-board class=css_class id="chessboard">
             <BoardBackground/>
             <Coordinates white_view=white_view/>
+            // Keyed on the signal too: a `/sync_board` replaces every stone's
+            // signal, and a piece still on its square must bind to the new one
             <For
                 each=stones_signals
-                key=move |(key, _)| key.to_string()
+                key=|(key, stone_signal)| (key.clone(), *stone_signal)
                 children=piece_view
             />
             <Trash

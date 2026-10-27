@@ -1,4 +1,4 @@
-use leptos::*;
+use leptos::prelude::*;
 
 fn row_str(y: isize) -> String {
     (8 - y).to_string()
@@ -12,7 +12,7 @@ fn col_str(x: isize) -> String {
 #[component]
 pub fn Coordinates<F>(white_view: F) -> impl IntoView
 where
-    F: Fn() -> bool + 'static,
+    F: Fn() -> bool + Send + 'static,
 {
     let positions = move || {
         if white_view() {

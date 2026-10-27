@@ -1,3 +1,4 @@
+pub mod browser;
 pub mod class_list;
 pub mod elements;
 pub mod events;
@@ -15,6 +16,22 @@ pub struct SessionPayload {
     pub sub: String,
     pub name: String,
     pub iat: u64,
+}
+
+/// The session cookie's claims. The client can't verify the signature, the
+/// server rejects a cookie that doesn't.
+pub fn get_user_payload() -> Option<SessionPayload> {
+    let session_token = get_cookie_value("session_token")?;
+    let Ok(token) = jwt::decode::<SessionPayload>(&session_token) else {
+        log::error!("Session token is not a valid JWT: {}", session_token);
+        return None;
+    };
+    Some(token.claims().clone())
+}
+
+/// The current user's id
+pub fn my_id() -> Option<String> {
+    get_user_payload().map(|payload| payload.sub)
 }
 
 cfg_if! {

@@ -6,92 +6,37 @@ use web_sys::WebSocket;
 use super::ChessBoard;
 
 use crate::entities::{
-    notification::Notification, position::Position, room::RoomStatus, stone::Stone,
+    notification::{Notification, NotifyType},
+    position::Position,
+    protocol::{ClientMsg, GameInfo, Side},
+    room::RoomStatus,
+    stone::Stone,
 };
+use crate::utils::my_id;
 
-pub struct ChessBoardSignalsBuilder {
-    chess_board: Option<RwSignal<ChessBoard>>,
-    room_status: Option<RwSignal<Option<RoomStatus>>>,
-    chess_board_socket: Option<RwSignal<Option<WebSocket>, LocalStorage>>,
-    stones_signals: Option<RwSignal<StonesSignals>>,
-    should_render: Option<RwSignal<bool>>,
-    notification: Option<RwSignal<Notification>>,
+/// A piece picked by a tap, or by the start of a drag
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Selection {
+    pub piece: String,
+    /// None for a piece in the trash
+    pub from: Option<Position>,
 }
 
-impl ChessBoardSignalsBuilder {
-    pub fn new() -> Self {
-        Self {
-            chess_board: None,
-            room_status: None,
-            chess_board_socket: None,
-            stones_signals: None,
-            should_render: None,
-            notification: None,
-        }
-    }
+/// A pawn move waiting for the player to pick what it promotes to
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct PendingMove {
+    pub piece: String,
+    pub from: String,
+    pub to: String,
+}
 
-    pub fn chess_board(mut self, chess_board: RwSignal<ChessBoard>) -> Self {
-        self.chess_board = Some(chess_board);
-        self
-    }
-
-    pub fn room_status(mut self, room_status: RwSignal<Option<RoomStatus>>) -> Self {
-        self.room_status = Some(room_status);
-        self
-    }
-
-    pub fn chess_board_socket(
-        mut self,
-        chess_board_socket: RwSignal<Option<WebSocket>, LocalStorage>,
-    ) -> Self {
-        self.chess_board_socket = Some(chess_board_socket);
-        self
-    }
-
-    pub fn stones_signals(mut self, stones_signals: RwSignal<StonesSignals>) -> Self {
-        self.stones_signals = Some(stones_signals);
-        self
-    }
-
-    pub fn should_render(mut self, should_render: RwSignal<bool>) -> Self {
-        self.should_render = Some(should_render);
-        self
-    }
-
-    pub fn notification(mut self, notification: RwSignal<Notification>) -> Self {
-        self.notification = Some(notification);
-        self
-    }
-
-    pub fn build(self) -> Result<ChessBoardSignals, ()> {
-        let Some(chess_board) = self.chess_board else {
-            return Err(());
-        };
-        let Some(room_status) = self.room_status else {
-            return Err(());
-        };
-        let Some(chess_board_socket) = self.chess_board_socket else {
-            return Err(());
-        };
-        let Some(stones_signals) = self.stones_signals else {
-            return Err(());
-        };
-        let Some(should_render) = self.should_render else {
-            return Err(());
-        };
-        let Some(notification) = self.notification else {
-            return Err(());
-        };
-
-        Ok(ChessBoardSignals {
-            chess_board,
-            room_status,
-            chess_board_socket,
-            stones_signals,
-            should_render,
-            notification,
-        })
-    }
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Connection {
+    Connecting,
+    Open,
+    Closed,
+    /// The user opened the board in another tab, which took over
+    Replaced,
 }
 
 #[derive(Clone, Debug)]
@@ -255,10 +200,49 @@ pub struct ChessBoardSignals {
     stones_signals: RwSignal<StonesSignals>,
     should_render: RwSignal<bool>,
     notification: RwSignal<Notification>,
+    game: RwSignal<Option<GameInfo>>,
+    /// `now_ms()` when the game's clock was received
+    clock_synced_at: RwSignal<f64>,
+    /// `now_ms()`, ticking while a clock runs
+    clock_now: RwSignal<f64>,
+    selected: RwSignal<Option<Selection>>,
+    last_move: RwSignal<Option<(Option<Position>, Option<Position>)>>,
+    pending_promotion: RwSignal<Option<PendingMove>>,
+    connection: RwSignal<Connection>,
+    /// The room in the URL, joined whenever the socket opens
+    room_target: RwSignal<String>,
+    needs_username: RwSignal<bool>,
+    /// The game the user just created, the overlay navigates to it
+    created_game: RwSignal<Option<String>>,
+    /// A room to send the user to, e.g. when a game link is gone
+    redirect: RwSignal<Option<String>>,
 }
 
 #[allow(dead_code)]
 impl ChessBoardSignals {
+    pub fn new(chess_board: ChessBoard) -> Self {
+        Self {
+            chess_board: RwSignal::new(chess_board),
+            room_status: RwSignal::new(None),
+            // A `WebSocket` is a JS object, so its signal stays on the thread that made it
+            chess_board_socket: RwSignal::new_local(None),
+            stones_signals: RwSignal::new(StonesSignals::new()),
+            should_render: RwSignal::new(false),
+            notification: RwSignal::new(Notification::new(String::new(), NotifyType::Success)),
+            game: RwSignal::new(None),
+            clock_synced_at: RwSignal::new(0.0),
+            clock_now: RwSignal::new(0.0),
+            selected: RwSignal::new(None),
+            last_move: RwSignal::new(None),
+            pending_promotion: RwSignal::new(None),
+            connection: RwSignal::new(Connection::Closed),
+            room_target: RwSignal::new(String::new()),
+            needs_username: RwSignal::new(false),
+            created_game: RwSignal::new(None),
+            redirect: RwSignal::new(None),
+        }
+    }
+
     pub fn socket(&self) -> RwSignal<Option<WebSocket>, LocalStorage> {
         self.chess_board_socket
     }
@@ -283,11 +267,117 @@ impl ChessBoardSignals {
         self.notification
     }
 
+    pub fn game(&self) -> RwSignal<Option<GameInfo>> {
+        self.game
+    }
+
+    pub fn clock_synced_at(&self) -> RwSignal<f64> {
+        self.clock_synced_at
+    }
+
+    pub fn clock_now(&self) -> RwSignal<f64> {
+        self.clock_now
+    }
+
+    pub fn selected(&self) -> RwSignal<Option<Selection>> {
+        self.selected
+    }
+
+    pub fn last_move(&self) -> RwSignal<Option<(Option<Position>, Option<Position>)>> {
+        self.last_move
+    }
+
+    pub fn pending_promotion(&self) -> RwSignal<Option<PendingMove>> {
+        self.pending_promotion
+    }
+
+    pub fn connection(&self) -> RwSignal<Connection> {
+        self.connection
+    }
+
+    pub fn room_target(&self) -> RwSignal<String> {
+        self.room_target
+    }
+
+    pub fn needs_username(&self) -> RwSignal<bool> {
+        self.needs_username
+    }
+
+    pub fn created_game(&self) -> RwSignal<Option<String>> {
+        self.created_game
+    }
+
+    pub fn redirect(&self) -> RwSignal<Option<String>> {
+        self.redirect
+    }
+
+    /// Sends a message to the server, dropped while the socket is closed
+    pub fn send(&self, msg: &ClientMsg) {
+        let json = serde_json::to_string(msg).expect("client messages serialize");
+        self.chess_board_socket.with_untracked(|socket| {
+            if let Some(socket) = socket {
+                if let Err(err) = socket.send_with_str(&json) {
+                    log::error!("error sending message: {:?}", err);
+                }
+            }
+        });
+    }
+
+    pub fn notify(&self, level: NotifyType, message: &str) {
+        self.notification.update(|notification| {
+            notification.show(level, message);
+        });
+    }
+
+    /// The user's seat in the room's game
+    pub fn my_seat(&self) -> Option<Side> {
+        let id = my_id()?;
+        self.game.with(|game| game.as_ref()?.seat_of(&id))
+    }
+
+    pub fn is_game(&self) -> bool {
+        self.game.with(Option::is_some)
+    }
+
+    /// Whether the rules are enforced on this board
+    pub fn validation(&self) -> bool {
+        self.room_status
+            .with(|status| status.as_ref().is_some_and(|status| status.options().validation()))
+    }
+
+    /// Whether the user may pick up `piece` (`lp`, `dk`...). On a free board
+    /// anyone moves anything; in a game only the seated player whose turn it
+    /// is, and never from the trash.
+    pub fn can_move(&self, piece: &str, from_trash: bool) -> bool {
+        self.game.with_untracked(|game| {
+            let Some(game) = game else {
+                return true;
+            };
+            let Some(id) = my_id() else {
+                return false;
+            };
+            let side = if piece.starts_with('l') {
+                Side::White
+            } else {
+                Side::Black
+            };
+
+            !from_trash
+                && game.result.is_none()
+                && game.is_full()
+                && game.seat_of(&id) == Some(side)
+                && self.chess_board.with_untracked(|board| board.turn) == side
+        })
+    }
+
+    /// A free board's checkmate, a game shows its result instead
     pub fn is_checkmate(&self) -> bool {
-        self.room_status()
-            .get()
-            .map(|room_status| room_status.checkmate() && room_status.options().validation())
-            .unwrap_or(false)
+        !self.is_game()
+            && self
+                .room_status()
+                .get()
+                .map(|room_status| room_status.checkmate() && room_status.options().validation())
+                .unwrap_or(false)
     }
 
     pub fn move_piece(&self, piece: String, old_pos: String, new_pos: String) {

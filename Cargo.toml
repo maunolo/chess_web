@@ -47,6 +47,10 @@ web-sys = { version = "0.3.60", features = [
     "RequestInit",
     "EventListener",
     "EventTarget",
+    "Location",
+    "Navigator",
+    "PointerEvent",
+    "Response",
 ] }
 js-sys = { version = "0.3.64", optional = true }
 env_logger = { version = "0.11", optional = true }

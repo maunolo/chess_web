@@ -9,8 +9,8 @@ use actix_ws::{Message, MessageStream, Session};
 use futures::StreamExt;
 use tokio::sync::mpsc;
 
+use crate::entities::protocol::{ClientMsg, ServerMsg};
 use crate::server::chess_server::{self, ChessServer};
-use crate::utils::sanitize::{sanitize_room_name, sanitize_username};
 
 /// How often heartbeat pings are sent
 const HEARTBEAT_INTERVAL: Duration = Duration::from_secs(5);
@@ -34,6 +34,13 @@ pub struct Connection {
 }
 
 impl Connection {
+    /// A connection for tests, with the receiving end of its socket
+    #[cfg(test)]
+    pub fn for_test(id: u64) -> (Self, mpsc::UnboundedReceiver<Outbound>) {
+        let (tx, rx) = mpsc::unbounded_channel();
+        (Self { id, tx }, rx)
+    }
+
     pub fn send(&self, outbound: Outbound) {
         // Fails only once the socket closed, then there is no one to deliver to
         let _ = self.tx.send(outbound);
@@ -94,7 +101,7 @@ pub async fn run(
                         hb = Instant::now();
                     }
                     Message::Text(text) => {
-                        if let Some(reply) = handle_text(&server, &id, text.trim()) {
+                        if let Some(reply) = handle_text(&server, &id, &text) {
                             if session.text(reply).await.is_err() {
                                 break None;
                             }
@@ -133,72 +140,23 @@ pub async fn run(
     let _ = session.close(close_reason).await;
 }
 
-/// Forwards a client line to the chess server. Returns the error to send back
-/// when the command is malformed.
+/// Forwards a client message to the chess server. Returns the error to send
+/// back when the frame isn't a valid message.
 fn handle_text(server: &Addr<ChessServer>, id: &str, text: &str) -> Option<String> {
-    let id = id.to_owned();
-
-    // we check for /sss type of messages
-    if !text.starts_with('/') {
-        // send message to chess server
-        server.do_send(chess_server::ClientMessage {
-            id,
-            msg: text.to_owned(),
-        });
-        return None;
-    }
-
-    let (cmd, input) = text.split_once(' ').unwrap_or((text, ""));
-    match cmd {
-        "/join" => {
-            // `/join <room> [<fen>[|<trash>]]`
-            let (room_name, position) = input.split_once(' ').unwrap_or((input, ""));
-            let position = position.trim();
-            let Some(room_name) = sanitize_room_name(room_name) else {
-                return Some("!!! room name is required".to_string());
-            };
-            let (fen, trash) = match position.split_once('|') {
-                Some((fen, trash)) => (Some(fen.to_owned()), Some(trash.to_owned())),
-                None => ((!position.is_empty()).then(|| position.to_owned()), None),
-            };
-
-            server.do_send(chess_server::Join {
-                id,
-                name: room_name,
-                fen,
-                trash,
+    match serde_json::from_str::<ClientMsg>(text) {
+        Ok(msg) => {
+            server.do_send(chess_server::ClientRequest {
+                id: id.to_owned(),
+                msg,
             });
+            None
         }
-        "/username" => {
-            let Some(name) = sanitize_username(input) else {
-                return Some("!!! name is required".to_string());
+        Err(err) => {
+            log::debug!("Invalid client message {text:?}: {err}");
+            let error = ServerMsg::Error {
+                message: format!("invalid message: {err}"),
             };
-
-            server.do_send(chess_server::UserSync { id, name });
+            Some(serde_json::to_string(&error).expect("server messages serialize"))
         }
-        "/move" => {
-            let v: Vec<&str> = input.splitn(3, ' ').collect();
-            let [piece, from, to] = v[..] else {
-                return Some("!!! move is required".to_string());
-            };
-
-            server.do_send(chess_server::Move {
-                id,
-                piece: piece.to_owned(),
-                from: from.to_owned(),
-                to: to.to_owned(),
-            });
-        }
-        "/reset" => server.do_send(chess_server::Reset { id }),
-        "/undo" => server.do_send(chess_server::Undo { id }),
-        "/redo" => server.do_send(chess_server::Redo { id }),
-        "/options" => server.do_send(chess_server::Options {
-            id,
-            validation: input.contains("validation"),
-            sync: input.contains("sync"),
-        }),
-        _ => return Some(format!("!!! unknown command: {text:?}")),
     }
-
-    None
 }

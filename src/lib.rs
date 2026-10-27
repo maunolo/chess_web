@@ -1,6 +1,6 @@
 pub mod app;
 mod components;
-mod entities;
+pub mod entities;
 mod handlers;
 pub mod utils;
 

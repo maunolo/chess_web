@@ -35,51 +35,29 @@ pub fn Notifications(chess_board_signals: ChessBoardSignals) -> impl IntoView {
         }
     };
 
-    let icon = move || match chess_board_signals
-        .notification()
-        .with(|n| n.notify_type.clone())
-    {
-        NotifyType::Success => success_icon().into_any(),
-        NotifyType::Warning => warning_icon().into_any(),
-        NotifyType::Error => error_icon().into_any(),
-    };
-
-    let notify_class = move || match chess_board_signals.notification().with(|n| n.is_active) {
-        true => "notify notify--is-active",
-        false => "notify",
-    };
-
-    let notify_icon_class = move || match chess_board_signals
-        .notification()
-        .with(|n| n.notify_type.clone())
-    {
-        NotifyType::Success => "notify-icon success",
-        NotifyType::Warning => "notify-icon warning",
-        NotifyType::Error => "notify-icon error",
-    };
-
-    let clone_notification = move |_: web_sys::MouseEvent| {
+    let close = move |_: web_sys::MouseEvent| {
         chess_board_signals.notification().update(|n| n.disable());
     };
 
-    view! {
-        <Show
-            when=move || { chess_board_signals.notification().get().is_active }
-            fallback=|| view! { <div class="hidden"></div> }
-        >
-            <div class=notify_class>
-                <div class=notify_icon_class>
-                    {icon}
+    // rebuilt for every notification, which restarts its slide in animation
+    move || {
+        let notification = chess_board_signals.notification().get();
+        notification.is_active.then(|| {
+            let (icon, icon_class) = match notification.notify_type {
+                NotifyType::Success => (success_icon().into_any(), "notify-icon success"),
+                NotifyType::Warning => (warning_icon().into_any(), "notify-icon warning"),
+                NotifyType::Error => (error_icon().into_any(), "notify-icon error"),
+            };
+
+            view! {
+                <div class="notify notify--is-active">
+                    <div class=icon_class>{icon}</div>
+                    <p class="notify-text">{notification.message}</p>
+                    <button class="notify-close" on:click=close>
+                        <span class="notify-close-icon"></span>
+                    </button>
                 </div>
-                <p class="notify-text">
-                    {move || chess_board_signals
-                        .notification()
-                        .get().message}
-                </p>
-                <button class="notify-close" on:click=clone_notification>
-                    <span class="notify-close-icon"></span>
-                </button>
-            </div>
-        </Show>
+            }
+        })
     }
 }

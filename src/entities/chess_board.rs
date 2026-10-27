@@ -154,6 +154,31 @@ impl ChessBoard {
         self.is_in_check() && !self.has_legal_move()
     }
 
+    /// The side to move isn't in check and has no legal move
+    pub fn is_stalemate(&self) -> bool {
+        !self.is_in_check() && !self.has_legal_move()
+    }
+
+    /// Neither side can ever checkmate: kings alone, or a king and one bishop
+    /// or knight against a lone king
+    pub fn has_insufficient_material(&self) -> bool {
+        let mut minor_pieces = 0;
+        for (_, stone) in self.stones_and_positions_iter() {
+            match stone.kind() {
+                Kind::King => {}
+                Kind::Bishop | Kind::Knight => minor_pieces += 1,
+                _ => return false,
+            }
+        }
+        minor_pieces <= 1
+    }
+
+    /// `color` has more than a lone king
+    pub fn has_material_beyond_king(&self, color: Color) -> bool {
+        self.stones_and_positions_iter()
+            .any(|(_, stone)| stone.color() == color && stone.kind() != Kind::King)
+    }
+
     pub fn has_legal_move(&self) -> bool {
         self.stones_and_positions_iter()
             .filter(|(_, stone)| stone.color() == self.turn_color())
@@ -324,6 +349,7 @@ impl ChessBoard {
                     Some(position.clone()),
                     Some(possible_move.clone()),
                     true,
+                    PromotionKind::Queen,
                 );
                 chess_board.sync_threat_map();
                 !chess_board.is_in_check()
@@ -337,6 +363,17 @@ impl ChessBoard {
         from: Option<Position>,
         to: Option<Position>,
     ) -> Result<Move, ChessBoardError> {
+        self.move_piece_promoting(piece, from, to, PromotionKind::Queen)
+    }
+
+    /// Like `move_piece`, a pawn reaching the last rank becomes `promotion`
+    pub fn move_piece_promoting(
+        &mut self,
+        piece: &str,
+        from: Option<Position>,
+        to: Option<Position>,
+        promotion: PromotionKind,
+    ) -> Result<Move, ChessBoardError> {
         if from == to {
             return Ok(Move::Normal);
         }
@@ -345,7 +382,7 @@ impl ChessBoard {
             self.validate_move(piece, from.as_ref(), to.as_ref())?;
         }
 
-        self.apply_move(piece, from, to, self.validation)
+        self.apply_move(piece, from, to, self.validation, promotion)
     }
 
     fn validate_move(
@@ -383,6 +420,7 @@ impl ChessBoard {
         from: Option<Position>,
         to: Option<Position>,
         with_effects: bool,
+        promotion: PromotionKind,
     ) -> Result<Move, ChessBoardError> {
         let no_stone_found = || ChessBoardError::InvalidMove(MoveError::NoStoneFound);
         let off_board = from.is_none() || to.is_none();
@@ -419,7 +457,7 @@ impl ChessBoard {
 
                 match from {
                     Some(from) if with_effects => {
-                        self.apply_move_validation_and_effects((&stone, &from, &to))
+                        self.apply_move_validation_and_effects((&stone, &from, &to), promotion)
                     }
                     _ => {
                         self.passant = None;
@@ -451,6 +489,7 @@ impl ChessBoard {
     pub fn apply_move_validation_and_effects(
         &mut self,
         stone_move: (&Stone, &Position, &Position),
+        promotion: PromotionKind,
     ) -> Move {
         match stone_move {
             (stone, _, to) if stone.kind() == Kind::Pawn && self.passant.as_ref() == Some(to) => {
@@ -477,27 +516,13 @@ impl ChessBoard {
                 self.passant = Some(Position::new(to.x, 2));
                 Move::Normal
             }
-            (stone, _, to) if stone.as_str() == "lp" && to.y == 0 => {
+            (stone, _, to)
+                if stone.kind() == Kind::Pawn
+                    && to.y == if stone.color() == Color::Light { 0 } else { 7 } =>
+            {
                 self.passant = None;
-                let new_stone: Stone = match PromotionKind::Queen {
-                    PromotionKind::Queen => 'Q'.try_into().unwrap(),
-                    PromotionKind::Rook => 'R'.try_into().unwrap(),
-                    PromotionKind::Bishop => 'B'.try_into().unwrap(),
-                    PromotionKind::Knight => 'N'.try_into().unwrap(),
-                };
-                self.stones[to.y as usize][to.x as usize] = Some(new_stone);
-                Move::Promotion(PromotionKind::Queen)
-            }
-            (stone, _, to) if stone.as_str() == "dp" && to.y == 7 => {
-                self.passant = None;
-                let new_stone: Stone = match PromotionKind::Queen {
-                    PromotionKind::Queen => 'q'.try_into().unwrap(),
-                    PromotionKind::Rook => 'r'.try_into().unwrap(),
-                    PromotionKind::Bishop => 'b'.try_into().unwrap(),
-                    PromotionKind::Knight => 'n'.try_into().unwrap(),
-                };
-                self.stones[to.y as usize][to.x as usize] = Some(new_stone);
-                Move::Promotion(PromotionKind::Queen)
+                self.stones[to.y][to.x] = Some(promotion.stone(stone.color()));
+                Move::Promotion(promotion)
             }
             (stone, from, to)
                 if stone.as_str() == "lk"

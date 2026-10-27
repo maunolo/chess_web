@@ -1,6 +1,8 @@
-use std::{collections::BTreeMap, str::FromStr};
+use std::collections::BTreeMap;
 
 use leptos::prelude::*;
+
+use super::protocol::{Presence, UserInfo};
 
 #[derive(Clone)]
 pub struct RoomStatus {
@@ -81,36 +83,16 @@ impl User {
     }
 }
 
-impl FromStr for User {
-    type Err = ();
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let mut split = s.splitn(3, ":");
-
-        let Some(id) = split.next() else {
-            return Err(());
-        };
-
-        let Some(username) = split.next() else {
-            return Err(());
-        };
-
-        let Some(status) = split.next() else {
-            return Err(());
-        };
-
-        let status = match status {
-            "online" => UserStatus::Online,
-            "offline" => UserStatus::Offline,
-            "away" => UserStatus::Away,
-            _ => return Err(()),
-        };
-
-        Ok(Self {
-            id: id.to_string(),
-            username: username.to_string(),
-            status,
-        })
+impl From<UserInfo> for User {
+    fn from(info: UserInfo) -> Self {
+        Self {
+            id: info.id,
+            username: info.name,
+            status: match info.presence {
+                Presence::Online => UserStatus::Online,
+                Presence::Away => UserStatus::Away,
+            },
+        }
     }
 }
 
@@ -132,45 +114,9 @@ impl RoomStatus {
         &self.options
     }
 
-    pub fn options_string(&self) -> String {
-        let mut options = String::new();
-
-        if self.options.validation {
-            options.push_str(" validation");
-        }
-
-        if self.options.sync {
-            options.push_str(" sync");
-        }
-
-        options.trim().to_string()
-    }
-
-    pub fn set_options_from_str(&mut self, options: &str) {
-        let mut options = options.split_whitespace();
-
-        let mut validation = false;
-        let mut sync = false;
-
-        while let Some(option) = options.next() {
-            match option {
-                "validation" => validation = true,
-                "sync" => sync = true,
-                _ => (),
-            }
-        }
-
-        if validation {
-            self.enable_validation();
-        } else {
-            self.disable_validation();
-        }
-
-        if sync {
-            self.enable_sync();
-        } else {
-            self.disable_sync();
-        }
+    pub fn set_options(&mut self, validation: bool, sync: bool) {
+        self.options.validation = validation;
+        self.options.sync = sync;
     }
 
     pub fn enable_validation(&mut self) {
@@ -211,10 +157,10 @@ impl RoomStatus {
         }
     }
 
-    pub fn sync_users(&mut self, users: Vec<String>) {
+    pub fn sync_users(&mut self, users: Vec<UserInfo>) {
         self.users = users
             .into_iter()
-            .filter_map(|user| user.parse::<User>().ok())
+            .map(User::from)
             .map(|user| {
                 if let Some(old_user) = self.users.remove(&user.id()) {
                     (user.id(), old_user)
@@ -233,10 +179,8 @@ impl RoomStatus {
         self.users.insert(user.id(), RwSignal::new(user));
     }
 
-    pub fn remove_user(&mut self, username: &str) {
-        if let Ok(user) = username.parse::<User>() {
-            self.users.remove(&user.id());
-        };
+    pub fn remove_user(&mut self, id: &str) {
+        self.users.remove(id);
     }
 
     pub fn checkmate(&self) -> bool {

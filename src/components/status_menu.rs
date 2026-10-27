@@ -3,9 +3,10 @@ use leptos::prelude::*;
 use crate::{
     components::{
         forms::Form,
-        overlay::{clear_timeout, get_user_payload, toggle_sub_menu},
+        overlay::{clear_timeout, toggle_sub_menu},
     },
     entities::{chess_board::signals::ChessBoardSignals, room::User},
+    utils::get_user_payload,
 };
 
 #[component]

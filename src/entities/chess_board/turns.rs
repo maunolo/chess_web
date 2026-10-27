@@ -1,5 +1,7 @@
 use std::ops::Not;
 
+use serde::{Deserialize, Serialize};
+
 use super::enums::FenError;
 
 pub fn fen_to_turn(field: &str) -> Result<Turn, FenError> {
@@ -12,7 +14,8 @@ pub fn fen_to_turn(field: &str) -> Result<Turn, FenError> {
     }
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
 pub enum Turn {
     White,
     Black,

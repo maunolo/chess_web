@@ -4,6 +4,12 @@ Available at: [chess.maunolo.dev](https://chess.maunolo.dev)
 
 ![image](https://github.com/maunolo/chess_web/assets/44609720/39a3c9b7-9089-4564-b8ff-8b13c5b5416c)
 
+# Playing
+
+- **Free board** at `/`: anyone moves any piece, captured pieces go to the trash and can be put back. Options turns on rule validation.
+- **Games**: Menu → New game picks a color and a clock (none, or 1+0 up to 30+0), then shares a `/g/<id>` link. Whoever opens it first takes the other seat, everyone after that watches. The server enforces turns and the clock, and ends the game on checkmate, stalemate, time, resignation, agreed draw, threefold repetition, the fifty-move rule or insufficient material. Rematches swap colors.
+- **Moving**: drag a piece, or tap it and then tap its square. With validation on, the legal moves of the selected piece are marked.
+
 # Development
 
 ## Docker

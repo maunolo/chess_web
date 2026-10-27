@@ -4,7 +4,9 @@ use leptos::prelude::*;
 
 use crate::entities::chess_board::signals::{ChessBoardSignals, StoneSignal};
 use crate::entities::chess_board::turns::Turn;
-use crate::handlers::interaction_start;
+use crate::components::player_chip::PlayerChip;
+use crate::entities::protocol::Side;
+use crate::handlers::pointer_down;
 
 #[derive(Clone, Copy, PartialEq)]
 pub enum TrashType {
@@ -73,8 +75,7 @@ where
         view! {
             <div
                 class=move || format!("piece {} deleted {}", stone().image_class(), dragging_class())
-                on:mousedown=move |e| interaction_start(chess_board_signals, e)
-                on:touchstart=move |e| interaction_start(chess_board_signals, e)
+                on:pointerdown=move |e| pointer_down(chess_board_signals, e)
                 on:dragstart=move |e| e.prevent_default()
                 data-square="deleted"
                 data-piece=stone().image_class()
@@ -84,6 +85,12 @@ where
         }
     };
 
+    // white captures the dark pieces, so its name sits on that trash
+    let player = match id {
+        TrashType::Dark => Side::White,
+        TrashType::Light => Side::Black,
+    };
+
     view! {
         <div class=trash_class data-trash=move || String::from(id) id=trash_id>
             <For
@@ -91,6 +98,7 @@ where
                 key=move |(key, _)| key.to_string()
                 children=piece_view
             />
+            <PlayerChip chess_board_signals=chess_board_signals side=player/>
         </div>
     }
 }

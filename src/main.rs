@@ -8,7 +8,7 @@ cfg_if! {
         use leptos_actix::{generate_route_list, LeptosRoutes};
         use actix_web::{
             cookie::{Cookie, SameSite},
-            middleware, App, HttpServer, post, error, web, Error, HttpRequest, HttpResponse
+            middleware, App, HttpServer, get, post, error, web, Error, HttpRequest, HttpResponse
         };
         use chess_web::server::{
             middlewares::cache_control::CacheControlInterceptor,
@@ -20,11 +20,11 @@ cfg_if! {
 
         use std::env;
         use std::net::SocketAddr;
-        use std::sync::{atomic::AtomicUsize, Arc};
         use std::time::{SystemTime, UNIX_EPOCH};
 
         use serde::{Deserialize, Serialize};
 
+        use chess_web::entities::protocol::ClientMsg;
         use chess_web::utils::{self, sanitize::sanitize_username, SessionPayload};
 
         #[derive(Serialize, Deserialize)]
@@ -49,9 +49,10 @@ cfg_if! {
                 .and_then(|cookie| utils::jwt::verified_decode::<SessionPayload>(cookie.value()).ok());
 
             let session_payload = if let Some(token) = token {
-                srv.get_ref().do_send(
-                    chess_server::UserSync { id: token.claims().sub.clone(), name: username.clone() }
-                );
+                srv.get_ref().do_send(chess_server::ClientRequest {
+                    id: token.claims().sub.clone(),
+                    msg: ClientMsg::Username { name: username.clone() },
+                });
 
                 SessionPayload {
                     sub: token.claims().sub.clone(),
@@ -75,6 +76,22 @@ cfg_if! {
                 .finish();
 
             Ok(HttpResponse::Ok().cookie(session_cookie).finish()) // <- send response
+        }
+
+        /// The user of the session cookie, 401 when there is none or it doesn't verify
+        #[get("/sessions")]
+        async fn current_session(req: HttpRequest) -> HttpResponse {
+            let token = req
+                .cookie("session_token")
+                .and_then(|cookie| utils::jwt::verified_decode::<SessionPayload>(cookie.value()).ok());
+
+            match token {
+                Some(token) => HttpResponse::Ok().json(serde_json::json!({
+                    "id": token.claims().sub,
+                    "name": token.claims().name,
+                })),
+                None => HttpResponse::Unauthorized().finish(),
+            }
         }
 
         /// Entry point for our websocket route
@@ -118,12 +135,8 @@ cfg_if! {
             // Generate the list of routes in your Leptos App
             let routes = generate_route_list(ChessApp);
 
-            // set up applications state
-            // keep a count of the number of visitors
-            let app_state = Arc::new(AtomicUsize::new(0));
-
             // start chat server actor
-            let server = ChessServer::new(app_state.clone()).start();
+            let server = ChessServer::new().start();
 
             log::info!("starting HTTP server at http://0.0.0.0:{}", port);
 
@@ -131,7 +144,6 @@ cfg_if! {
                 let leptos_options = &conf.leptos_options;
                 let site_root = leptos_options.site_root.to_string();
                 App::new()
-                    .app_data(web::Data::from(app_state.clone()))
                     .app_data(web::Data::new(server.clone()))
                     .app_data(web::Data::new(leptos_options.to_owned()))
                     .wrap(middleware::Logger::default())
@@ -139,6 +151,7 @@ cfg_if! {
                     // websocket route
                     .route("/ws", web::get().to(chess_route))
                     .service(create_session)
+                    .service(current_session)
                     .leptos_routes(routes.to_owned(), {
                         let leptos_options = leptos_options.to_owned();
                         move || shell(leptos_options.clone())

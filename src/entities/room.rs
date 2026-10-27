@@ -214,8 +214,8 @@ impl RoomStatus {
     pub fn sync_users(&mut self, users: Vec<String>) {
         self.users = users
             .into_iter()
+            .filter_map(|user| user.parse::<User>().ok())
             .map(|user| {
-                let user = user.parse::<User>().unwrap();
                 if let Some(old_user) = self.users.remove(&user.id()) {
                     (user.id(), old_user)
                 } else {

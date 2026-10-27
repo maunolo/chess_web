@@ -1,8 +1,8 @@
 pub mod class_list;
-pub mod element_pool;
 pub mod elements;
 pub mod events;
 pub mod jwt;
+pub mod sanitize;
 pub mod style;
 
 use cfg_if::cfg_if;
@@ -111,10 +111,14 @@ impl WindowExt for web_sys::Window {
             if #[cfg(not(feature = "ssr"))] {
                 use wasm_bindgen::JsValue;
 
-                let mut request_init = web_sys::RequestInit::new();
-                request_init
-                    .method("POST")
-                    .body(Some(&JsValue::from_str(&format!("{} \"username\": \"{}\" {}", "{", name, "}"))));
+                let Some(name) = sanitize::sanitize_username(name) else {
+                    return;
+                };
+                let body = serde_json::json!({ "username": name }).to_string();
+
+                let request_init = web_sys::RequestInit::new();
+                request_init.set_method("POST");
+                request_init.set_body(&JsValue::from_str(&body));
                 let promise = self.fetch_with_str_and_init("/sessions", &request_init);
 
                 let start_websocket = closure_with_arg(move |_: JsValue| {

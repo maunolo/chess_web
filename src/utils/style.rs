@@ -46,7 +46,6 @@ impl Style {
 pub trait StyleExt {
     fn set_style(&self, key: &str, value: &str);
     fn remove_style(&self, key: &str);
-    fn get_style(&self, key: &str) -> Option<String>;
 }
 
 impl StyleExt for Element {
@@ -60,10 +59,5 @@ impl StyleExt for Element {
         let mut style = Style::new(&self.get_attribute("style").unwrap_or(String::new()));
         style.remove(key);
         self.set_attribute("style", &style.to_string()).unwrap();
-    }
-
-    fn get_style(&self, key: &str) -> Option<String> {
-        let style = Style::new(&self.get_attribute("style").unwrap_or(String::new()));
-        style.properties.get(key).map(|s| s.to_string())
     }
 }

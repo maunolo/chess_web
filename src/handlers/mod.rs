@@ -168,13 +168,11 @@ where
             }
         }
 
-        let old_pos = match old_pos.as_str() {
-            "deleted" => None,
-            _ => Some(old_pos.parse::<Position>().unwrap()),
-        };
-        let new_pos = match new_pos.as_str() {
-            "deleted" => None,
-            _ => Some(new_pos.parse::<Position>().unwrap()),
+        let (Ok(old_pos), Ok(new_pos)) = (
+            Position::parse_square(&old_pos),
+            Position::parse_square(&new_pos),
+        ) else {
+            return;
         };
 
         chess_board_signals.chess_board().update(|chessboard| {

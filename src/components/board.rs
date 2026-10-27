@@ -5,7 +5,7 @@ pub fn BoardBackground() -> impl IntoView {
     view! {
         <svg viewBox="0 0 100 100" class="board">
             <For
-                each=move || (0..32)
+                each=move || 0..32
                 key=|i| i.clone()
                 children=move |i: usize| {
                     let x = 12.5 * (i % 8) as f64;

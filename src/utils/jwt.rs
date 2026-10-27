@@ -37,7 +37,7 @@ where
     VerifyWithKey::verify_with_key(token_str, &key)
 }
 
-pub fn decode<T>(token_str: &str) -> Result<Token<Header, T, Unverified>, Error>
+pub fn decode<T>(token_str: &str) -> Result<Token<Header, T, Unverified<'_>>, Error>
 where
     T: FromBase64,
 {

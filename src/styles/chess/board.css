@@ -46,16 +46,21 @@
     /* Captured pieces, shown in the player cards. Dropping a piece on the
        strip removes it from the board; dragging one out puts it back. */
     .trash {
-        @apply flex flex-wrap items-center gap-px min-h-[1.5rem] min-w-[4rem] flex-grow rounded-md;
+        @apply flex items-center gap-1 min-h-[1.5rem] min-w-[4rem] flex-grow rounded-md;
 
         transition: background-color 0.15s;
     }
 
     .deleted {
-        @apply relative bg-center bg-contain;
+        @apply relative bg-center bg-contain flex-shrink-0;
 
         width: 22px;
         height: 22px;
+
+        /* how many identical pieces this one stands for */
+        .count {
+            @apply pointer-events-none absolute -top-1.5 -right-1.5 min-w-[1rem] h-4 px-1 rounded-full bg-accent text-ink-900 text-[10px] font-bold leading-4 text-center;
+        }
     }
 
     .dragging {
@@ -121,6 +126,13 @@
     .player-card {
         @apply card flex items-center gap-3 px-3 h-16 flex-shrink-0;
 
+        transition: box-shadow 0.15s;
+
+        /* the side to move */
+        &--to-move {
+            @apply ring-2 ring-accent;
+        }
+
         .avatar {
             @apply w-10 h-10 rounded-full bg-ink-700 flex items-center justify-center text-base font-bold flex-shrink-0;
         }
@@ -131,10 +143,6 @@
 
         .player-status {
             @apply text-xs text-ink-300 flex items-center gap-1.5 min-h-[1.5rem];
-        }
-
-        .to-move-dot {
-            @apply w-2 h-2 rounded-full bg-accent flex-shrink-0;
         }
 
         .clock {

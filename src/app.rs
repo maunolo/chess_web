@@ -94,7 +94,9 @@ fn Home() -> impl IntoView {
             <div class="flex-grow min-h-0 flex flex-col justify-center lg:grid lg:grid-cols-[17.5rem_minmax(0,35rem)_20rem] lg:justify-center lg:items-start lg:gap-5 lg:p-5 lg:overflow-y-auto">
                 <RoomPanel chess_board_signals=chess_board_signals/>
 
-                <main class="flex flex-col gap-3 px-3 pb-3 w-full max-w-[calc(100dvh-21rem)] mx-auto lg:max-w-none lg:p-0 lg:mx-0">
+                // On a phone the board is as wide as the height allows: the
+                // bars, cards, strip and gaps take 17.5rem of the viewport.
+                <main class="flex flex-col gap-2 px-2 pb-2 w-full max-w-[calc(100dvh-17.5rem)] mx-auto lg:gap-3 lg:max-w-none lg:p-0 lg:mx-0">
                     <PlayerCard chess_board_signals=chess_board_signals side=Side::White/>
                     <PlayerCard chess_board_signals=chess_board_signals side=Side::Black/>
                     <div style="order: 1">

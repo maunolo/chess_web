@@ -148,10 +148,10 @@
     }
 
     .action-bar {
-        @apply flex items-stretch gap-1 bg-ink-800 border-t border-ink-700 px-2 pt-1.5 pb-[max(0.875rem,env(safe-area-inset-bottom))];
+        @apply flex items-stretch gap-1 bg-ink-800 border-t border-ink-700 px-2 pt-1 pb-[max(0.625rem,env(safe-area-inset-bottom))];
 
         .action {
-            @apply flex-1 flex-col gap-1 min-h-[4rem] text-[11px];
+            @apply flex-1 flex-col gap-0.5 min-h-[3.5rem] text-[11px];
         }
     }
 
@@ -172,7 +172,7 @@
     }
 
     .move-strip {
-        @apply flex items-center justify-end gap-1.5 h-9 overflow-hidden whitespace-nowrap font-mono text-[13px] text-ink-300;
+        @apply flex items-center justify-end gap-1.5 h-7 overflow-hidden whitespace-nowrap font-mono text-xs text-ink-300;
 
         .move-no {
             @apply text-ink-400;

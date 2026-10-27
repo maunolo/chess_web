@@ -123,30 +123,32 @@
     }
 
     /* A player: avatar, name, captured pieces and clock, above or below the board */
+    /* Flat on the page's ground. Compact on phones, where every pixel of
+       height is board width. */
     .player-card {
-        @apply card flex items-center gap-3 px-3 h-16 flex-shrink-0;
-
-        transition: box-shadow 0.15s;
-
-        /* the side to move */
-        &--to-move {
-            @apply ring-2 ring-accent;
-        }
+        @apply flex items-center gap-2.5 px-2.5 h-[3.25rem] flex-shrink-0 lg:gap-3 lg:px-3 lg:h-16;
 
         .avatar {
-            @apply w-10 h-10 rounded-full bg-ink-700 flex items-center justify-center text-base font-bold flex-shrink-0;
+            @apply w-9 h-9 rounded-full bg-ink-700 flex items-center justify-center text-sm font-bold flex-shrink-0 lg:w-10 lg:h-10 lg:text-base;
+
+            transition: box-shadow 0.15s;
+        }
+
+        /* the side to move: its avatar glows */
+        &--to-move .avatar {
+            @apply ring-2 ring-accent motion-safe:animate-turn-pulse;
         }
 
         .player-name {
-            @apply text-[15px] font-semibold truncate;
+            @apply text-sm font-semibold truncate lg:text-[15px];
         }
 
         .player-status {
-            @apply text-xs text-ink-300 flex items-center gap-1.5 min-h-[1.5rem];
+            @apply text-xs text-ink-300 flex items-center gap-1.5 min-h-[1.25rem] lg:min-h-[1.5rem];
         }
 
         .clock {
-            @apply h-11 min-w-[5.75rem] px-3 rounded-[10px] flex items-center justify-center font-mono text-2xl font-bold tabular-nums bg-ink-700 text-ink-300 flex-shrink-0;
+            @apply h-9 min-w-[4.75rem] px-2.5 rounded-[10px] flex items-center justify-center font-mono text-xl font-bold tabular-nums bg-ink-700 text-ink-300 flex-shrink-0 lg:h-11 lg:min-w-[5.75rem] lg:px-3 lg:text-2xl;
 
             &--running {
                 @apply bg-accent text-ink-900;

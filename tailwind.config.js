@@ -45,10 +45,17 @@ module.exports = {
                 '0%, 100%': { filter: 'brightness(0.9)' },
                 '50%': { filter: 'brightness(1)' },
             },
+            // the avatar of the side to move: a steady ring and a fading halo
+            'turn-pulse': {
+                '0%': { boxShadow: '0 0 0 2px #f2b84b, 0 0 0 2px rgba(242, 184, 75, 0.6)' },
+                '70%': { boxShadow: '0 0 0 2px #f2b84b, 0 0 0 12px rgba(242, 184, 75, 0)' },
+                '100%': { boxShadow: '0 0 0 2px #f2b84b, 0 0 0 12px rgba(242, 184, 75, 0)' },
+            },
         },
         animation: {
             'notify-show': 'notify-show 5s ease-in-out',
             'pulse-brightness': 'pulse-brightness 2s ease-in-out infinite',
+            'turn-pulse': 'turn-pulse 1.8s ease-out infinite',
         },
         spacing: {
             '15': '3.75rem',

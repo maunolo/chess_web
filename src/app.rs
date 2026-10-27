@@ -1,8 +1,11 @@
 use std::collections::BTreeMap;
 
-use leptos::*;
+use leptos::prelude::*;
 use leptos_meta::*;
-use leptos_router::*;
+use leptos_router::{
+    components::{Route, Router, Routes},
+    StaticSegment,
+};
 
 use crate::components::board::BoardBackground;
 use crate::components::chess_board::ChessBoard;
@@ -19,6 +22,25 @@ use crate::entities::notification::{Notification, NotifyType};
 use crate::entities::room::RoomStatus;
 use crate::handlers::{interaction_end, interaction_move};
 
+/// The HTML document the server renders around the app
+pub fn shell(options: LeptosOptions) -> impl IntoView {
+    view! {
+        <!DOCTYPE html>
+        <html lang="en">
+            <head>
+                <meta charset="utf-8"/>
+                <meta name="viewport" content="width=device-width, initial-scale=1"/>
+                <AutoReload options=options.clone()/>
+                <HydrationScripts options/>
+                <MetaTags/>
+            </head>
+            <body>
+                <App/>
+            </body>
+        </html>
+    }
+}
+
 #[component]
 pub fn App() -> impl IntoView {
     provide_meta_context();
@@ -26,21 +48,15 @@ pub fn App() -> impl IntoView {
     let app_title = option_env!("APP_TITLE").unwrap_or("Chess");
 
     view! {
-        <Html lang="en"/>
-        <Stylesheet id="leptos" href="/style.css"/>
+        <Stylesheet id="leptos" href="/pkg/chess_web.css"/>
         <Title text=app_title/>
         <Link rel="shortcut icon" type_="image/ico" href="/favicon.ico"/>
         <Link rel="preconnect" href="https://fonts.googleapis.com"/>
         <Link rel="preconnect" href="https://fonts.gstatic.com" crossorigin=""/>
         <Link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@300;400;500;600;700&display=swap" rel="stylesheet"/>
         <Router>
-            <Routes>
-                <Route
-                    path=""
-                    view=move || {
-                        view! { <Home/> }
-                    }
-                />
+            <Routes fallback=|| "Page not found.">
+                <Route path=StaticSegment("") view=Home/>
             </Routes>
         </Router>
     }
@@ -50,12 +66,13 @@ pub fn App() -> impl IntoView {
 fn Home() -> impl IntoView {
     let fen = "8/8/8/8/8/8/8/8 w - - 0 1";
     let chess_board_entity = ChessBoardEntity::new(fen).unwrap();
-    let should_render = create_rw_signal(false);
-    let chess_board = create_rw_signal::<ChessBoardEntity>(chess_board_entity);
-    let chess_board_socket = create_rw_signal::<Option<web_sys::WebSocket>>(None);
-    let room_status = create_rw_signal::<Option<RoomStatus>>(None);
-    let stones_signals = create_rw_signal::<StonesSignals>(StonesSignals::new());
-    let notification = create_rw_signal(Notification::new("".to_string(), NotifyType::Success));
+    let should_render = RwSignal::new(false);
+    let chess_board = RwSignal::new(chess_board_entity);
+    // A `WebSocket` is a JS object, so its signal stays on the thread that made it
+    let chess_board_socket = RwSignal::new_local(None::<web_sys::WebSocket>);
+    let room_status = RwSignal::new(None::<RoomStatus>);
+    let stones_signals = RwSignal::new(StonesSignals::new());
+    let notification = RwSignal::new(Notification::new("".to_string(), NotifyType::Success));
 
     let chess_board_signals = ChessBoardSignalsBuilder::new()
         .chess_board(chess_board)

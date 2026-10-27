@@ -1,4 +1,4 @@
-use leptos::*;
+use leptos::prelude::*;
 
 use crate::{
     components::{
@@ -61,9 +61,9 @@ pub fn get_user_payload() -> Option<SessionPayload> {
 
 #[component]
 pub fn Overlay(chess_board_signals: ChessBoardSignals) -> impl IntoView {
-    let show_form = create_rw_signal(Form::None);
+    let show_form = RwSignal::new(Form::None);
 
-    create_effect(move |_| {
+    Effect::new(move |_| {
         use crate::utils::WindowExt;
 
         if let Some(_) = get_user_payload().map(|payload| payload.name) {

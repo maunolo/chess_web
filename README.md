@@ -27,31 +27,25 @@ services:
 
 ### Dependencies
 
-1. Rust stable 1.85 or newer (the crate uses the 2024 edition), the Docker image builds with 1.99
-2. `cargo install --locked cargo-leptos`
+1. Rust stable 1.88 or newer (required by Leptos 0.8), the Docker image builds with 1.99
+2. `cargo install --locked cargo-leptos` - version 0.3 or newer, it downloads the `wasm-bindgen-cli` matching `Cargo.lock` (don't install `wasm-bindgen-cli` globally, it would take precedence)
 3. `rustup target add wasm32-unknown-unknown` - add the ability to compile Rust to WebAssembly
-4. `yarn install` if you don't have yarn installed you can find how to do it [here](https://classic.yarnpkg.com/lang/en/docs/install)
+4. `npm install` - Node.js 20 or newer, for the CSS build (Tailwind + PostCSS)
 
 ### Running
 
-For running the actix server and compiling the wasm package run:
-
 ```sh
-JWT_SECRET=your_secret RUST_LOG=debug cargo leptos watch
+npm run dev
 ```
 
-`JWT_SECRET` is required, the server exits at startup without it. `APP_TITLE` sets the page title at compile time and defaults to `Chess`.
+This builds the CSS, then runs the PostCSS watcher and `cargo leptos watch` (the actix server and the wasm package, with live reload, CSS included). Open browser on [http://localhost:3100/](http://localhost:3100/)
+
+The server exits at startup without `JWT_SECRET`; `npm run dev` defaults it to `dev_secret` and `RUST_LOG` to `info`, override them in the environment. `APP_TITLE` sets the page title at compile time and defaults to `Chess`.
+
+For a release build, `npm run build`, then run `./target/release/chess_web` with `JWT_SECRET` set (`npm start` does both).
 
 ### Tests
 
 ```sh
 cargo test --features ssr
 ```
-
-and for compiling the css run (needs to run after the server is running):
-
-```sh
-yarn watch:styles
-```
-
-Open browser on [http://localhost:3100/](http://localhost:3100/)

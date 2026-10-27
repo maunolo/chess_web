@@ -1,4 +1,4 @@
-use leptos::*;
+use leptos::prelude::*;
 
 use crate::entities::chess_board::signals::ChessBoardSignals;
 
@@ -14,15 +14,7 @@ where
             .map(|rs| rs.options().validation())
             .unwrap_or(false);
 
-        if validation {
-            view! {
-                <input type="checkbox" name="validation" checked/>
-            }
-        } else {
-            view! {
-                <input type="checkbox" name="validation"/>
-            }
-        }
+        view! { <input type="checkbox" name="validation" checked=validation/> }
     };
 
     let sync_switch = move || {
@@ -31,15 +23,7 @@ where
             .get()
             .map(|rs| rs.options().sync())
             .unwrap_or(false);
-        if sync {
-            view! {
-                <input type="checkbox" name="sync" checked/>
-            }
-        } else {
-            view! {
-                <input type="checkbox" name="sync"/>
-            }
-        }
+        view! { <input type="checkbox" name="sync" checked=sync/> }
     };
     view! {
         <form

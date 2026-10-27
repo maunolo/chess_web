@@ -5,7 +5,8 @@ RUN apk update && \
     # protoc openssl-dev protobuf-dev gcc git g++ libc-dev make binaryen
 
 # Install Cargo Leptos
-RUN curl --proto '=https' --tlsv1.2 -LsSf https://github.com/leptos-rs/cargo-leptos/releases/download/v0.2.45/cargo-leptos-installer.sh | sh
+# (it downloads the wasm-bindgen-cli matching Cargo.lock during the build)
+RUN curl --proto '=https' --tlsv1.2 -LsSf https://github.com/leptos-rs/cargo-leptos/releases/download/v0.3.11/cargo-leptos-installer.sh | sh
 
 # Add the WASM target
 RUN rustup target add wasm32-unknown-unknown
@@ -17,11 +18,11 @@ COPY . .
 ARG NODE_ENV=production
 ARG APP_TITLE=Chess
 
+# Compile CSS, cargo-leptos then bundles it into the site
+RUN npm ci && npm run build:styles
+
 # Build the project
 RUN cargo leptos build --release -vv
-
-# Compile CSS
-RUN npm install && npm run build:styles
 
 # The server binary is statically linked against musl, it only needs the site files
 FROM alpine:3.24 AS runner

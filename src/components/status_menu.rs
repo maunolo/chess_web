@@ -1,4 +1,4 @@
-use leptos::*;
+use leptos::prelude::*;
 
 use crate::{
     components::{
@@ -13,8 +13,8 @@ pub fn StatusMenu(
     show_form: RwSignal<Form>,
     chess_board_signals: ChessBoardSignals,
 ) -> impl IntoView {
-    let show_status_menu = create_rw_signal(false);
-    let status_menu_timeout_id = create_rw_signal::<Option<i32>>(None);
+    let show_status_menu = RwSignal::new(false);
+    let status_menu_timeout_id = RwSignal::<Option<i32>>::new(None);
 
     let username = move |_| {
         show_form.set(Form::Username);
@@ -118,6 +118,7 @@ pub fn StatusMenu(
                     </button>
                 </li>
             }
+            .into_any()
         } else {
             view! {
                 <li>
@@ -128,6 +129,7 @@ pub fn StatusMenu(
                     </span>
                 </li>
             }
+            .into_any()
         }
     };
 

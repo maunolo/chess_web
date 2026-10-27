@@ -4,18 +4,14 @@
   "version": "0.0.1",
   "author": "Mauricio Lopes <mauricionlopes.dev@gmail.com>",
   "license": "MIT",
-  "main": "pkg/chess_web.js",
   "scripts": {
-    "dev": "cargo leptos watch",
-    "watch:styles": "postcss ./src/styles/input.css -o ./target/site/pkg/chess_web.css --watch",
-    "build:styles": "postcss ./src/styles/input.css -o ./target/site/pkg/chess_web.css",
-    "build": "wasm-pack build --package=chess_web --no-default-features --features=hydrate --release && postcss ./src/styles/input.css -o ./pkg/chess_web.css",
-    "start": "cargo leptos serve --release",
-    "clean": "cargo clean && rm -rf pkg"
+    "dev": "sh scripts/dev.sh",
+    "watch:styles": "postcss ./src/styles/input.css -o ./target/styles/chess_web.css --watch",
+    "build:styles": "postcss ./src/styles/input.css -o ./target/styles/chess_web.css",
+    "build": "npm run build:styles && cargo leptos build --release",
+    "start": "npm run build && ./target/release/chess_web",
+    "clean": "cargo clean"
   },
-  "files": [
-    "/pkg/chess_web.css"
-  ],
   "dependencies": {
     "cssnano": "^6.0.1",
     "postcss": "^8.4.24",

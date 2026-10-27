@@ -1,4 +1,4 @@
-use leptos::*;
+use leptos::prelude::*;
 
 use crate::{
     components::{
@@ -10,8 +10,8 @@ use crate::{
 
 #[component]
 pub fn Menu(show_form: RwSignal<Form>, chess_board_signals: ChessBoardSignals) -> impl IntoView {
-    let show_menu = create_rw_signal(false);
-    let menu_timeout_id = create_rw_signal::<Option<i32>>(None);
+    let show_menu = RwSignal::new(false);
+    let menu_timeout_id = RwSignal::<Option<i32>>::new(None);
 
     let menu_css = move || {
         if show_menu.get() {

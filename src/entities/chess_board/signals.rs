@@ -1,8 +1,5 @@
 use cfg_if::cfg_if;
-use leptos::{
-    create_rw_signal, RwSignal, SignalGet, SignalGetUntracked, SignalSet, SignalUpdate,
-    SignalWithUntracked,
-};
+use leptos::prelude::*;
 use std::collections::BTreeMap;
 use web_sys::WebSocket;
 
@@ -15,7 +12,7 @@ use crate::entities::{
 pub struct ChessBoardSignalsBuilder {
     chess_board: Option<RwSignal<ChessBoard>>,
     room_status: Option<RwSignal<Option<RoomStatus>>>,
-    chess_board_socket: Option<RwSignal<Option<WebSocket>>>,
+    chess_board_socket: Option<RwSignal<Option<WebSocket>, LocalStorage>>,
     stones_signals: Option<RwSignal<StonesSignals>>,
     should_render: Option<RwSignal<bool>>,
     notification: Option<RwSignal<Notification>>,
@@ -43,7 +40,10 @@ impl ChessBoardSignalsBuilder {
         self
     }
 
-    pub fn chess_board_socket(mut self, chess_board_socket: RwSignal<Option<WebSocket>>) -> Self {
+    pub fn chess_board_socket(
+        mut self,
+        chess_board_socket: RwSignal<Option<WebSocket>, LocalStorage>,
+    ) -> Self {
         self.chess_board_socket = Some(chess_board_socket);
         self
     }
@@ -130,7 +130,7 @@ impl StonesSignals {
     pub fn add_board_stone(&mut self, position: Position, stone: Stone) {
         let stone_signal = StoneSignal::new(Some(position.clone()), stone);
         let key = stone_signal.unique_key();
-        let stone_signal = create_rw_signal(stone_signal);
+        let stone_signal = RwSignal::new(stone_signal);
 
         self.board_stones.insert(key, stone_signal);
     }
@@ -145,7 +145,7 @@ impl StonesSignals {
 
     pub fn add_deleted_stone(&mut self, stone: Stone) {
         let stone_signal = StoneSignal::new_deleted(stone);
-        let stone_signal = create_rw_signal(stone_signal);
+        let stone_signal = RwSignal::new(stone_signal);
         self.deleted_stones
             .insert(self.deleted_stones_idx, stone_signal);
         self.deleted_stones_idx += 1;
@@ -251,7 +251,7 @@ impl StoneSignal {
 pub struct ChessBoardSignals {
     chess_board: RwSignal<ChessBoard>,
     room_status: RwSignal<Option<RoomStatus>>,
-    chess_board_socket: RwSignal<Option<WebSocket>>,
+    chess_board_socket: RwSignal<Option<WebSocket>, LocalStorage>,
     stones_signals: RwSignal<StonesSignals>,
     should_render: RwSignal<bool>,
     notification: RwSignal<Notification>,
@@ -259,7 +259,7 @@ pub struct ChessBoardSignals {
 
 #[allow(dead_code)]
 impl ChessBoardSignals {
-    pub fn socket(&self) -> RwSignal<Option<WebSocket>> {
+    pub fn socket(&self) -> RwSignal<Option<WebSocket>, LocalStorage> {
         self.chess_board_socket
     }
 

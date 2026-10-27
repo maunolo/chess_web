@@ -1,6 +1,6 @@
 use std::collections::BTreeMap;
 
-use leptos::*;
+use leptos::prelude::*;
 
 use crate::entities::chess_board::signals::{ChessBoardSignals, StoneSignal};
 use crate::entities::chess_board::turns::Turn;
@@ -29,8 +29,8 @@ pub fn Trash<W, T>(
     trash: T,
 ) -> impl IntoView
 where
-    W: Fn() -> bool + 'static,
-    T: Fn() -> BTreeMap<usize, RwSignal<StoneSignal>> + Copy + 'static,
+    W: Fn() -> bool + Send + 'static,
+    T: Fn() -> BTreeMap<usize, RwSignal<StoneSignal>> + Copy + Send + 'static,
 {
     let position_css = move || {
         if (matches!(id, TrashType::Dark) && white_view())

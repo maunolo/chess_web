@@ -23,17 +23,12 @@ use crate::entities::{
     stone::{Color, Stone},
 };
 
-use super::websockets::session::WsChessSession;
+use super::websockets::session::{Connection, Outbound};
 
 const MAIN_ROOM: &str = "main";
 const DEFAULT_FEN: &str = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
 /// Gives clients time to animate a promoting pawn before its board is replaced
 const PROMOTION_SYNC_DELAY: Duration = Duration::from_millis(200);
-
-/// Chat server sends this messages to session
-#[derive(Message)]
-#[rtype(result = "()")]
-pub struct Message(pub String);
 
 /// Message for chat server communications
 
@@ -43,7 +38,7 @@ pub struct Message(pub String);
 pub struct Connect {
     pub id: String,
     pub name: String,
-    pub addr: Addr<WsChessSession>,
+    pub connection: Connection,
 }
 
 /// Session is disconnected
@@ -52,13 +47,8 @@ pub struct Connect {
 pub struct Disconnect {
     pub id: String,
     /// Socket that closed, ignored when the user already reconnected on another one
-    pub addr: Addr<WsChessSession>,
+    pub connection_id: u64,
 }
-
-/// Tells a session it was replaced by a newer socket of the same user
-#[derive(Message)]
-#[rtype(result = "()")]
-pub struct Kick;
 
 /// Send message to specific room
 #[derive(Message)]
@@ -66,7 +56,7 @@ pub struct Kick;
 pub struct ClientMessage {
     /// Id of the client session
     pub id: String,
-    /// Peer message
+    /// Peer message, prefixed with the user's name when relayed
     pub msg: String,
 }
 
@@ -143,17 +133,17 @@ pub struct ChessServer {
 pub struct User {
     pub id: String,
     pub name: String,
-    pub addr: Addr<WsChessSession>,
+    pub connection: Connection,
     pub current_room: String,
     pub disconnected_at: Option<Instant>,
 }
 
 impl User {
-    pub fn new(id: String, name: String, addr: Addr<WsChessSession>, current_room: String) -> Self {
+    pub fn new(id: String, name: String, connection: Connection, current_room: String) -> Self {
         Self {
             id,
             name,
-            addr,
+            connection,
             current_room,
             disconnected_at: None,
         }
@@ -401,7 +391,7 @@ impl ChessServer {
 
     fn send_message_to_session(&self, id: &str, message: &str) {
         if let Some(user) = self.sessions.get(id) {
-            user.addr.do_send(Message(message.to_owned()));
+            user.connection.send(Outbound::Text(message.to_owned()));
         }
     }
 
@@ -578,12 +568,16 @@ impl Handler<Connect> for ChessServer {
     fn handle(&mut self, msg: Connect, _: &mut Context<Self>) {
         log::debug!("Someone joined");
 
-        let Connect { addr, id, name } = msg;
+        let Connect {
+            connection,
+            id,
+            name,
+        } = msg;
 
         if let Some(user) = self.sessions.get_mut(&id) {
             // Same user on a new socket (page reload or another tab)
-            user.addr.do_send(Kick);
-            user.addr = addr;
+            user.connection.send(Outbound::Kick);
+            user.connection = connection;
             user.disconnected_at = None;
 
             let room_name = user.current_room.clone();
@@ -596,7 +590,7 @@ impl Handler<Connect> for ChessServer {
             );
             self.sync_session(&id, &room_name);
         } else {
-            let user = User::new(id.clone(), name, addr, MAIN_ROOM.to_string());
+            let user = User::new(id.clone(), name, connection, MAIN_ROOM.to_string());
             let user_string = user.to_string();
             self.sessions.insert(id.clone(), user);
 
@@ -625,7 +619,7 @@ impl Handler<Disconnect> for ChessServer {
             return;
         };
 
-        if user.addr != msg.addr {
+        if user.connection.id != msg.connection_id {
             return;
         }
 
@@ -642,11 +636,14 @@ impl Handler<ClientMessage> for ChessServer {
     type Result = ();
 
     fn handle(&mut self, msg: ClientMessage, _: &mut Context<Self>) {
-        let Some(room_name) = self.room_of(&msg.id) else {
+        let Some(user) = self.sessions.get(&msg.id) else {
+            log::error!("No user found for id {}", msg.id);
             return;
         };
+        let room_name = user.current_room.clone();
+        let message = format!("{}: {}", user.name, msg.msg);
 
-        self.send_message(&room_name, msg.msg.as_str(), Some(&msg.id));
+        self.send_message(&room_name, &message, Some(&msg.id));
     }
 }
 
@@ -780,9 +777,7 @@ impl Handler<UserSync> for ChessServer {
             return;
         };
 
-        user.name = msg.name.clone();
-        // keep the socket's copy of the name, used to prefix chat lines
-        user.addr.do_send(msg);
+        user.name = msg.name;
 
         let room_name = user.current_room.clone();
         let message = format!("/add_user {}", user.to_string());

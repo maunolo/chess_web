@@ -1,27 +1,18 @@
-mod app;
-mod components;
-mod entities;
-mod handlers;
-mod utils;
-
 use cfg_if::cfg_if;
 
 cfg_if! {
     if #[cfg(feature = "ssr")] {
-        mod server;
-
         use actix_files::Files;
-        use leptos::*;
-        use crate::app::*;
+        use leptos::config::get_configuration;
+        use chess_web::app::{shell, App as ChessApp};
         use leptos_actix::{generate_route_list, LeptosRoutes};
         use actix_web::{
             cookie::{Cookie, SameSite},
-            middleware, App, HttpServer, get, post, error, web, Error, HttpRequest, HttpResponse, Responder
+            middleware, App, HttpServer, post, error, web, Error, HttpRequest, HttpResponse
         };
-        use actix_web_actors::ws;
-        use server::{
+        use chess_web::server::{
             middlewares::cache_control::CacheControlInterceptor,
-            websockets::session::WsChessSession,
+            websockets::session,
             chess_server::{self, ChessServer},
         };
         use actix::Addr;
@@ -30,12 +21,11 @@ cfg_if! {
         use std::env;
         use std::net::SocketAddr;
         use std::sync::{atomic::AtomicUsize, Arc};
-        use std::path::Path;
         use std::time::{SystemTime, UNIX_EPOCH};
 
         use serde::{Deserialize, Serialize};
 
-        use utils::{sanitize::sanitize_username, SessionPayload};
+        use chess_web::utils::{self, sanitize::sanitize_username, SessionPayload};
 
         #[derive(Serialize, Deserialize)]
         struct PostSessionPayload {
@@ -87,13 +77,6 @@ cfg_if! {
             Ok(HttpResponse::Ok().cookie(session_cookie).finish()) // <- send response
         }
 
-        #[get("/style.css")]
-        async fn css() -> impl Responder {
-            let site_path = env::var("LEPTOS_SITE_ROOT").unwrap_or("./target/site".to_string());
-            let css_path = Path::new(&site_path).join("pkg/chess_web.css");
-            actix_files::NamedFile::open_async(css_path).await
-        }
-
         /// Entry point for our websocket route
         async fn chess_route(
             req: HttpRequest,
@@ -111,11 +94,10 @@ cfg_if! {
             let username = sanitize_username(&token.claims().name).unwrap_or("Anonymous".to_string());
             let id = token.claims().sub.clone();
 
-            ws::start(
-                WsChessSession::new(srv.get_ref().clone(), id, username),
-                &req,
-                stream,
-            )
+            let (response, ws_session, msg_stream) = actix_ws::handle(&req, stream)?;
+            actix_web::rt::spawn(session::run(srv.get_ref().clone(), id, username, ws_session, msg_stream));
+
+            Ok(response)
         }
 
         #[actix_web::main]
@@ -128,13 +110,13 @@ cfg_if! {
             }
 
             // Setting this to None means we'll be using cargo-leptos and its env vars.
-            let conf = get_configuration(None).await.unwrap();
+            let conf = get_configuration(None).expect("Failed to read the Leptos configuration");
 
             let port = env::var("PORT").unwrap_or("3100".to_string()).parse::<u16>().unwrap_or(3100);
             let addr = SocketAddr::from(([0, 0, 0, 0], port));
 
             // Generate the list of routes in your Leptos App
-            let routes = generate_route_list(|| view! { <App/> });
+            let routes = generate_route_list(ChessApp);
 
             // set up applications state
             // keep a count of the number of visitors
@@ -147,18 +129,20 @@ cfg_if! {
 
             HttpServer::new(move || {
                 let leptos_options = &conf.leptos_options;
-                let site_root = &leptos_options.site_root;
-                let routes = &routes;
+                let site_root = leptos_options.site_root.to_string();
                 App::new()
                     .app_data(web::Data::from(app_state.clone()))
                     .app_data(web::Data::new(server.clone()))
+                    .app_data(web::Data::new(leptos_options.to_owned()))
                     .wrap(middleware::Logger::default())
                     .wrap(CacheControlInterceptor)
                     // websocket route
                     .route("/ws", web::get().to(chess_route))
                     .service(create_session)
-                    .service(css)
-                    .leptos_routes(leptos_options.to_owned(), routes.to_owned(), || view! { <App/> })
+                    .leptos_routes(routes.to_owned(), {
+                        let leptos_options = leptos_options.to_owned();
+                        move || shell(leptos_options.clone())
+                    })
                     .service(Files::new("/", site_root))
                     .wrap(middleware::Compress::default())
             })
@@ -169,7 +153,6 @@ cfg_if! {
         }
     }
     else {
-        mod client;
         pub fn main() {}
     }
 }

@@ -1,4 +1,4 @@
-use leptos::*;
+use leptos::prelude::*;
 
 use crate::entities::{chess_board::signals::ChessBoardSignals, notification::NotifyType};
 
@@ -39,9 +39,9 @@ pub fn Notifications(chess_board_signals: ChessBoardSignals) -> impl IntoView {
         .notification()
         .with(|n| n.notify_type.clone())
     {
-        NotifyType::Success => success_icon(),
-        NotifyType::Warning => warning_icon(),
-        NotifyType::Error => error_icon(),
+        NotifyType::Success => success_icon().into_any(),
+        NotifyType::Warning => warning_icon().into_any(),
+        NotifyType::Error => error_icon().into_any(),
     };
 
     let notify_class = move || match chess_board_signals.notification().with(|n| n.is_active) {

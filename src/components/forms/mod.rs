@@ -4,7 +4,7 @@ pub mod username;
 
 use crate::entities::chess_board::signals::ChessBoardSignals;
 use crate::utils::WindowExt;
-use leptos::*;
+use leptos::prelude::*;
 
 use self::{join::Join, options::Options, username::Username};
 
@@ -117,6 +117,7 @@ pub fn Forms(chess_board_signals: ChessBoardSignals, show_form: RwSignal<Form>) 
                     <Join submit=join_submit/>
                 </div>
             }
+            .into_any()
         }
         Form::Username => {
             view! {
@@ -124,6 +125,7 @@ pub fn Forms(chess_board_signals: ChessBoardSignals, show_form: RwSignal<Form>) 
                     <Username submit=username_submit/>
                 </div>
             }
+            .into_any()
         }
         Form::Options => {
             view! {
@@ -131,12 +133,9 @@ pub fn Forms(chess_board_signals: ChessBoardSignals, show_form: RwSignal<Form>) 
                     <Options chess_board_signals=chess_board_signals submit=options_submit/>
                 </div>
             }
+            .into_any()
         }
-        _ => {
-            view! {
-                <div class="hidden"></div>
-            }
-        }
+        _ => view! { <div class="hidden"></div> }.into_any(),
     };
 
     view

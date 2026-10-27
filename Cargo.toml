@@ -8,10 +8,10 @@ crate-type = ["cdylib", "rlib"]
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 [dependencies]
-leptos = { version = "0.6.9" }
-leptos_actix = { version = "0.6.9", optional = true }
-leptos_meta = { version = "0.6.9" }
-leptos_router = { version = "0.6.9" }
+leptos = { version = "0.8" }
+leptos_actix = { version = "0.8", optional = true }
+leptos_meta = { version = "0.8" }
+leptos_router = { version = "0.8" }
 cfg-if = { version = "1.0" }
 log = { version = "0.4.19" }
 jwt = { version = "0.16.0" }
@@ -21,9 +21,9 @@ serde = { version = "1.0", features = ["derive"] }
 serde_json = { version = "1" }
 
 # dependecies for client (enable when csr or hydrate set)
-# Must be the version bundled in cargo-leptos (0.2.45 bundles 0.2.104), its
-# wasm-bindgen step rejects any other schema version
-wasm-bindgen = { version = "=0.2.104", optional = true }
+# cargo-leptos 0.3 installs the wasm-bindgen-cli matching this crate's locked
+# version, unless a wasm-bindgen-cli is installed globally
+wasm-bindgen = { version = "0.2", optional = true }
 console_log = { version = "1", optional = true }
 console_error_panic_hook = { version = "0.1", optional = true }
 web-sys = { version = "0.3.60", features = [
@@ -57,14 +57,14 @@ actix-web = { version = "4", features = ["macros"], optional = true }
 futures = { version = "0.3", optional = true }
 actix-service = { version = "2.0.2", optional = true }
 actix = { version = "0.13.0", optional = true }
-actix-web-actors = { version = "4.2.0", optional = true }
+# Same major as leptos_actix uses, so only one copy is built
+actix-ws = { version = "0.3", optional = true }
+tokio = { version = "1", features = ["macros", "sync"], optional = true }
 uuid = { version = "1.4.0", features = ["v4"], optional = true }
 
 [features]
 hydrate = [
     "leptos/hydrate",
-    "leptos_meta/hydrate",
-    "leptos_router/hydrate",
     "dep:wasm-bindgen",
     "dep:console_log",
     "dep:console_error_panic_hook",
@@ -80,7 +80,8 @@ ssr = [
     "dep:futures",
     "dep:actix-service",
     "dep:actix",
-    "dep:actix-web-actors",
+    "dep:actix-ws",
+    "dep:tokio",
     "dep:env_logger",
     "dep:uuid",
 ]
@@ -95,7 +96,8 @@ denylist = [
     "leptos_actix",
     "wasm-bindgen",
     "actix",
-    "actix-web-actors",
+    "actix-ws",
+    "tokio",
 ]
 skip_feature_sets = [["ssr", "hydrate"]]
 
@@ -112,8 +114,11 @@ site-root = "target/site"
 # The site-root relative folder where all compiled output (JS, WASM and CSS) is written
 # Defaults to pkg
 site-pkg-dir = "pkg"
-# # [Optional] The source CSS file. If it ends with .sass or .scss then it will be compiled by dart-sass into CSS. The CSS is optimized by Lightning CSS before being written to <site-root>/<site-pkg>/app.css
-# style-file = "pkg/chess_web.css"
+# The CSS PostCSS builds from src/styles (`npm run build:styles`). cargo-leptos optimizes it
+# with Lightning CSS into <site-root>/<site-pkg>/chess_web.css, and live reloads it on changes
+style-file = "target/styles/chess_web.css"
+# target/ is gitignored, which the watcher skips unless told otherwise
+watch-additional-files = ["target/styles"]
 # [Optional] Files in the asset-dir will be copied to the site-root directory
 assets-dir = "public"
 # The IP and port (ex: 127.0.0.1:3000) where the server serves the content. Use it in your server setup.

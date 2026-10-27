@@ -68,6 +68,8 @@ pub enum ServerMsg {
         room: String,
         fen: String,
         trash: String,
+        /// The moves that led to this position, in algebraic notation
+        moves: Vec<String>,
     },
     SyncUsers {
         room: String,
@@ -98,11 +100,14 @@ pub enum ServerMsg {
         to: String,
         fen: String,
         trash: String,
+        /// The move in algebraic notation, none on a side effect
+        san: Option<String>,
     },
     /// The board after the user's own move, which isn't sent back to them
     Position {
         fen: String,
         trash: String,
+        san: Option<String>,
     },
     Notify {
         level: NotifyType,

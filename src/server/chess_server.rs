@@ -21,7 +21,7 @@ use crate::entities::{
         ClientMsg, ClockInfo, GameInfo, GameResult, Presence, SeatChoice, ServerMsg, Side,
         TimeControl, UserInfo, MAIN_ROOM,
     },
-    stone::{Color, Stone},
+    stone::{Color, Kind, Stone},
 };
 use crate::utils::sanitize::{sanitize_room_name, sanitize_username};
 
@@ -291,6 +291,76 @@ impl Game {
     }
 }
 
+/// Standard algebraic notation, without disambiguation (`Nbd2` is written
+/// `Nd2`). On a free board a stone placed from the trash is `+Ne4` and one
+/// removed to it `-Ne4`; check and mate marks need the rules enforced.
+fn san(
+    stone: &Stone,
+    from: Option<&Position>,
+    to: Option<&Position>,
+    captured: bool,
+    board_move: &BoardMove,
+    after: &ChessBoard,
+) -> String {
+    let letter = match stone.kind() {
+        Kind::King => "K",
+        Kind::Queen => "Q",
+        Kind::Rook => "R",
+        Kind::Bishop => "B",
+        Kind::Knight => "N",
+        Kind::Pawn => "",
+    };
+
+    let mut san = match (from, to) {
+        (None, Some(to)) => format!("+{}{}", letter, to.to_string()),
+        (Some(from), None) => format!("-{}{}", letter, from.to_string()),
+        (None, None) => String::new(),
+        (Some(from), Some(to)) => match board_move {
+            BoardMove::Castle(CastlePosition::KingSide) => "O-O".to_string(),
+            BoardMove::Castle(CastlePosition::QueenSide) => "O-O-O".to_string(),
+            _ => {
+                let is_pawn = stone.kind() == Kind::Pawn;
+                let captured = captured
+                    || matches!(board_move, BoardMove::Passant(_))
+                    || (is_pawn && from.x != to.x);
+                let mut san = String::new();
+                if is_pawn {
+                    if captured {
+                        san.push_str(&from.to_string()[..1]);
+                        san.push('x');
+                    }
+                } else {
+                    san.push_str(letter);
+                    if captured {
+                        san.push('x');
+                    }
+                }
+                san.push_str(&to.to_string());
+                if let BoardMove::Promotion(kind) = board_move {
+                    let promoted = match kind {
+                        PromotionKind::Queen => "=Q",
+                        PromotionKind::Rook => "=R",
+                        PromotionKind::Bishop => "=B",
+                        PromotionKind::Knight => "=N",
+                    };
+                    san.push_str(promoted);
+                }
+                san
+            }
+        },
+    };
+
+    if after.validation {
+        if after.is_checkmate() {
+            san.push('#');
+        } else if after.is_in_check() {
+            san.push('+');
+        }
+    }
+
+    san
+}
+
 /// A move played on a room's board, and what to broadcast for it
 #[derive(Debug)]
 struct PlayedMove {
@@ -345,6 +415,8 @@ pub struct Room {
     history: Vec<(String, String)>,
     /// Index in `history` of the position on the board, moved by undo and redo
     history_index: usize,
+    /// Moves in algebraic notation, `moves[i]` led to `history[i + 1]`
+    moves: Vec<String>,
     /// Ids of the users in the room
     sessions: HashSet<String>,
     empty_at: Option<Instant>,
@@ -382,6 +454,7 @@ impl Room {
             chess_board,
             history: vec![(fen, trash)],
             history_index: 0,
+            moves: Vec::new(),
             sessions: HashSet::new(),
             empty_at: Some(Instant::now()),
             game: None,
@@ -398,6 +471,7 @@ impl Room {
             chess_board,
             history: vec![(DEFAULT_FEN.to_string(), String::new())],
             history_index: 0,
+            moves: Vec::new(),
             sessions: HashSet::new(),
             empty_at: Some(now),
             game: Some(Game::new(time_control, now)),
@@ -409,6 +483,7 @@ impl Room {
             room: self.name.clone(),
             fen: self.chess_board.fen.clone(),
             trash: self.chess_board.trash_string(),
+            moves: self.moves[..self.history_index].to_vec(),
         }
     }
 
@@ -488,9 +563,23 @@ impl Room {
             return Ok(None);
         }
 
-        let board_move =
-            self.chess_board
-                .move_piece_promoting(piece, from_position, to_position, promotion)?;
+        let captured = to_position
+            .as_ref()
+            .is_some_and(|to| self.chess_board.stone_at(to.x, to.y).is_some());
+        let board_move = self.chess_board.move_piece_promoting(
+            piece,
+            from_position.clone(),
+            to_position.clone(),
+            promotion,
+        )?;
+        let san = san(
+            &stone,
+            from_position.as_ref(),
+            to_position.as_ref(),
+            captured,
+            &board_move,
+            &self.chess_board,
+        );
 
         let (rook, opponent_pawn, back_rank) = match stone.color() {
             Color::Light => ("lr", "dp", 7),
@@ -503,6 +592,7 @@ impl Room {
             to,
             fen: fen.clone(),
             trash: trash.clone(),
+            san: None,
         };
         let mut follow_ups = Vec::new();
         let mut resync = false;
@@ -530,14 +620,27 @@ impl Room {
             BoardMove::Normal => {}
         }
 
-        let message = move_message(piece, from.to_string(), to.to_string());
+        let message = ServerMsg::Move {
+            piece: piece.to_string(),
+            from: from.to_string(),
+            to: to.to_string(),
+            fen: fen.clone(),
+            trash: trash.clone(),
+            san: Some(san.clone()),
+        };
         self.history.truncate(self.history_index + 1);
+        self.moves.truncate(self.history_index);
         self.history.push((fen.clone(), trash.clone()));
+        self.moves.push(san.clone());
         self.history_index += 1;
 
         Ok(Some(PlayedMove {
             message,
-            position: ServerMsg::Position { fen, trash },
+            position: ServerMsg::Position {
+                fen,
+                trash,
+                san: Some(san),
+            },
             follow_ups,
             resync,
             checkmate: self.chess_board.is_checkmate(),
@@ -721,6 +824,7 @@ impl Room {
         }
 
         self.history.truncate(1);
+        self.moves.clear();
         self.load_history(0)
             .expect("a game's initial position is valid");
     }
@@ -1431,6 +1535,7 @@ mod tests {
         assert_eq!(played.follow_ups.len(), 1);
         assert_eq!(move_parts(&played.follow_ups[0]), ("dp", "d5", DELETED, "b"));
         assert_eq!(move_parts(&played.message), ("lp", "e5", "d6", "b"));
+        assert_eq!(room.moves, vec!["exd6"]);
         let ServerMsg::Position { fen, .. } = &played.position else {
             panic!("not a position");
         };
@@ -1440,6 +1545,7 @@ mod tests {
         let played = play(&mut room, "dk", "e8", "c8").unwrap();
         assert_eq!(played.follow_ups.len(), 1);
         assert_eq!(move_parts(&played.follow_ups[0]), ("dr", "a8", "d8", "w"));
+        assert_eq!(room.moves, vec!["exd6", "O-O-O"]);
 
         let mut room = validated_room("8/4P3/8/8/8/8/8/k6K w - - 0 1");
         let played = room
@@ -1448,10 +1554,26 @@ mod tests {
             .unwrap();
         assert!(played.resync);
         assert!(room.chess_board.fen.starts_with("4N3/"));
+        assert_eq!(room.moves, vec!["e8=N"]);
 
         let mut room = validated_room("7k/8/6K1/8/8/8/8/5Q2 w - - 0 1");
         let played = play(&mut room, "lq", "f1", "f8").unwrap();
         assert!(played.checkmate);
+        assert_eq!(room.moves, vec!["Qf8#"]);
+
+        // the move list follows undo, redo and a free board's trash
+        let mut room = Room::new("test", None, None).unwrap();
+        play(&mut room, "ln", "g1", "f3").unwrap();
+        play(&mut room, "dp", "e7", "deleted").unwrap();
+        play(&mut room, "dp", "deleted", "e5").unwrap();
+        assert_eq!(room.moves, vec!["Nf3", "-e7", "+e5"]);
+        room.undo().unwrap();
+        let ServerMsg::SyncBoard { moves, .. } = room.sync_board_message() else {
+            panic!("not a sync");
+        };
+        assert_eq!(moves, vec!["Nf3", "-e7"]);
+        play(&mut room, "dn", "b8", "c6").unwrap();
+        assert_eq!(room.moves, vec!["Nf3", "-e7", "Nc6"]);
     }
 
     fn time_control(initial_secs: u32, increment_secs: u32) -> Option<TimeControl> {

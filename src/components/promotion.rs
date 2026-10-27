@@ -32,9 +32,9 @@ pub fn PromotionPicker(chess_board_signals: ChessBoardSignals) -> impl IntoView 
         chess_board_signals.pending_promotion().get().map(|pending| {
             let color = if pending.piece.starts_with('l') { 'l' } else { 'd' };
             view! {
-                <div class="z-40 flex absolute w-full h-full justify-center items-center bg-neutral-900/30">
-                    <div class="flex flex-col items-center gap-2 bg-white rounded p-3">
-                        <span>"Promote to"</span>
+                <div class="backdrop">
+                    <div class="dialog w-auto items-center">
+                        <span class="dialog-title">"Promote to"</span>
                         <div class="flex gap-2">
                             {CHOICES
                                 .map(|(promotion, letter, name)| {

@@ -50,7 +50,7 @@ pub fn Notifications(chess_board_signals: ChessBoardSignals) -> impl IntoView {
             };
 
             view! {
-                <div class="notify notify--is-active">
+                <div class="notify notify--is-active" role="status">
                     <div class=icon_class>{icon}</div>
                     <p class="notify-text">{notification.message}</p>
                     <button class="notify-close" on:click=close>

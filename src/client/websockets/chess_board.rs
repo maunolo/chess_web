@@ -44,12 +44,16 @@ fn handle_message(chess_board_signals: ChessBoardSignals, msg: ServerMsg) {
             to,
             fen,
             trash,
+            san,
         } => {
             let last_move = (
                 Position::parse_square(&from).ok().flatten(),
                 Position::parse_square(&to).ok().flatten(),
             );
             chess_board_signals.last_move().set(Some(last_move));
+            if let Some(san) = san {
+                chess_board_signals.moves().update(|moves| moves.push(san));
+            }
 
             let update_board = {
                 let (from, to) = (from.clone(), to.clone());
@@ -71,8 +75,18 @@ fn handle_message(chess_board_signals: ChessBoardSignals, msg: ServerMsg) {
                 update_board();
             }
         }
-        ServerMsg::Position { fen, trash } => chess_board_signals.sync_position(&fen, &trash),
-        ServerMsg::SyncBoard { room, fen, trash } => {
+        ServerMsg::Position { fen, trash, san } => {
+            if let Some(san) = san {
+                chess_board_signals.moves().update(|moves| moves.push(san));
+            }
+            chess_board_signals.sync_position(&fen, &trash);
+        }
+        ServerMsg::SyncBoard {
+            room,
+            fen,
+            trash,
+            moves,
+        } => {
             let white_view = chess_board_signals
                 .chess_board()
                 .with_untracked(|cb| cb.white_view());
@@ -90,6 +104,7 @@ fn handle_message(chess_board_signals: ChessBoardSignals, msg: ServerMsg) {
             chess_board_signals.should_render().set(false);
             chess_board_signals.selected().set(None);
             chess_board_signals.last_move().set(None);
+            chess_board_signals.moves().set(moves);
 
             chess_board_signals
                 .stones_signals()

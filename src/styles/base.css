@@ -1,7 +1,58 @@
 @layer base {
     body {
-        @apply p-0 m-0 bg-neutral-600 box-border;
+        @apply p-0 m-0 bg-ink-900 text-ink-100 box-border antialiased font-sans;
+    }
 
-        font-family: 'Fira Code', sans-serif;
+    button {
+        @apply cursor-pointer;
+    }
+
+    /* The app's own controls, in one place */
+    .btn {
+        @apply h-11 px-4 rounded-lg text-sm font-medium inline-flex items-center justify-center gap-2 transition-colors;
+    }
+
+    .btn-primary {
+        @apply bg-accent text-ink-900 hover:bg-accent-hover;
+    }
+
+    .btn-secondary {
+        @apply bg-ink-700 text-ink-100 hover:bg-ink-600;
+    }
+
+    .btn-ghost {
+        @apply bg-transparent text-ink-300 hover:bg-ink-700 hover:text-ink-100;
+    }
+
+    .btn-danger {
+        @apply bg-ink-700 text-coral hover:bg-ink-600;
+    }
+
+    .btn-outline {
+        @apply bg-transparent text-ink-100 ring-1 ring-ink-700 hover:bg-ink-800;
+    }
+
+    .input {
+        @apply h-11 px-3 rounded-lg bg-ink-900 text-ink-100 ring-1 ring-ink-600 placeholder:text-ink-400 focus:outline-none focus:ring-2 focus:ring-accent;
+    }
+
+    .card {
+        @apply bg-ink-800 rounded-2xl;
+    }
+
+    .dialog {
+        @apply card p-5 w-80 max-w-[calc(100vw-2rem)] flex flex-col gap-4 shadow-2xl;
+    }
+
+    .dialog-title {
+        @apply text-lg font-semibold text-center;
+    }
+
+    .backdrop {
+        @apply z-40 flex fixed inset-0 justify-center items-center bg-ink-950/70;
+    }
+
+    .eyebrow {
+        @apply text-[11px] font-semibold uppercase tracking-widest text-ink-300;
     }
 }

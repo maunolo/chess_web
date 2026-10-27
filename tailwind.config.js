@@ -5,6 +5,29 @@ module.exports = {
   },
   theme: {
     extend: {
+        // The Slate palette: a near-black ground, two raised surfaces, and one accent
+        colors: {
+            ink: {
+                950: '#0f1114',
+                900: '#15181c',
+                800: '#1f242a',
+                700: '#2a3139',
+                600: '#3a434d',
+                400: '#5c6672',
+                300: '#9aa3ad',
+                100: '#e8ebef',
+            },
+            accent: {
+                DEFAULT: '#f2b84b',
+                hover: '#f6c86f',
+            },
+            coral: '#f0857d',
+            mint: '#5ab07a',
+        },
+        fontFamily: {
+            sans: ['Inter', 'system-ui', 'sans-serif'],
+            mono: ['"Fira Code"', 'ui-monospace', 'monospace'],
+        },
         backgroundPosition: {
             'piece': 'center bottom .1rem',
         },
@@ -27,49 +50,9 @@ module.exports = {
             'notify-show': 'notify-show 5s ease-in-out',
             'pulse-brightness': 'pulse-brightness 2s ease-in-out infinite',
         },
-        maxWidth: {
-            '32': '8rem',
-            '37': '9.25rem',
-            '40': '10rem',
-            '41': '10.25rem',
-            '44': '11rem',
-            '48': '12rem',
-        },
-        minHeight: {
-            '15': '3.75rem',
-        },
-        maxHeight: {
-            '90': '22.5rem',
-        },
         spacing: {
-            '2.75': '0.688rem',
-            '7.5': '1.875rem',
-            '12.5': '3.125rem',
             '15': '3.75rem',
-            '23': '5.75rem',
-            '25': '6.25rem',
-            '30': '7.5rem',
-            '31': '7.75rem',
-            '37': '9.25rem',
-            '41': '10.25rem',
-            '45': '11.25rem',
-            '49': '12.25rem',
-            '51': '12.75rem',
-            '51.25': '12.8125rem',
-            '54.5': '13.625rem',
-            '58': '14.5rem',
-            '58.5': '14.625rem',
-            '62': '15.5rem',
-            '62.5': '15.625rem',
-            '68': '17rem',
-            '69': '17.25rem',
-            '73': '18.25rem',
-            '74': '18.5rem',
-            '88': '22rem',
         },
-        padding: {
-            '2px': '2px',
-        }
     },
   },
   plugins: [],
